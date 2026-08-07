@@ -29,7 +29,7 @@ network-stream reconnect and fault-recovery behavior.
 | Runtime contracts | Frame, source, detector, and detection types | Implemented |
 | GStreamer source | File replay and IMX219 CSI capture | In progress |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
-| YOLOX detector | Preprocessing, decoding, and NMS | In progress |
+| YOLOX detector | Preprocessing implemented; decoding and NMS in progress | In progress |
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
@@ -42,10 +42,11 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure
 ./build/edge_vision_contract_check
+./build/edge_vision_preprocess_check
 ```
 
-The contract target requires only a C++17 compiler. Jetson runtime targets are
-enabled as their GStreamer and TensorRT implementations are added.
+The default targets require a C++17 compiler and OpenCV. TensorRT targets are
+enabled explicitly for Jetson builds.
 
 Configure the TensorRT runtime on Jetson and execute an engine probe with:
 
@@ -63,6 +64,7 @@ cmake --build build -j"$(nproc)"
 - JetPack 6.2.1 / Ubuntu 22.04
 - CUDA 12.6 / TensorRT 10.3
 - C++17 / CMake 3.22+
+- OpenCV 4.5+
 - GStreamer 1.20+
 - IMX219 CSI camera
 

@@ -22,9 +22,52 @@ add_executable(
 )
 target_link_libraries(edge_vision_contract_check PRIVATE edge_vision_core)
 
+find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+
+add_library(
+    edge_vision_yolox
+    src/yolox_preprocessor.cpp
+)
+target_include_directories(
+    edge_vision_yolox
+    PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(
+    edge_vision_yolox
+    PUBLIC
+        edge_vision_core
+    PRIVATE
+        ${OpenCV_LIBS}
+)
+
+add_executable(
+    edge_vision_preprocess_check
+    apps/preprocess_check.cpp
+)
+target_link_libraries(
+    edge_vision_preprocess_check
+    PRIVATE
+        edge_vision_yolox
+)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(
         edge_vision_contract_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_yolox
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_preprocess_check
         PRIVATE
             -Wall
             -Wextra
@@ -102,3 +145,4 @@ endif()
 
 enable_testing()
 add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
+add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
