@@ -9,5 +9,6 @@
 /outputs/
 /reports/*.json
 /reports/*.csv
+/reports/*.txt
 /videos/*.mp4
 *.log
