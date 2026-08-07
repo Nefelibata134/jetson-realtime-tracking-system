@@ -28,7 +28,8 @@ network-stream reconnect and fault-recovery behavior.
 | --- | --- | --- |
 | Runtime contracts | Frame, source, detector, and detection types | Implemented |
 | GStreamer source | File replay and IMX219 CSI capture | In progress |
-| TensorRT detector | YOLOX preprocessing, inference, and decoding | Planned |
+| TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
+| YOLOX detector | Preprocessing, decoding, and NMS | In progress |
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
@@ -45,6 +46,16 @@ ctest --test-dir build --output-on-failure
 
 The contract target requires only a C++17 compiler. Jetson runtime targets are
 enabled as their GStreamer and TensorRT implementations are added.
+
+Configure the TensorRT runtime on Jetson and execute an engine probe with:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_TENSORRT=ON
+cmake --build build -j"$(nproc)"
+./build/edge_vision_trt_probe models/yolox_nano_fp16.plan
+```
 
 ## Target Platform
 
