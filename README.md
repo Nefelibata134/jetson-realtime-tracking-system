@@ -29,7 +29,7 @@ network-stream reconnect and fault-recovery behavior.
 | Runtime contracts | Frame, source, detector, and detection types | Implemented |
 | GStreamer source | File replay and IMX219 CSI capture | In progress |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
-| YOLOX detector | Preprocessing, grid decoding, confidence filtering, and NMS | In progress |
+| YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
@@ -57,6 +57,8 @@ cmake -S . -B build \
   -DEDGE_VISION_ENABLE_TENSORRT=ON
 cmake --build build -j"$(nproc)"
 ./build/edge_vision_trt_probe models/yolox_nano_fp16.plan
+./build/edge_vision_detect_image \
+  models/yolox_nano_fp16.plan input.jpg output.jpg
 ```
 
 ## Target Platform

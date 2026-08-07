@@ -22,7 +22,7 @@ add_executable(
 )
 target_link_libraries(edge_vision_contract_check PRIVATE edge_vision_core)
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
 
 add_library(
     edge_vision_yolox
@@ -143,6 +143,35 @@ if(EDGE_VISION_ENABLE_TENSORRT)
             edge_vision_tensorrt
     )
 
+    add_library(
+        edge_vision_detector
+        src/yolox_detector.cpp
+    )
+    target_link_libraries(
+        edge_vision_detector
+        PUBLIC
+            edge_vision_core
+        PRIVATE
+            edge_vision_tensorrt
+            edge_vision_yolox
+    )
+
+    add_executable(
+        edge_vision_detect_image
+        apps/detect_image.cpp
+    )
+    target_include_directories(
+        edge_vision_detect_image
+        PRIVATE
+            ${OpenCV_INCLUDE_DIRS}
+    )
+    target_link_libraries(
+        edge_vision_detect_image
+        PRIVATE
+            edge_vision_detector
+            ${OpenCV_LIBS}
+    )
+
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(
             edge_vision_tensorrt
@@ -153,6 +182,20 @@ if(EDGE_VISION_ENABLE_TENSORRT)
         )
         target_compile_options(
             edge_vision_trt_probe
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+        target_compile_options(
+            edge_vision_detector
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+        target_compile_options(
+            edge_vision_detect_image
             PRIVATE
                 -Wall
                 -Wextra
