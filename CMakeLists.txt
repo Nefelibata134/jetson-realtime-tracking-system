@@ -27,6 +27,7 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 add_library(
     edge_vision_yolox
     src/yolox_preprocessor.cpp
+    src/yolox_postprocessor.cpp
 )
 target_include_directories(
     edge_vision_yolox
@@ -51,6 +52,16 @@ target_link_libraries(
         edge_vision_yolox
 )
 
+add_executable(
+    edge_vision_postprocess_check
+    apps/postprocess_check.cpp
+)
+target_link_libraries(
+    edge_vision_postprocess_check
+    PRIVATE
+        edge_vision_yolox
+)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(
         edge_vision_contract_check
@@ -68,6 +79,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
     target_compile_options(
         edge_vision_preprocess_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_postprocess_check
         PRIVATE
             -Wall
             -Wextra
@@ -146,3 +164,4 @@ endif()
 enable_testing()
 add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
 add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
+add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)

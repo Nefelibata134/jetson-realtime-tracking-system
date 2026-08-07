@@ -29,7 +29,7 @@ network-stream reconnect and fault-recovery behavior.
 | Runtime contracts | Frame, source, detector, and detection types | Implemented |
 | GStreamer source | File replay and IMX219 CSI capture | In progress |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
-| YOLOX detector | Preprocessing implemented; decoding and NMS in progress | In progress |
+| YOLOX detector | Preprocessing, grid decoding, confidence filtering, and NMS | In progress |
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
@@ -43,6 +43,7 @@ cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure
 ./build/edge_vision_contract_check
 ./build/edge_vision_preprocess_check
+./build/edge_vision_postprocess_check
 ```
 
 The default targets require a C++17 compiler and OpenCV. TensorRT targets are
