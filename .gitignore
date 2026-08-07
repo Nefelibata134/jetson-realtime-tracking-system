@@ -1,0 +1,12 @@
+/build/
+/cmake-build-*/
+/.cache/
+/models/*.onnx
+/models/*.engine
+/models/*.plan
+/outputs/
+/reports/*.json
+/reports/*.csv
+/videos/*.mp4
+*.log
+
