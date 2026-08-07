@@ -4,9 +4,9 @@
 /models/*.onnx
 /models/*.engine
 /models/*.plan
+/models/*.pth
 /outputs/
 /reports/*.json
 /reports/*.csv
 /videos/*.mp4
 *.log
-

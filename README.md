@@ -61,8 +61,17 @@ Model artifacts and TensorRT engines are generated outside the repository.
 TensorRT engines must be built on the target Jetson because they are coupled
 to the target GPU, TensorRT version, and optimization profile.
 
+The detector baseline uses the official YOLOX-Nano ONNX export with a fixed
+`1x3x416x416` input. Download and verify it with:
+
+```bash
+bash scripts/fetch_yolox_nano.sh
+```
+
+The source URL, checksum, license, and tensor contract are recorded in
+`models/yolox_nano.json`.
+
 ## License
 
 Project source code is released under the MIT License. See
 `THIRD_PARTY_NOTICES.md` for upstream component licenses.
-
