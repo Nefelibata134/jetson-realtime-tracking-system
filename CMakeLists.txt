@@ -7,6 +7,13 @@ option(
     "Build the TensorRT runtime targets"
     OFF
 )
+option(
+    EDGE_VISION_ENABLE_GSTREAMER
+    "Build the GStreamer capture targets"
+    OFF
+)
+
+find_package(Threads REQUIRED)
 
 add_library(edge_vision_core INTERFACE)
 target_include_directories(
@@ -21,6 +28,28 @@ add_executable(
     apps/contract_check.cpp
 )
 target_link_libraries(edge_vision_contract_check PRIVATE edge_vision_core)
+
+add_library(
+    edge_vision_capture
+    src/frame_capture_worker.cpp
+)
+target_link_libraries(
+    edge_vision_capture
+    PUBLIC
+        edge_vision_core
+    PRIVATE
+        Threads::Threads
+)
+
+add_executable(
+    edge_vision_frame_queue_check
+    apps/frame_queue_check.cpp
+)
+target_link_libraries(
+    edge_vision_frame_queue_check
+    PRIVATE
+        edge_vision_capture
+)
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
 
@@ -78,6 +107,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             -Wpedantic
     )
     target_compile_options(
+        edge_vision_capture
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_frame_queue_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
         edge_vision_preprocess_check
         PRIVATE
             -Wall
@@ -91,6 +134,58 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             -Wextra
             -Wpedantic
     )
+endif()
+
+if(EDGE_VISION_ENABLE_GSTREAMER)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(
+        GSTREAMER
+        REQUIRED
+        IMPORTED_TARGET
+        gstreamer-1.0
+        gstreamer-app-1.0
+        gstreamer-video-1.0
+    )
+
+    add_library(
+        edge_vision_gstreamer
+        src/gstreamer_frame_source.cpp
+    )
+    target_link_libraries(
+        edge_vision_gstreamer
+        PUBLIC
+            edge_vision_core
+        PRIVATE
+            PkgConfig::GSTREAMER
+    )
+
+    add_executable(
+        edge_vision_capture_stream
+        apps/capture_stream.cpp
+    )
+    target_link_libraries(
+        edge_vision_capture_stream
+        PRIVATE
+            edge_vision_capture
+            edge_vision_gstreamer
+    )
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(
+            edge_vision_gstreamer
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+        target_compile_options(
+            edge_vision_capture_stream
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+    endif()
 endif()
 
 if(EDGE_VISION_ENABLE_TENSORRT)
@@ -206,5 +301,6 @@ endif()
 
 enable_testing()
 add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
+add_test(NAME edge_vision_frame_queue_check COMMAND edge_vision_frame_queue_check)
 add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
 add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)

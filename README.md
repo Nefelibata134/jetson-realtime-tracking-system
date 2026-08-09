@@ -27,7 +27,8 @@ network-stream reconnect and fault-recovery behavior.
 | Component | Responsibility | Status |
 | --- | --- | --- |
 | Runtime contracts | Frame, source, detector, and detection types | Implemented |
-| GStreamer source | File replay and IMX219 CSI capture | In progress |
+| GStreamer source | File replay and IMX219 CSI capture | Implemented |
+| Capture pipeline | Dedicated producer thread, bounded queue, timestamps, and drop-oldest backpressure | Implemented |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
 | ByteTrack | Persistent track identities | Planned |
@@ -42,12 +43,35 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure
 ./build/edge_vision_contract_check
+./build/edge_vision_frame_queue_check
 ./build/edge_vision_preprocess_check
 ./build/edge_vision_postprocess_check
 ```
 
 The default targets require a C++17 compiler and OpenCV. TensorRT targets are
 enabled explicitly for Jetson builds.
+
+Configure the GStreamer capture targets on Jetson with:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_GSTREAMER=ON
+cmake --build build -j"$(nproc)"
+
+./build/edge_vision_capture_stream \
+  --file input.mp4 --frames 300 --queue-capacity 4
+
+./build/edge_vision_capture_stream \
+  --csi --sensor-id 0 --width 1280 --height 720 --fps 30 \
+  --frames 300 --queue-capacity 4
+```
+
+The capture worker runs the source on a dedicated producer thread. Its bounded
+queue drops the oldest frame when the consumer falls behind, keeping memory
+bounded and prioritizing fresh frames for realtime analytics. Set
+`--consumer-delay-ms` to create a controlled overload and inspect queue depth,
+dropped frames, sequence gaps, and queue residence time.
 
 Configure the TensorRT runtime on Jetson and execute an engine probe with:
 

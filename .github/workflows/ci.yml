@@ -15,10 +15,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libopencv-dev
+          sudo apt-get install -y --no-install-recommends \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libopencv-dev
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DEDGE_VISION_ENABLE_GSTREAMER=ON
 
       - name: Build
         run: cmake --build build -j2

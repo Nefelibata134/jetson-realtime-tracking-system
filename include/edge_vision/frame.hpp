@@ -18,6 +18,7 @@ struct Frame {
     int channels{0};
     PixelFormat format{PixelFormat::bgr8};
     std::int64_t pts_ns{0};
+    std::int64_t captured_at_ns{0};
     std::uint64_t sequence{0};
 
     [[nodiscard]] std::size_t expected_bytes() const noexcept {
@@ -36,4 +37,3 @@ struct Frame {
 };
 
 }  // namespace edge_vision
-
