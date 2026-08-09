@@ -8,17 +8,26 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
+    container:
+      image: ubuntu:22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates \
+            cmake \
+            g++ \
+            git \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
-            libopencv-dev
+            libopencv-dev \
+            pkg-config
+
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Configure
         run: >-
