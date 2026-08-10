@@ -291,10 +291,11 @@ int main(int argc, char** argv) {
             }
         }
 
+        const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         const edge_vision::FrameCaptureStats stats = worker.stats();
         const double elapsed_seconds = std::chrono::duration<double>(
-            std::chrono::steady_clock::now() - started_at)
+            processing_finished_at - started_at)
                                            .count();
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);

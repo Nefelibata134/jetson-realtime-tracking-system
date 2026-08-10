@@ -120,95 +120,106 @@ public:
         }
         GstBus* bus = gst_element_get_bus(pipeline);
 
-        GstSample* sample = nullptr;
-        while (opened_.load() && sample == nullptr) {
-            sample = gst_app_sink_try_pull_sample(
+        std::optional<Frame> result;
+        bool terminal_message = false;
+        while (opened_.load() && !terminal_message && !result.has_value()) {
+            GstSample* sample = gst_app_sink_try_pull_sample(
                 GST_APP_SINK(sink), 200 * GST_MSECOND);
-            if (sample != nullptr) {
-                break;
-            }
-            if (gst_app_sink_is_eos(GST_APP_SINK(sink))) {
-                break;
-            }
-            if (bus != nullptr) {
-                GstMessage* message = gst_bus_pop_filtered(
-                    bus,
-                    static_cast<GstMessageType>(
-                        GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
-                if (message != nullptr) {
-                    if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR) {
-                        GError* error = nullptr;
-                        gchar* details = nullptr;
-                        gst_message_parse_error(message, &error, &details);
-                        std::cerr << "GStreamer source error: "
-                                  << (error == nullptr ? "unknown"
-                                                       : error->message)
-                                  << '\n';
-                        g_clear_error(&error);
-                        g_free(details);
-                    }
-                    gst_message_unref(message);
-                    break;
+            if (sample == nullptr) {
+                if (gst_app_sink_is_eos(GST_APP_SINK(sink))) {
+                    std::cerr << "GStreamer source reached EOS\n";
+                    terminal_message = true;
+                    continue;
                 }
+                if (bus != nullptr) {
+                    GstMessage* message = gst_bus_pop_filtered(
+                        bus,
+                        static_cast<GstMessageType>(
+                            GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+                    if (message != nullptr) {
+                        terminal_message = true;
+                        if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR) {
+                            GError* error = nullptr;
+                            gchar* details = nullptr;
+                            gst_message_parse_error(
+                                message, &error, &details);
+                            std::cerr << "GStreamer source error: "
+                                      << (error == nullptr ? "unknown"
+                                                           : error->message)
+                                      << '\n';
+                            g_clear_error(&error);
+                            g_free(details);
+                        } else {
+                            std::cerr << "GStreamer pipeline reached EOS\n";
+                        }
+                        gst_message_unref(message);
+                    }
+                }
+                continue;
+            }
+
+            GstCaps* caps = gst_sample_get_caps(sample);
+            GstBuffer* buffer = gst_sample_get_buffer(sample);
+            GstVideoInfo info;
+            gst_video_info_init(&info);
+            if (caps == nullptr || buffer == nullptr ||
+                !gst_video_info_from_caps(&info, caps) ||
+                GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_BGR) {
+                std::cerr << "GStreamer source skipped an invalid BGR sample\n";
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            GstVideoFrame video_frame;
+            if (!gst_video_frame_map(
+                    &video_frame, &info, buffer, GST_MAP_READ)) {
+                std::cerr << "GStreamer source skipped an unmappable sample\n";
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            Frame frame;
+            frame.width = GST_VIDEO_INFO_WIDTH(&info);
+            frame.height = GST_VIDEO_INFO_HEIGHT(&info);
+            frame.channels = 3;
+            frame.format = PixelFormat::bgr8;
+            frame.captured_at_ns = monotonic_time_ns();
+            frame.pts_ns = GST_BUFFER_PTS_IS_VALID(buffer)
+                               ? static_cast<std::int64_t>(
+                                     GST_BUFFER_PTS(buffer))
+                               : frame.captured_at_ns;
+            frame.sequence = sequence_++;
+            frame.data.resize(frame.expected_bytes());
+
+            const auto* source = static_cast<const std::uint8_t*>(
+                GST_VIDEO_FRAME_PLANE_DATA(&video_frame, 0));
+            const int source_stride =
+                GST_VIDEO_FRAME_PLANE_STRIDE(&video_frame, 0);
+            const std::size_t row_bytes =
+                static_cast<std::size_t>(frame.width) * frame.channels;
+            for (int row = 0; row < frame.height; ++row) {
+                std::copy_n(
+                    source + static_cast<std::ptrdiff_t>(row) * source_stride,
+                    row_bytes,
+                    frame.data.data() +
+                        static_cast<std::size_t>(row) * row_bytes);
+            }
+
+            gst_video_frame_unmap(&video_frame);
+            gst_sample_unref(sample);
+            if (frame.valid()) {
+                result = std::move(frame);
+            } else {
+                std::cerr << "GStreamer source skipped an invalid frame\n";
             }
         }
+
         if (bus != nullptr) {
             gst_object_unref(bus);
         }
         gst_object_unref(pipeline);
         gst_object_unref(sink);
-
-        if (sample == nullptr) {
-            return std::nullopt;
-        }
-
-        GstCaps* caps = gst_sample_get_caps(sample);
-        GstBuffer* buffer = gst_sample_get_buffer(sample);
-        GstVideoInfo info;
-        gst_video_info_init(&info);
-        if (caps == nullptr || buffer == nullptr ||
-            !gst_video_info_from_caps(&info, caps) ||
-            GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_BGR) {
-            gst_sample_unref(sample);
-            return std::nullopt;
-        }
-
-        GstVideoFrame video_frame;
-        if (!gst_video_frame_map(
-                &video_frame, &info, buffer, GST_MAP_READ)) {
-            gst_sample_unref(sample);
-            return std::nullopt;
-        }
-
-        Frame frame;
-        frame.width = GST_VIDEO_INFO_WIDTH(&info);
-        frame.height = GST_VIDEO_INFO_HEIGHT(&info);
-        frame.channels = 3;
-        frame.format = PixelFormat::bgr8;
-        frame.captured_at_ns = monotonic_time_ns();
-        frame.pts_ns = GST_BUFFER_PTS_IS_VALID(buffer)
-                           ? static_cast<std::int64_t>(GST_BUFFER_PTS(buffer))
-                           : frame.captured_at_ns;
-        frame.sequence = sequence_++;
-        frame.data.resize(frame.expected_bytes());
-
-        const auto* source = static_cast<const std::uint8_t*>(
-            GST_VIDEO_FRAME_PLANE_DATA(&video_frame, 0));
-        const int source_stride =
-            GST_VIDEO_FRAME_PLANE_STRIDE(&video_frame, 0);
-        const std::size_t row_bytes =
-            static_cast<std::size_t>(frame.width) * frame.channels;
-        for (int row = 0; row < frame.height; ++row) {
-            std::copy_n(
-                source + static_cast<std::ptrdiff_t>(row) * source_stride,
-                row_bytes,
-                frame.data.data() + static_cast<std::size_t>(row) * row_bytes);
-        }
-
-        gst_video_frame_unmap(&video_frame);
-        gst_sample_unref(sample);
-        return frame.valid() ? std::optional<Frame>(std::move(frame))
-                             : std::nullopt;
+        return result;
     }
 
     void close() noexcept override {
