@@ -7,8 +7,8 @@
 /models/*.plan
 /models/*.pth
 /outputs/
-/reports/*.json
-/reports/*.csv
-/reports/*.txt
+/reports/
 /videos/*.mp4
+__pycache__/
+*.py[cod]
 *.log

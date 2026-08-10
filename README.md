@@ -32,6 +32,7 @@ network-stream reconnect and fault-recovery behavior.
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
 | Continuous detection | Capture, bounded latest-frame queue, TensorRT detection, and latency statistics | Implemented |
+| Benchmark harness | Warmup isolation, power telemetry, and model/resolution/power comparison | Implemented |
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
@@ -111,6 +112,7 @@ cmake --build build -j"$(nproc)"
 ./build/edge_vision_realtime_detect \
   --engine models/yolox_nano_fp16.plan \
   --file input.mp4 \
+  --warmup-frames 30 \
   --frames 300 \
   --queue-capacity 2
 
@@ -120,6 +122,7 @@ cmake --build build -j"$(nproc)"
   --sensor-mode 4 \
   --capture-width 1280 --capture-height 720 --capture-fps 60 \
   --width 1280 --height 720 --fps 30 \
+  --warmup-frames 30 \
   --frames 300 \
   --queue-capacity 2 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
@@ -128,7 +131,68 @@ cmake --build build -j"$(nproc)"
 The runtime reports produced, processed, and dropped frames; queue depth and
 sequence gaps; detection counts; queue-wait, inference, and end-to-end P50/P95
 latencies; and effective throughput. A small queue bounds stale-frame delay
-when capture outpaces inference.
+when capture outpaces inference. Warmup frames execute the complete pipeline
+but are excluded from detection, latency, throughput, and steady-state drop
+statistics.
+
+## Jetson Benchmark Matrix
+
+The benchmark harness compares YOLOX-Nano and YOLOX-Tiny under 720p and 1080p
+CSI capture in two Jetson power modes. Both detectors retain their fixed
+`1x3x416x416` TensorRT input; capture resolution measures the upstream camera,
+conversion, resize, and memory-transfer workload rather than changing the
+model tensor contract.
+
+Fetch the verified upstream exports, then build both FP16 engines on the target
+Jetson:
+
+```bash
+bash scripts/fetch_yolox_nano.sh
+bash scripts/fetch_yolox_tiny.sh
+
+bash scripts/build_tensorrt_engine.sh \
+  models/yolox_nano.onnx models/yolox_nano_fp16.plan
+bash scripts/build_tensorrt_engine.sh \
+  models/yolox_tiny.onnx models/yolox_tiny_fp16.plan
+```
+
+Build the runtime and inspect the power modes available on the device:
+
+```bash
+cmake -S . -B build-jetson-benchmark \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
+  -DEDGE_VISION_ENABLE_TENSORRT=ON
+cmake --build build-jetson-benchmark -j"$(nproc)"
+ctest --test-dir build-jetson-benchmark --output-on-failure
+
+sudo nvpmodel -q --verbose
+```
+
+Run one controlled group with the active power mode. Repeat the command for
+`nano` and `tiny`, for `720p` and `1080p`, and after selecting each power mode
+under comparison. The script records the active mode and never changes it.
+
+```bash
+bash scripts/run_jetson_benchmark.sh \
+  --model nano \
+  --engine models/yolox_nano_fp16.plan \
+  --resolution 720p \
+  --warmup-frames 30 \
+  --frames 600
+```
+
+Raw runtime and `tegrastats` logs are kept under the ignored
+`reports/benchmarks/raw/` directory. Generate the tracked comparison table
+after all groups finish:
+
+```bash
+python3 scripts/summarize_jetson_benchmarks.py
+```
+
+The resulting CSV and Markdown files report steady-state FPS, inference and
+end-to-end P95 latency, drop rate, mean and peak power, temperature, GPU
+utilization, and FPS per watt.
 
 ## Target Platform
 
@@ -146,15 +210,16 @@ Model artifacts and TensorRT engines are generated outside the repository.
 TensorRT engines must be built on the target Jetson because they are coupled
 to the target GPU, TensorRT version, and optimization profile.
 
-The detector baseline uses the official YOLOX-Nano ONNX export with a fixed
-`1x3x416x416` input. Download and verify it with:
+The detector comparison uses the official YOLOX-Nano and YOLOX-Tiny ONNX
+exports with fixed `1x3x416x416` inputs. Download and verify them with:
 
 ```bash
 bash scripts/fetch_yolox_nano.sh
+bash scripts/fetch_yolox_tiny.sh
 ```
 
 The source URL, checksum, license, and tensor contract are recorded in
-`models/yolox_nano.json`.
+`models/yolox_nano.json` and `models/yolox_tiny.json`.
 
 ## License
 

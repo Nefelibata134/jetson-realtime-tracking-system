@@ -25,7 +25,8 @@ jobs:
             libgstreamer-plugins-base1.0-dev \
             libopencv-dev \
             make \
-            pkg-config
+            pkg-config \
+            python3
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,3 +42,8 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      - name: Validate benchmark tools
+        run: |
+          bash -n scripts/*.sh
+          python3 -m unittest discover -s tests -p 'test_*.py'

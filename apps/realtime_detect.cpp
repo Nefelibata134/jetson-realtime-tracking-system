@@ -9,6 +9,7 @@
 #include <limits>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ struct Options {
     std::string engine_path;
     std::string file_path;
     std::uint64_t frame_limit{300};
+    std::uint64_t warmup_frames{0};
     std::size_t queue_capacity{2};
     std::uint64_t log_interval{30};
     float score_threshold{0.3F};
@@ -53,6 +55,7 @@ void print_usage(const char* program) {
         << "  " << program << " --engine ENGINE --csi [options]\n\n"
         << "Options:\n"
         << "  --frames N\n"
+        << "  --warmup-frames N\n"
         << "  --queue-capacity N\n"
         << "  --score-threshold VALUE\n"
         << "  --nms-threshold VALUE\n"
@@ -124,6 +127,9 @@ Options parse_options(const int argc, char** argv) {
             select_source(options, Options::SourceType::csi);
         } else if (argument == "--frames") {
             options.frame_limit =
+                parse_number<std::uint64_t>(require_value(argument), argument);
+        } else if (argument == "--warmup-frames") {
+            options.warmup_frames =
                 parse_number<std::uint64_t>(require_value(argument), argument);
         } else if (argument == "--queue-capacity") {
             options.queue_capacity =
@@ -262,21 +268,25 @@ int main(int argc, char** argv) {
         }
 
         std::uint64_t processed = 0;
+        std::uint64_t warmup_processed = 0;
+        std::uint64_t measured_frames = 0;
         std::uint64_t invalid_frames = 0;
         std::uint64_t sequence_gaps = 0;
         std::uint64_t detection_frames = 0;
         std::uint64_t total_detections = 0;
         std::uint64_t previous_sequence = 0;
         bool has_previous = false;
+        std::size_t warmup_dropped = 0;
         std::vector<double> queue_wait_ms;
         std::vector<double> inference_ms;
         std::vector<double> end_to_end_ms;
         queue_wait_ms.reserve(options.frame_limit);
         inference_ms.reserve(options.frame_limit);
         end_to_end_ms.reserve(options.frame_limit);
-        const auto started_at = std::chrono::steady_clock::now();
+        std::optional<std::chrono::steady_clock::time_point>
+            measurement_started_at;
 
-        while (processed < options.frame_limit) {
+        while (measured_frames < options.frame_limit) {
             auto frame = worker.wait_pop();
             if (!frame.has_value()) {
                 break;
@@ -286,11 +296,19 @@ int main(int argc, char** argv) {
                 continue;
             }
 
-            if (has_previous && frame->sequence > previous_sequence + 1) {
-                sequence_gaps += frame->sequence - previous_sequence - 1;
+            const bool is_warmup = warmup_processed < options.warmup_frames;
+            if (!is_warmup && !measurement_started_at.has_value()) {
+                warmup_dropped = worker.stats().queue.dropped;
+                measurement_started_at = std::chrono::steady_clock::now();
             }
-            previous_sequence = frame->sequence;
-            has_previous = true;
+
+            if (!is_warmup) {
+                if (has_previous && frame->sequence > previous_sequence + 1) {
+                    sequence_gaps += frame->sequence - previous_sequence - 1;
+                }
+                previous_sequence = frame->sequence;
+                has_previous = true;
+            }
 
             const std::int64_t inference_started_ns = monotonic_time_ns();
             const double queue_ms = static_cast<double>(
@@ -302,6 +320,20 @@ int main(int argc, char** argv) {
             const double e2e_ms = static_cast<double>(
                 inference_finished_ns - frame->captured_at_ns) / 1'000'000.0;
 
+            ++processed;
+            if (is_warmup) {
+                ++warmup_processed;
+                if (warmup_processed <= 3 ||
+                    warmup_processed == options.warmup_frames) {
+                    std::cout << "warmup=" << warmup_processed << "/"
+                              << options.warmup_frames
+                              << " frame=" << frame->sequence
+                              << " infer_ms=" << std::fixed
+                              << std::setprecision(3) << infer_ms << '\n';
+                }
+                continue;
+            }
+
             queue_wait_ms.push_back(queue_ms);
             inference_ms.push_back(infer_ms);
             end_to_end_ms.push_back(e2e_ms);
@@ -310,8 +342,9 @@ int main(int argc, char** argv) {
                 ++detection_frames;
             }
 
-            ++processed;
-            if (processed <= 5 || processed % options.log_interval == 0) {
+            ++measured_frames;
+            if (measured_frames <= 5 ||
+                measured_frames % options.log_interval == 0) {
                 std::cout << "frame=" << frame->sequence
                           << " detections=" << detections.size()
                           << " queue_ms=" << std::fixed << std::setprecision(3)
@@ -323,24 +356,35 @@ int main(int argc, char** argv) {
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         const edge_vision::FrameCaptureStats stats = worker.stats();
-        const double elapsed_seconds = std::chrono::duration<double>(
-            processing_finished_at - started_at)
-                                           .count();
+        const double elapsed_seconds = measurement_started_at.has_value()
+                                           ? std::chrono::duration<double>(
+                                                 processing_finished_at -
+                                                 *measurement_started_at)
+                                                 .count()
+                                           : 0.0;
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
-        const bool target_reached = processed == options.frame_limit;
+        const bool target_reached = measured_frames == options.frame_limit;
+        const std::size_t measured_dropped =
+            stats.queue.dropped >= warmup_dropped
+                ? stats.queue.dropped - warmup_dropped
+                : 0;
 
         std::cout << std::fixed << std::setprecision(3);
         std::cout << "source=" << source_name << '\n';
         std::cout << "produced=" << stats.produced << '\n';
         std::cout << "processed=" << processed << '\n';
+        std::cout << "warmup_frames=" << warmup_processed << '\n';
+        std::cout << "measured_frames=" << measured_frames << '\n';
         std::cout << "target_frames=" << options.frame_limit << '\n';
         std::cout << "target_reached=" << std::boolalpha << target_reached
                   << '\n';
         std::cout << "restart_attempts=" << stats.restart_attempts << '\n';
         std::cout << "restart_successes=" << stats.restart_successes << '\n';
-        std::cout << "dropped=" << stats.queue.dropped << '\n';
+        std::cout << "warmup_dropped=" << warmup_dropped << '\n';
+        std::cout << "dropped=" << measured_dropped << '\n';
+        std::cout << "dropped_total=" << stats.queue.dropped << '\n';
         std::cout << "queue_capacity=" << options.queue_capacity << '\n';
         std::cout << "queue_high_watermark=" << stats.queue.high_watermark
                   << '\n';
@@ -358,7 +402,8 @@ int main(int argc, char** argv) {
         std::cout << "effective_fps="
                   << (elapsed_seconds == 0.0
                           ? 0.0
-                          : static_cast<double>(processed) / elapsed_seconds)
+                          : static_cast<double>(measured_frames) /
+                                elapsed_seconds)
                   << '\n';
 
         return target_reached && invalid_frames == 0 ? 0 : 1;
