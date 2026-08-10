@@ -35,7 +35,8 @@ network-stream reconnect and fault-recovery behavior.
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
-| Recovery | Stream reconnect and watchdog state machine | Planned |
+| Recovery | Bounded CSI pipeline reconnect with explicit failure status | Implemented |
+| Watchdog | Process supervision and RTSP recovery state machine | Planned |
 
 ## Build
 
@@ -64,8 +65,12 @@ cmake --build build -j"$(nproc)"
   --file input.mp4 --frames 300 --queue-capacity 4
 
 ./build/edge_vision_capture_stream \
-  --csi --sensor-id 0 --width 1280 --height 720 --fps 30 \
-  --frames 300 --queue-capacity 4
+  --csi --sensor-id 0 \
+  --sensor-mode 4 \
+  --capture-width 1280 --capture-height 720 --capture-fps 60 \
+  --width 1280 --height 720 --fps 30 \
+  --frames 300 --queue-capacity 4 \
+  --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
 The capture worker runs the source on a dedicated producer thread. Its bounded
@@ -73,6 +78,13 @@ queue drops the oldest frame when the consumer falls behind, keeping memory
 bounded and prioritizing fresh frames for realtime analytics. Set
 `--consumer-delay-ms` to create a controlled overload and inspect queue depth,
 dropped frames, sequence gaps, and queue residence time.
+
+CSI capture and application output rates are configured independently. For the
+IMX219, the command above selects native sensor mode 4 at 1280x720/60 FPS and
+uses `videorate` to deliver 30 FPS to the application. Unexpected EOS triggers
+a bounded pipeline reopen sequence. If the requested frame count is not
+reached after all attempts, the process reports recovery statistics and exits
+with a nonzero status.
 
 Configure the TensorRT runtime on Jetson and execute an engine probe with:
 
@@ -104,9 +116,13 @@ cmake --build build -j"$(nproc)"
 
 ./build/edge_vision_realtime_detect \
   --engine models/yolox_nano_fp16.plan \
-  --csi --sensor-id 0 --width 1280 --height 720 --fps 30 \
+  --csi --sensor-id 0 \
+  --sensor-mode 4 \
+  --capture-width 1280 --capture-height 720 --capture-fps 60 \
+  --width 1280 --height 720 --fps 30 \
   --frames 300 \
-  --queue-capacity 2
+  --queue-capacity 2 \
+  --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
 The runtime reports produced, processed, and dropped frames; queue depth and

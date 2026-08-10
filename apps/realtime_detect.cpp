@@ -34,6 +34,8 @@ struct Options {
     std::uint64_t log_interval{30};
     float score_threshold{0.3F};
     float nms_threshold{0.45F};
+    std::uint64_t reconnect_attempts{3};
+    std::uint64_t reconnect_delay_ms{1000};
     edge_vision::CsiCameraConfig camera;
 };
 
@@ -55,7 +57,10 @@ void print_usage(const char* program) {
         << "  --score-threshold VALUE\n"
         << "  --nms-threshold VALUE\n"
         << "  --log-interval N\n"
+        << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --sensor-id N\n"
+        << "  --sensor-mode N\n"
+        << "  --capture-width N --capture-height N --capture-fps N\n"
         << "  --width N --height N --fps N\n";
 }
 
@@ -132,8 +137,26 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--log-interval") {
             options.log_interval =
                 parse_number<std::uint64_t>(require_value(argument), argument);
+        } else if (argument == "--reconnect-attempts") {
+            options.reconnect_attempts = parse_number<std::uint64_t>(
+                require_value(argument), argument);
+        } else if (argument == "--reconnect-delay-ms") {
+            options.reconnect_delay_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
         } else if (argument == "--sensor-id") {
             options.camera.sensor_id =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--sensor-mode") {
+            options.camera.sensor_mode =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--capture-width") {
+            options.camera.capture_width =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--capture-height") {
+            options.camera.capture_height =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--capture-fps") {
+            options.camera.capture_frames_per_second =
                 parse_number<int>(require_value(argument), argument);
         } else if (argument == "--width") {
             options.camera.width =
@@ -225,8 +248,14 @@ int main(int argc, char** argv) {
             source_name = "csi";
         }
 
+        edge_vision::FrameCaptureRecoveryPolicy recovery_policy;
+        if (options.source_type == Options::SourceType::csi) {
+            recovery_policy.max_restart_attempts =
+                options.reconnect_attempts;
+            recovery_policy.restart_delay_ms = options.reconnect_delay_ms;
+        }
         edge_vision::FrameCaptureWorker worker(
-            std::move(source), options.queue_capacity);
+            std::move(source), options.queue_capacity, recovery_policy);
         if (!worker.start()) {
             std::cerr << "failed to start frame source\n";
             return 1;
@@ -300,11 +329,17 @@ int main(int argc, char** argv) {
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
+        const bool target_reached = processed == options.frame_limit;
 
         std::cout << std::fixed << std::setprecision(3);
         std::cout << "source=" << source_name << '\n';
         std::cout << "produced=" << stats.produced << '\n';
         std::cout << "processed=" << processed << '\n';
+        std::cout << "target_frames=" << options.frame_limit << '\n';
+        std::cout << "target_reached=" << std::boolalpha << target_reached
+                  << '\n';
+        std::cout << "restart_attempts=" << stats.restart_attempts << '\n';
+        std::cout << "restart_successes=" << stats.restart_successes << '\n';
         std::cout << "dropped=" << stats.queue.dropped << '\n';
         std::cout << "queue_capacity=" << options.queue_capacity << '\n';
         std::cout << "queue_high_watermark=" << stats.queue.high_watermark
@@ -315,6 +350,8 @@ int main(int argc, char** argv) {
         std::cout << "total_detections=" << total_detections << '\n';
         std::cout << "source_exhausted=" << std::boolalpha
                   << stats.source_exhausted << '\n';
+        std::cout << "recovery_exhausted=" << stats.recovery_exhausted
+                  << '\n';
         print_latency("queue_wait", queue_summary);
         print_latency("inference", inference_summary);
         print_latency("end_to_end", e2e_summary);
@@ -324,7 +361,7 @@ int main(int argc, char** argv) {
                           : static_cast<double>(processed) / elapsed_seconds)
                   << '\n';
 
-        return processed > 0 && invalid_frames == 0 ? 0 : 1;
+        return target_reached && invalid_frames == 0 ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         print_usage(argv[0]);

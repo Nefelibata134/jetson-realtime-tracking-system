@@ -97,7 +97,6 @@ public:
             std::lock_guard<std::mutex> lock(state_mutex_);
             pipeline_ = pipeline;
             sink_ = sink;
-            sequence_ = 0;
             opened_.store(true);
         }
         return true;
@@ -184,10 +183,19 @@ public:
             frame.channels = 3;
             frame.format = PixelFormat::bgr8;
             frame.captured_at_ns = monotonic_time_ns();
-            frame.pts_ns = GST_BUFFER_PTS_IS_VALID(buffer)
-                               ? static_cast<std::int64_t>(
-                                     GST_BUFFER_PTS(buffer))
-                               : frame.captured_at_ns;
+            if (GST_BUFFER_PTS_IS_VALID(buffer)) {
+                const auto raw_pts_ns = static_cast<std::int64_t>(
+                    GST_BUFFER_PTS(buffer));
+                std::int64_t normalized_pts_ns = raw_pts_ns + pts_offset_ns_;
+                if (last_pts_ns_ >= 0 && normalized_pts_ns <= last_pts_ns_) {
+                    pts_offset_ns_ = last_pts_ns_ + 1 - raw_pts_ns;
+                    normalized_pts_ns = raw_pts_ns + pts_offset_ns_;
+                }
+                frame.pts_ns = normalized_pts_ns;
+            } else {
+                frame.pts_ns = frame.captured_at_ns;
+            }
+            last_pts_ns_ = frame.pts_ns;
             frame.sequence = sequence_++;
             frame.data.resize(frame.expected_bytes());
 
@@ -254,6 +262,8 @@ private:
     GstElement* sink_{nullptr};
     std::atomic<bool> opened_{false};
     std::uint64_t sequence_{0};
+    std::int64_t pts_offset_ns_{0};
+    std::int64_t last_pts_ns_{-1};
 };
 
 std::string sink_fragment() {
@@ -275,13 +285,32 @@ std::unique_ptr<IFrameSource> make_gstreamer_file_source(
 
 std::unique_ptr<IFrameSource> make_gstreamer_csi_source(
     const CsiCameraConfig& config) {
+    const int capture_width = config.capture_width > 0
+                                  ? config.capture_width
+                                  : config.width;
+    const int capture_height = config.capture_height > 0
+                                   ? config.capture_height
+                                   : config.height;
+    const int capture_fps = config.capture_frames_per_second > 0
+                                ? config.capture_frames_per_second
+                                : config.frames_per_second;
+
     std::ostringstream pipeline;
-    pipeline << "nvarguscamerasrc sensor-id=" << config.sensor_id
-             << " ! video/x-raw(memory:NVMM),width=" << config.width
-             << ",height=" << config.height
-             << ",framerate=" << config.frames_per_second
+    pipeline << "nvarguscamerasrc sensor-id=" << config.sensor_id;
+    if (config.sensor_mode >= 0) {
+        pipeline << " sensor-mode=" << config.sensor_mode;
+    }
+    pipeline << " ! video/x-raw(memory:NVMM),width=" << capture_width
+             << ",height=" << capture_height
+             << ",framerate=" << capture_fps
              << "/1,format=NV12 ! nvvidconv"
-             << " ! video/x-raw,format=BGRx ! videoconvert"
+             << " ! video/x-raw,format=BGRx,width=" << config.width
+             << ",height=" << config.height;
+    if (capture_fps != config.frames_per_second) {
+        pipeline << " ! videorate ! video/x-raw,format=BGRx,framerate="
+                 << config.frames_per_second << "/1";
+    }
+    pipeline << " ! videoconvert"
              << sink_fragment();
     return std::make_unique<GStreamerFrameSource>(pipeline.str(), "");
 }

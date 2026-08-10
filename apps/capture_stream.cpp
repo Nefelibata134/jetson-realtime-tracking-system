@@ -4,6 +4,7 @@
 #include <exception>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -26,6 +27,8 @@ struct Options {
     std::uint64_t frame_limit{300};
     std::size_t queue_capacity{4};
     int consumer_delay_ms{0};
+    std::uint64_t reconnect_attempts{3};
+    std::uint64_t reconnect_delay_ms{1000};
     edge_vision::CsiCameraConfig camera;
 };
 
@@ -38,16 +41,24 @@ void print_usage(const char* program) {
         << "  --frames N\n"
         << "  --queue-capacity N\n"
         << "  --consumer-delay-ms N\n"
+        << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --sensor-id N\n"
+        << "  --sensor-mode N\n"
+        << "  --capture-width N --capture-height N --capture-fps N\n"
         << "  --width N --height N --fps N\n";
 }
 
 template <typename Value>
 Value parse_number(const char* text, const std::string& option) {
     const std::string value{text};
+    if (value.empty() || value.front() == '-') {
+        throw std::invalid_argument("invalid value for " + option);
+    }
     std::size_t parsed = 0;
     const unsigned long long number = std::stoull(value, &parsed);
-    if (parsed != value.size()) {
+    if (parsed != value.size() ||
+        number > static_cast<unsigned long long>(
+                     std::numeric_limits<Value>::max())) {
         throw std::invalid_argument("invalid value for " + option);
     }
     return static_cast<Value>(number);
@@ -78,8 +89,26 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--consumer-delay-ms") {
             options.consumer_delay_ms =
                 parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--reconnect-attempts") {
+            options.reconnect_attempts = parse_number<std::uint64_t>(
+                require_value(argument), argument);
+        } else if (argument == "--reconnect-delay-ms") {
+            options.reconnect_delay_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
         } else if (argument == "--sensor-id") {
             options.camera.sensor_id =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--sensor-mode") {
+            options.camera.sensor_mode =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--capture-width") {
+            options.camera.capture_width =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--capture-height") {
+            options.camera.capture_height =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--capture-fps") {
+            options.camera.capture_frames_per_second =
                 parse_number<int>(require_value(argument), argument);
         } else if (argument == "--width") {
             options.camera.width =
@@ -123,8 +152,14 @@ int main(int argc, char** argv) {
             source_name = "csi";
         }
 
+        edge_vision::FrameCaptureRecoveryPolicy recovery_policy;
+        if (options.source_type == Options::SourceType::csi) {
+            recovery_policy.max_restart_attempts =
+                options.reconnect_attempts;
+            recovery_policy.restart_delay_ms = options.reconnect_delay_ms;
+        }
         edge_vision::FrameCaptureWorker worker(
-            std::move(source), options.queue_capacity);
+            std::move(source), options.queue_capacity, recovery_policy);
         if (!worker.start()) {
             std::cerr << "failed to start frame source\n";
             return 1;
@@ -185,16 +220,26 @@ int main(int argc, char** argv) {
             }
         }
 
+        const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         const auto stats = worker.stats();
         const double elapsed_seconds =
             std::chrono::duration<double>(
-                std::chrono::steady_clock::now() - started_at)
+                processing_finished_at - started_at)
                 .count();
+        const bool target_reached = consumed == options.frame_limit;
 
         std::cout << "source=" << source_name << '\n';
         std::cout << "produced=" << stats.produced << '\n';
         std::cout << "consumed=" << consumed << '\n';
+        std::cout << "target_frames=" << options.frame_limit << '\n';
+        std::cout << "target_reached=" << std::boolalpha << target_reached
+                  << '\n';
+        std::cout << "restart_attempts=" << stats.restart_attempts << '\n';
+        std::cout << "restart_successes=" << stats.restart_successes << '\n';
+        std::cout << "source_exhausted=" << stats.source_exhausted << '\n';
+        std::cout << "recovery_exhausted=" << stats.recovery_exhausted
+                  << '\n';
         std::cout << "dropped=" << stats.queue.dropped << '\n';
         std::cout << "queue_capacity=" << options.queue_capacity << '\n';
         std::cout << "queue_high_watermark=" << stats.queue.high_watermark
@@ -214,7 +259,7 @@ int main(int argc, char** argv) {
                           ? 0.0
                           : static_cast<double>(consumed) / elapsed_seconds)
                   << '\n';
-        return consumed > 0 && invalid_frames == 0 && pts_monotonic ? 0 : 1;
+        return target_reached && invalid_frames == 0 && pts_monotonic ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         print_usage(argv[0]);

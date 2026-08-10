@@ -52,6 +52,36 @@ private:
     bool opened_{false};
 };
 
+class RecoveringFrameSource final : public edge_vision::IFrameSource {
+public:
+    bool open() override {
+        opened_ = true;
+        reads_this_session_ = 0;
+        return true;
+    }
+
+    [[nodiscard]] bool is_open() const noexcept override {
+        return opened_;
+    }
+
+    std::optional<edge_vision::Frame> read() override {
+        if (!opened_ || reads_this_session_ == 2 || next_ == 4) {
+            return std::nullopt;
+        }
+        ++reads_this_session_;
+        return make_frame(next_++);
+    }
+
+    void close() noexcept override {
+        opened_ = false;
+    }
+
+private:
+    std::uint64_t next_{0};
+    std::uint64_t reads_this_session_{0};
+    bool opened_{false};
+};
+
 bool check_drop_oldest() {
     edge_vision::BoundedFrameQueue queue(2);
     const auto first = queue.push(make_frame(1));
@@ -98,18 +128,43 @@ bool check_capture_worker() {
            stats.source_exhausted && !stats.running;
 }
 
+bool check_capture_recovery() {
+    auto source = std::make_unique<RecoveringFrameSource>();
+    edge_vision::FrameCaptureRecoveryPolicy policy;
+    policy.max_restart_attempts = 1;
+    policy.restart_delay_ms = 0;
+    edge_vision::FrameCaptureWorker worker(
+        std::move(source), 4, policy);
+    if (!worker.start()) {
+        return false;
+    }
+    worker.wait();
+
+    std::uint64_t consumed = 0;
+    while (worker.try_pop().has_value()) {
+        ++consumed;
+    }
+    const auto stats = worker.stats();
+    return consumed == 4 && stats.produced == 4 &&
+           stats.restart_attempts == 1 && stats.restart_successes == 1 &&
+           stats.source_exhausted && stats.recovery_exhausted;
+}
+
 }  // namespace
 
 int main() {
     const bool drop_oldest = check_drop_oldest();
     const bool close_unblocks = check_close_unblocks_waiter();
     const bool capture_worker = check_capture_worker();
+    const bool capture_recovery = check_capture_recovery();
 
     std::cout << "drop_oldest=" << std::boolalpha << drop_oldest << '\n';
     std::cout << "close_unblocks=" << close_unblocks << '\n';
     std::cout << "capture_worker=" << capture_worker << '\n';
+    std::cout << "capture_recovery=" << capture_recovery << '\n';
 
-    const bool passed = drop_oldest && close_unblocks && capture_worker;
+    const bool passed = drop_oldest && close_unblocks && capture_worker &&
+                        capture_recovery;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
 }
