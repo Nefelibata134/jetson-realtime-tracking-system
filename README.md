@@ -31,6 +31,7 @@ network-stream reconnect and fault-recovery behavior.
 | Capture pipeline | Dedicated producer thread, bounded queue, timestamps, and drop-oldest backpressure | Implemented |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
+| Continuous detection | Capture, bounded latest-frame queue, TensorRT detection, and latency statistics | Implemented |
 | ByteTrack | Persistent track identities | Planned |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
@@ -84,6 +85,34 @@ cmake --build build -j"$(nproc)"
 ./build/edge_vision_detect_image \
   models/yolox_nano_fp16.plan input.jpg output.jpg
 ```
+
+Configure both runtime backends to run continuous detection from a replay file
+or the IMX219 camera:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
+  -DEDGE_VISION_ENABLE_TENSORRT=ON
+cmake --build build -j"$(nproc)"
+
+./build/edge_vision_realtime_detect \
+  --engine models/yolox_nano_fp16.plan \
+  --file input.mp4 \
+  --frames 300 \
+  --queue-capacity 2
+
+./build/edge_vision_realtime_detect \
+  --engine models/yolox_nano_fp16.plan \
+  --csi --sensor-id 0 --width 1280 --height 720 --fps 30 \
+  --frames 300 \
+  --queue-capacity 2
+```
+
+The runtime reports produced, processed, and dropped frames; queue depth and
+sequence gaps; detection counts; queue-wait, inference, and end-to-end P50/P95
+latencies; and effective throughput. A small queue bounds stale-frame delay
+when capture outpaces inference.
 
 ## Target Platform
 

@@ -267,6 +267,21 @@ if(EDGE_VISION_ENABLE_TENSORRT)
             ${OpenCV_LIBS}
     )
 
+    if(EDGE_VISION_ENABLE_GSTREAMER)
+        add_executable(
+            edge_vision_realtime_detect
+            apps/realtime_detect.cpp
+        )
+        target_link_libraries(
+            edge_vision_realtime_detect
+            PRIVATE
+                edge_vision_capture
+                edge_vision_detector
+                edge_vision_gstreamer
+                ${OpenCV_LIBS}
+        )
+    endif()
+
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(
             edge_vision_tensorrt
@@ -296,6 +311,15 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 -Wextra
                 -Wpedantic
         )
+        if(EDGE_VISION_ENABLE_GSTREAMER)
+            target_compile_options(
+                edge_vision_realtime_detect
+                PRIVATE
+                    -Wall
+                    -Wextra
+                    -Wpedantic
+            )
+        endif()
     endif()
 endif()
 
