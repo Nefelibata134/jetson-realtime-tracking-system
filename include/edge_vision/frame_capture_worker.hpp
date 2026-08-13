@@ -57,6 +57,7 @@ private:
     std::atomic<std::uint64_t> produced_{0};
     std::atomic<std::uint64_t> restart_attempts_{0};
     std::atomic<std::uint64_t> restart_successes_{0};
+    std::atomic<std::uint64_t> stream_generation_{0};
     std::atomic<bool> stop_requested_{false};
     std::atomic<bool> running_{false};
     std::atomic<bool> source_exhausted_{false};

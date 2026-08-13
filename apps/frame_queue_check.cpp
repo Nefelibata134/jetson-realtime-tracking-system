@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "edge_vision/bounded_frame_queue.hpp"
 #include "edge_vision/frame_capture_worker.hpp"
@@ -140,12 +141,13 @@ bool check_capture_recovery() {
     }
     worker.wait();
 
-    std::uint64_t consumed = 0;
-    while (worker.try_pop().has_value()) {
-        ++consumed;
+    std::vector<std::uint64_t> generations;
+    while (const auto frame = worker.try_pop()) {
+        generations.push_back(frame->stream_generation);
     }
     const auto stats = worker.stats();
-    return consumed == 4 && stats.produced == 4 &&
+    return generations == std::vector<std::uint64_t>({0, 0, 1, 1}) &&
+           stats.produced == 4 &&
            stats.restart_attempts == 1 && stats.restart_successes == 1 &&
            stats.source_exhausted && stats.recovery_exhausted;
 }

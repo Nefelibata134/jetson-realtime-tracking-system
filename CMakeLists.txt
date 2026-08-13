@@ -334,6 +334,7 @@ if(EDGE_VISION_ENABLE_TENSORRT)
             edge_vision_realtime_detect
             PRIVATE
                 edge_vision_capture
+                edge_vision_bytetrack
                 edge_vision_detector
                 edge_vision_gstreamer
                 ${OpenCV_LIBS}

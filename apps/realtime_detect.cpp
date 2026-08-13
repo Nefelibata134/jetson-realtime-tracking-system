@@ -10,10 +10,13 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "edge_vision/byte_tracker.hpp"
 #include "edge_vision/frame_capture_worker.hpp"
 #include "edge_vision/gstreamer_frame_source.hpp"
 #include "edge_vision/yolox_detector.hpp"
@@ -36,6 +39,9 @@ struct Options {
     std::uint64_t log_interval{30};
     float score_threshold{0.3F};
     float nms_threshold{0.45F};
+    float track_threshold{0.5F};
+    float new_track_threshold{0.6F};
+    int track_buffer{30};
     std::uint64_t reconnect_attempts{3};
     std::uint64_t reconnect_delay_ms{1000};
     edge_vision::CsiCameraConfig camera;
@@ -59,6 +65,9 @@ void print_usage(const char* program) {
         << "  --queue-capacity N\n"
         << "  --score-threshold VALUE\n"
         << "  --nms-threshold VALUE\n"
+        << "  --track-threshold VALUE\n"
+        << "  --new-track-threshold VALUE\n"
+        << "  --track-buffer N\n"
         << "  --log-interval N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --sensor-id N\n"
@@ -140,6 +149,15 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--nms-threshold") {
             options.nms_threshold =
                 parse_probability(require_value(argument), argument);
+        } else if (argument == "--track-threshold") {
+            options.track_threshold =
+                parse_probability(require_value(argument), argument);
+        } else if (argument == "--new-track-threshold") {
+            options.new_track_threshold =
+                parse_probability(require_value(argument), argument);
+        } else if (argument == "--track-buffer") {
+            options.track_buffer =
+                parse_number<int>(require_value(argument), argument);
         } else if (argument == "--log-interval") {
             options.log_interval =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -188,6 +206,18 @@ Options parse_options(const int argc, char** argv) {
             "engine, source, frame limit, queue capacity, and log interval "
             "must be specified");
     }
+    if (options.score_threshold >= options.track_threshold) {
+        throw std::invalid_argument(
+            "score-threshold must be lower than track-threshold so "
+            "ByteTrack can use low-confidence detections");
+    }
+    if (options.new_track_threshold < options.track_threshold) {
+        throw std::invalid_argument(
+            "new-track-threshold must be at least track-threshold");
+    }
+    if (options.track_buffer <= 0) {
+        throw std::invalid_argument("track-buffer must be positive");
+    }
     return options;
 }
 
@@ -225,6 +255,21 @@ LatencySummary summarize(std::vector<double> values) {
     };
 }
 
+std::string format_track_ids(const std::vector<edge_vision::Track>& tracks) {
+    if (tracks.empty()) {
+        return "none";
+    }
+
+    std::ostringstream output;
+    for (std::size_t index = 0; index < tracks.size(); ++index) {
+        if (index > 0) {
+            output << ',';
+        }
+        output << tracks[index].track_id;
+    }
+    return output.str();
+}
+
 void print_latency(const std::string& name, const LatencySummary& summary) {
     std::cout << name << "_mean_ms=" << summary.mean_ms << '\n';
     std::cout << name << "_p50_ms=" << summary.p50_ms << '\n';
@@ -243,6 +288,13 @@ int main(int argc, char** argv) {
         detector_config.nms_threshold = options.nms_threshold;
         edge_vision::YoloXDetector detector(
             options.engine_path, detector_config);
+
+        edge_vision::ByteTrackerConfig tracker_config;
+        tracker_config.frame_rate = options.camera.frames_per_second;
+        tracker_config.track_buffer = options.track_buffer;
+        tracker_config.track_threshold = options.track_threshold;
+        tracker_config.new_track_threshold = options.new_track_threshold;
+        edge_vision::ByteTracker tracker(tracker_config);
 
         std::unique_ptr<edge_vision::IFrameSource> source;
         std::string source_name;
@@ -274,14 +326,23 @@ int main(int argc, char** argv) {
         std::uint64_t sequence_gaps = 0;
         std::uint64_t detection_frames = 0;
         std::uint64_t total_detections = 0;
+        std::uint64_t tracking_frames = 0;
+        std::uint64_t total_track_observations = 0;
+        std::uint64_t tracker_resets = 0;
+        std::uint64_t tracker_gap_updates = 0;
+        std::size_t max_active_tracks = 0;
+        std::set<std::int64_t> unique_track_ids;
         std::uint64_t previous_sequence = 0;
         bool has_previous = false;
+        std::optional<std::uint64_t> active_stream_generation;
         std::size_t warmup_dropped = 0;
         std::vector<double> queue_wait_ms;
         std::vector<double> inference_ms;
+        std::vector<double> tracking_ms;
         std::vector<double> end_to_end_ms;
         queue_wait_ms.reserve(options.frame_limit);
         inference_ms.reserve(options.frame_limit);
+        tracking_ms.reserve(options.frame_limit);
         end_to_end_ms.reserve(options.frame_limit);
         std::optional<std::chrono::steady_clock::time_point>
             measurement_started_at;
@@ -296,15 +357,28 @@ int main(int argc, char** argv) {
                 continue;
             }
 
+            if (!active_stream_generation.has_value()) {
+                active_stream_generation = frame->stream_generation;
+            } else if (*active_stream_generation !=
+                       frame->stream_generation) {
+                tracker.reset();
+                ++tracker_resets;
+                active_stream_generation = frame->stream_generation;
+                has_previous = false;
+            }
+
             const bool is_warmup = warmup_processed < options.warmup_frames;
             if (!is_warmup && !measurement_started_at.has_value()) {
                 warmup_dropped = worker.stats().queue.dropped;
                 measurement_started_at = std::chrono::steady_clock::now();
             }
 
+            std::uint64_t missing_frame_updates = 0;
             if (!is_warmup) {
                 if (has_previous && frame->sequence > previous_sequence + 1) {
-                    sequence_gaps += frame->sequence - previous_sequence - 1;
+                    missing_frame_updates =
+                        frame->sequence - previous_sequence - 1;
+                    sequence_gaps += missing_frame_updates;
                 }
                 previous_sequence = frame->sequence;
                 has_previous = true;
@@ -317,11 +391,10 @@ int main(int argc, char** argv) {
             const std::int64_t inference_finished_ns = monotonic_time_ns();
             const double infer_ms = static_cast<double>(
                 inference_finished_ns - inference_started_ns) / 1'000'000.0;
-            const double e2e_ms = static_cast<double>(
-                inference_finished_ns - frame->captured_at_ns) / 1'000'000.0;
 
             ++processed;
             if (is_warmup) {
+                static_cast<void>(tracker.update(detections));
                 ++warmup_processed;
                 if (warmup_processed <= 3 ||
                     warmup_processed == options.warmup_frames) {
@@ -331,15 +404,42 @@ int main(int argc, char** argv) {
                               << " infer_ms=" << std::fixed
                               << std::setprecision(3) << infer_ms << '\n';
                 }
+                if (warmup_processed == options.warmup_frames) {
+                    tracker.reset();
+                    has_previous = false;
+                }
                 continue;
             }
 
+            const std::uint64_t gap_updates = std::min(
+                missing_frame_updates,
+                static_cast<std::uint64_t>(options.track_buffer + 1));
+            for (std::uint64_t update = 0; update < gap_updates; ++update) {
+                static_cast<void>(tracker.update({}));
+            }
+            tracker_gap_updates += gap_updates;
+            const auto tracks = tracker.update(detections);
+            const std::int64_t tracking_finished_ns = monotonic_time_ns();
+            const double track_ms = static_cast<double>(
+                tracking_finished_ns - inference_finished_ns) / 1'000'000.0;
+            const double e2e_ms = static_cast<double>(
+                tracking_finished_ns - frame->captured_at_ns) / 1'000'000.0;
+
             queue_wait_ms.push_back(queue_ms);
             inference_ms.push_back(infer_ms);
+            tracking_ms.push_back(track_ms);
             end_to_end_ms.push_back(e2e_ms);
             total_detections += detections.size();
             if (!detections.empty()) {
                 ++detection_frames;
+            }
+            total_track_observations += tracks.size();
+            max_active_tracks = std::max(max_active_tracks, tracks.size());
+            if (!tracks.empty()) {
+                ++tracking_frames;
+            }
+            for (const auto& track : tracks) {
+                unique_track_ids.insert(track.track_id);
             }
 
             ++measured_frames;
@@ -347,8 +447,11 @@ int main(int argc, char** argv) {
                 measured_frames % options.log_interval == 0) {
                 std::cout << "frame=" << frame->sequence
                           << " detections=" << detections.size()
+                          << " tracks=" << tracks.size()
+                          << " track_ids=" << format_track_ids(tracks)
                           << " queue_ms=" << std::fixed << std::setprecision(3)
                           << queue_ms << " infer_ms=" << infer_ms
+                          << " track_ms=" << track_ms
                           << " e2e_ms=" << e2e_ms << '\n';
             }
         }
@@ -364,6 +467,7 @@ int main(int argc, char** argv) {
                                            : 0.0;
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);
+        const LatencySummary tracking_summary = summarize(tracking_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
         const bool target_reached = measured_frames == options.frame_limit;
         const std::size_t measured_dropped =
@@ -392,12 +496,20 @@ int main(int argc, char** argv) {
         std::cout << "invalid_frames=" << invalid_frames << '\n';
         std::cout << "detection_frames=" << detection_frames << '\n';
         std::cout << "total_detections=" << total_detections << '\n';
+        std::cout << "tracking_frames=" << tracking_frames << '\n';
+        std::cout << "total_track_observations="
+                  << total_track_observations << '\n';
+        std::cout << "unique_track_ids=" << unique_track_ids.size() << '\n';
+        std::cout << "max_active_tracks=" << max_active_tracks << '\n';
+        std::cout << "tracker_resets=" << tracker_resets << '\n';
+        std::cout << "tracker_gap_updates=" << tracker_gap_updates << '\n';
         std::cout << "source_exhausted=" << std::boolalpha
                   << stats.source_exhausted << '\n';
         std::cout << "recovery_exhausted=" << stats.recovery_exhausted
                   << '\n';
         print_latency("queue_wait", queue_summary);
         print_latency("inference", inference_summary);
+        print_latency("tracking", tracking_summary);
         print_latency("end_to_end", e2e_summary);
         std::cout << "effective_fps="
                   << (elapsed_seconds == 0.0

@@ -31,7 +31,7 @@ network-stream reconnect and fault-recovery behavior.
 | Capture pipeline | Dedicated producer thread, bounded queue, timestamps, and drop-oldest backpressure | Implemented |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
-| Continuous detection | Capture, bounded latest-frame queue, TensorRT detection, and latency statistics | Implemented |
+| Continuous detection and tracking | Capture, bounded latest-frame queue, TensorRT detection, ByteTrack association, and latency statistics | Implemented |
 | Benchmark harness | Warmup isolation, power telemetry, and model/resolution/power comparison | Implemented |
 | ByteTrack | Kalman prediction, two-stage association, class-aware identities, and reset semantics | Implemented |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
@@ -115,7 +115,11 @@ cmake --build build -j"$(nproc)"
   --file input.mp4 \
   --warmup-frames 30 \
   --frames 300 \
-  --queue-capacity 2
+  --queue-capacity 2 \
+  --score-threshold 0.3 \
+  --track-threshold 0.5 \
+  --new-track-threshold 0.6 \
+  --track-buffer 30
 
 ./build/edge_vision_realtime_detect \
   --engine models/yolox_nano_fp16.plan \
@@ -126,14 +130,23 @@ cmake --build build -j"$(nproc)"
   --warmup-frames 30 \
   --frames 300 \
   --queue-capacity 2 \
+  --score-threshold 0.3 \
+  --track-threshold 0.5 \
+  --new-track-threshold 0.6 \
+  --track-buffer 30 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
 The runtime reports produced, processed, and dropped frames; queue depth and
-sequence gaps; detection counts; queue-wait, inference, and end-to-end P50/P95
-latencies; and effective throughput. A small queue bounds stale-frame delay
-when capture outpaces inference. Warmup frames execute the complete pipeline
-but are excluded from detection, latency, throughput, and steady-state drop
+sequence gaps; detection and track counts; unique track IDs; queue-wait,
+inference, tracking, and end-to-end P50/P95 latencies; and effective
+throughput. The detector score threshold must remain below the ByteTrack track
+threshold so low-confidence detections remain available for second-stage
+association. A small queue bounds stale-frame delay when capture outpaces
+inference. Missing frame sequences age the tracker with empty updates, while a
+successful source reconnect increments the stream generation and clears all
+stale tracks. Warmup frames execute the complete pipeline but are excluded
+from detection, tracking, latency, throughput, and steady-state drop
 statistics.
 
 ## Jetson Benchmark Matrix

@@ -85,6 +85,7 @@ bool FrameCaptureWorker::restart_source() noexcept {
         }
         if (source_->open()) {
             restart_successes_.fetch_add(1);
+            stream_generation_.fetch_add(1);
             source_exhausted_.store(false);
             return true;
         }
@@ -111,6 +112,7 @@ void FrameCaptureWorker::capture_loop() noexcept {
             break;
         }
 
+        frame->stream_generation = stream_generation_.load();
         produced_.fetch_add(1);
         if (queue_.push(std::move(*frame)) == QueuePushResult::closed) {
             break;
