@@ -52,6 +52,46 @@ target_link_libraries(
 )
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+
+set(
+    BYTETRACK_UPSTREAM_SOURCES
+    third_party/bytetrack/src/BYTETracker.cpp
+    third_party/bytetrack/src/STrack.cpp
+    third_party/bytetrack/src/kalmanFilter.cpp
+    third_party/bytetrack/src/lapjv.cpp
+    third_party/bytetrack/src/utils.cpp
+)
+
+add_library(
+    edge_vision_bytetrack
+    src/byte_tracker.cpp
+    ${BYTETRACK_UPSTREAM_SOURCES}
+)
+target_include_directories(
+    edge_vision_bytetrack
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bytetrack/include
+        ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(
+    edge_vision_bytetrack
+    PUBLIC
+        edge_vision_core
+    PRIVATE
+        Eigen3::Eigen
+        ${OpenCV_LIBS}
+)
+
+add_executable(
+    edge_vision_byte_tracker_check
+    apps/byte_tracker_check.cpp
+)
+target_link_libraries(
+    edge_vision_byte_tracker_check
+    PRIVATE
+        edge_vision_bytetrack
+)
 
 add_library(
     edge_vision_yolox
@@ -92,6 +132,24 @@ target_link_libraries(
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(
+        ${BYTETRACK_UPSTREAM_SOURCES}
+        PROPERTIES COMPILE_OPTIONS -w
+    )
+    target_compile_options(
+        edge_vision_bytetrack
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_byte_tracker_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
     target_compile_options(
         edge_vision_contract_check
         PRIVATE
@@ -328,3 +386,4 @@ add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
 add_test(NAME edge_vision_frame_queue_check COMMAND edge_vision_frame_queue_check)
 add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
 add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)
+add_test(NAME edge_vision_byte_tracker_check COMMAND edge_vision_byte_tracker_check)

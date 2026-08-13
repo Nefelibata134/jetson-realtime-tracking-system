@@ -33,7 +33,7 @@ network-stream reconnect and fault-recovery behavior.
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
 | Continuous detection | Capture, bounded latest-frame queue, TensorRT detection, and latency statistics | Implemented |
 | Benchmark harness | Warmup isolation, power telemetry, and model/resolution/power comparison | Implemented |
-| ByteTrack | Persistent track identities | Planned |
+| ByteTrack | Kalman prediction, two-stage association, class-aware identities, and reset semantics | Implemented |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
 | Recovery | Bounded CSI pipeline reconnect with explicit failure status | Implemented |
@@ -49,10 +49,11 @@ ctest --test-dir build --output-on-failure
 ./build/edge_vision_frame_queue_check
 ./build/edge_vision_preprocess_check
 ./build/edge_vision_postprocess_check
+./build/edge_vision_byte_tracker_check
 ```
 
-The default targets require a C++17 compiler and OpenCV. TensorRT targets are
-enabled explicitly for Jetson builds.
+The default targets require a C++17 compiler, OpenCV, and Eigen 3. TensorRT
+targets are enabled explicitly for Jetson builds.
 
 Configure the GStreamer capture targets on Jetson with:
 
