@@ -160,6 +160,9 @@ encoding drops the oldest pending output frame instead of blocking capture,
 detection, or tracking. Enqueue latency, writer drops, queue watermark, and
 final flush time are reported separately from real-time pipeline latency.
 
+Measured synchronous and asynchronous output results are available in the
+[annotated video output benchmark](docs/benchmarks/annotated_video_output.md).
+
 ## Jetson Benchmark Matrix
 
 The benchmark harness compares YOLOX-Nano and YOLOX-Tiny under 720p and 1080p
