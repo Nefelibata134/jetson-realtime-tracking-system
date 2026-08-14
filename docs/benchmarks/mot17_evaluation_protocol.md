@@ -78,7 +78,8 @@ bash scripts/run_trackeval_mot17.sh \
 python3 scripts/summarize_mot17.py \
   --summary reports/mot17/trackeval/edge_vision/pedestrian_summary.txt \
   --json reports/mot17/holdout_metrics.json \
-  --markdown reports/mot17/holdout_metrics.md
+  --markdown reports/mot17/holdout_metrics.md \
+  --title "MOT17 Holdout Evaluation"
 ```
 
 TrackEval reports HOTA, IDF1, MOTA, and ID switches. HOTA balances detection

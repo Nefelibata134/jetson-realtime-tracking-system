@@ -26,10 +26,12 @@ def parse_summary(path: Path) -> dict[str, float | int]:
     }
 
 
-def render_markdown(metrics: dict[str, float | int], summary: Path) -> str:
+def render_markdown(
+    metrics: dict[str, float | int], summary: Path, title: str
+) -> str:
     return "\n".join(
         [
-            "# MOT17 Holdout Evaluation",
+            f"# {title}",
             "",
             "Metrics are computed by the pinned official TrackEval revision.",
             f"Source summary: `{summary.as_posix()}`",
@@ -50,6 +52,7 @@ def main() -> None:
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--json", type=Path)
     parser.add_argument("--markdown", type=Path)
+    parser.add_argument("--title", default="MOT17 Tracking Evaluation")
     args = parser.parse_args()
 
     metrics = parse_summary(args.summary)
@@ -58,7 +61,7 @@ def main() -> None:
         args.json.write_text(json.dumps(metrics, indent=2) + "\n")
     if args.markdown:
         args.markdown.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown.write_text(render_markdown(metrics, args.summary))
+        args.markdown.write_text(render_markdown(metrics, args.summary, args.title))
 
     print(json.dumps(metrics, indent=2))
 

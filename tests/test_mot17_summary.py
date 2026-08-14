@@ -35,6 +35,15 @@ class Mot17SummaryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "IDF1"):
                 MODULE.parse_summary(summary)
 
+    def test_renders_explicit_title(self):
+        markdown = MODULE.render_markdown(
+            {"HOTA": 41.25, "IDF1": 44.50, "MOTA": 35.75, "IDSW": 27},
+            Path("reports/pedestrian_summary.txt"),
+            "MOT17 Calibration Baseline",
+        )
+
+        self.assertTrue(markdown.startswith("# MOT17 Calibration Baseline\n"))
+
 
 if __name__ == "__main__":
     unittest.main()
