@@ -31,7 +31,7 @@ network-stream reconnect and fault-recovery behavior.
 | Capture pipeline | Dedicated producer thread, bounded queue, timestamps, and drop-oldest backpressure | Implemented |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
-| Continuous detection and tracking | Capture, bounded latest-frame queue, TensorRT detection, ByteTrack association, and latency statistics | Implemented |
+| Continuous detection and tracking | Capture, bounded latest-frame queue, TensorRT detection, ByteTrack association, annotated video output, and latency statistics | Implemented |
 | Benchmark harness | Warmup isolation, power telemetry, and model/resolution/power comparison | Implemented |
 | ByteTrack | Kalman prediction, two-stage association, class-aware identities, and reset semantics | Implemented |
 | Event analyzer | Region, dwell-time, and intrusion rules | Planned |
@@ -119,7 +119,8 @@ cmake --build build -j"$(nproc)"
   --score-threshold 0.3 \
   --track-threshold 0.5 \
   --new-track-threshold 0.6 \
-  --track-buffer 30
+  --track-buffer 30 \
+  --output-video outputs/replay_tracking.mp4
 
 ./build/edge_vision_realtime_detect \
   --engine models/yolox_nano_fp16.plan \
@@ -134,6 +135,7 @@ cmake --build build -j"$(nproc)"
   --track-threshold 0.5 \
   --new-track-threshold 0.6 \
   --track-buffer 30 \
+  --output-video outputs/imx219_tracking.mp4 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
@@ -148,6 +150,11 @@ successful source reconnect increments the stream generation and clears all
 stale tracks. Warmup frames execute the complete pipeline but are excluded
 from detection, tracking, latency, throughput, and steady-state drop
 statistics.
+
+`--output-video` is optional. When enabled, the runtime writes only measured
+frames after warmup and overlays each active track's bounding box, class ID,
+confidence, and persistent track ID. Video encoding latency is reported
+separately from detector, tracker, and end-to-end analytics latency.
 
 ## Jetson Benchmark Matrix
 

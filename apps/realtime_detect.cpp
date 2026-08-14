@@ -14,9 +14,11 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "edge_vision/byte_tracker.hpp"
+#include "edge_vision/annotated_video_writer.hpp"
 #include "edge_vision/frame_capture_worker.hpp"
 #include "edge_vision/gstreamer_frame_source.hpp"
 #include "edge_vision/yolox_detector.hpp"
@@ -33,6 +35,7 @@ struct Options {
     SourceType source_type{SourceType::none};
     std::string engine_path;
     std::string file_path;
+    std::string output_video_path;
     std::uint64_t frame_limit{300};
     std::uint64_t warmup_frames{0};
     std::size_t queue_capacity{2};
@@ -68,6 +71,7 @@ void print_usage(const char* program) {
         << "  --track-threshold VALUE\n"
         << "  --new-track-threshold VALUE\n"
         << "  --track-buffer N\n"
+        << "  --output-video PATH\n"
         << "  --log-interval N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --sensor-id N\n"
@@ -158,6 +162,8 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--track-buffer") {
             options.track_buffer =
                 parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--output-video") {
+            options.output_video_path = require_value(argument);
         } else if (argument == "--log-interval") {
             options.log_interval =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -296,6 +302,17 @@ int main(int argc, char** argv) {
         tracker_config.new_track_threshold = options.new_track_threshold;
         edge_vision::ByteTracker tracker(tracker_config);
 
+        std::unique_ptr<edge_vision::AnnotatedVideoWriter> video_writer;
+        if (!options.output_video_path.empty()) {
+            edge_vision::AnnotatedVideoWriterConfig writer_config;
+            writer_config.output_path = options.output_video_path;
+            writer_config.frames_per_second =
+                options.camera.frames_per_second;
+            video_writer =
+                std::make_unique<edge_vision::AnnotatedVideoWriter>(
+                    std::move(writer_config));
+        }
+
         std::unique_ptr<edge_vision::IFrameSource> source;
         std::string source_name;
         if (options.source_type == Options::SourceType::file) {
@@ -339,10 +356,12 @@ int main(int argc, char** argv) {
         std::vector<double> queue_wait_ms;
         std::vector<double> inference_ms;
         std::vector<double> tracking_ms;
+        std::vector<double> video_output_ms;
         std::vector<double> end_to_end_ms;
         queue_wait_ms.reserve(options.frame_limit);
         inference_ms.reserve(options.frame_limit);
         tracking_ms.reserve(options.frame_limit);
+        video_output_ms.reserve(options.frame_limit);
         end_to_end_ms.reserve(options.frame_limit);
         std::optional<std::chrono::steady_clock::time_point>
             measurement_started_at;
@@ -425,6 +444,15 @@ int main(int argc, char** argv) {
             const double e2e_ms = static_cast<double>(
                 tracking_finished_ns - frame->captured_at_ns) / 1'000'000.0;
 
+            double output_ms = 0.0;
+            if (video_writer) {
+                const std::int64_t output_started_ns = monotonic_time_ns();
+                video_writer->write(*frame, tracks);
+                output_ms = static_cast<double>(
+                    monotonic_time_ns() - output_started_ns) / 1'000'000.0;
+                video_output_ms.push_back(output_ms);
+            }
+
             queue_wait_ms.push_back(queue_ms);
             inference_ms.push_back(infer_ms);
             tracking_ms.push_back(track_ms);
@@ -452,10 +480,17 @@ int main(int argc, char** argv) {
                           << " queue_ms=" << std::fixed << std::setprecision(3)
                           << queue_ms << " infer_ms=" << infer_ms
                           << " track_ms=" << track_ms
-                          << " e2e_ms=" << e2e_ms << '\n';
+                          << " e2e_ms=" << e2e_ms;
+                if (video_writer) {
+                    std::cout << " output_ms=" << output_ms;
+                }
+                std::cout << '\n';
             }
         }
 
+        if (video_writer) {
+            video_writer->close();
+        }
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         const edge_vision::FrameCaptureStats stats = worker.stats();
@@ -468,6 +503,7 @@ int main(int argc, char** argv) {
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);
         const LatencySummary tracking_summary = summarize(tracking_ms);
+        const LatencySummary video_output_summary = summarize(video_output_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
         const bool target_reached = measured_frames == options.frame_limit;
         const std::size_t measured_dropped =
@@ -503,6 +539,13 @@ int main(int argc, char** argv) {
         std::cout << "max_active_tracks=" << max_active_tracks << '\n';
         std::cout << "tracker_resets=" << tracker_resets << '\n';
         std::cout << "tracker_gap_updates=" << tracker_gap_updates << '\n';
+        if (video_writer) {
+            std::cout << "output_video=" << video_writer->output_path() << '\n';
+            std::cout << "output_frames=" << video_writer->frames_written()
+                      << '\n';
+        } else {
+            std::cout << "output_video=disabled\n";
+        }
         std::cout << "source_exhausted=" << std::boolalpha
                   << stats.source_exhausted << '\n';
         std::cout << "recovery_exhausted=" << stats.recovery_exhausted
@@ -510,6 +553,9 @@ int main(int argc, char** argv) {
         print_latency("queue_wait", queue_summary);
         print_latency("inference", inference_summary);
         print_latency("tracking", tracking_summary);
+        if (video_writer) {
+            print_latency("video_output", video_output_summary);
+        }
         print_latency("end_to_end", e2e_summary);
         std::cout << "effective_fps="
                   << (elapsed_seconds == 0.0

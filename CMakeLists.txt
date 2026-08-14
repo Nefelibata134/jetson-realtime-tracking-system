@@ -51,8 +51,25 @@ target_link_libraries(
         edge_vision_capture
 )
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+
+add_library(
+    edge_vision_video_output
+    src/annotated_video_writer.cpp
+)
+target_include_directories(
+    edge_vision_video_output
+    PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(
+    edge_vision_video_output
+    PUBLIC
+        edge_vision_core
+    PRIVATE
+        ${OpenCV_LIBS}
+)
 
 set(
     BYTETRACK_UPSTREAM_SOURCES
@@ -187,6 +204,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
     target_compile_options(
         edge_vision_postprocess_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_video_output
         PRIVATE
             -Wall
             -Wextra
@@ -337,7 +361,7 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 edge_vision_bytetrack
                 edge_vision_detector
                 edge_vision_gstreamer
-                ${OpenCV_LIBS}
+                edge_vision_video_output
         )
     endif()
 
