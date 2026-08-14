@@ -222,6 +222,35 @@ The resulting CSV and Markdown files report steady-state FPS, inference and
 end-to-end P95 latency, drop rate, mean and peak power, temperature, GPU
 utilization, and FPS per watt.
 
+## MOT17 Tracking Evaluation
+
+The offline evaluation path processes every selected MOT17 frame in sequence,
+exports standard ten-column MOTChallenge result files, and computes HOTA,
+IDF1, MOTA, and identity switches with a pinned official TrackEval revision.
+Only the FRCNN-named copy of each physical MOT17 video is used because this
+runtime supplies its own detector outputs.
+
+```bash
+bash scripts/fetch_mot17.sh
+bash scripts/fetch_trackeval.sh
+
+cmake -S . -B build-mot17 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_TENSORRT=ON
+cmake --build build-mot17 -j"$(nproc)"
+
+bash scripts/run_mot17_inference.sh \
+  --engine models/yolox_nano_fp16.plan \
+  --seqmap configs/mot17/holdout.txt
+
+bash scripts/run_trackeval_mot17.sh \
+  --seqmap configs/mot17/holdout.txt
+```
+
+The fixed calibration/holdout partition, frame policy, dependency versions,
+and report generation commands are defined in the
+[MOT17 evaluation protocol](docs/benchmarks/mot17_evaluation_protocol.md).
+
 ## Target Platform
 
 - NVIDIA Jetson Orin Nano 8GB

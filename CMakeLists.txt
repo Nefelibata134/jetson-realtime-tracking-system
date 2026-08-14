@@ -122,6 +122,26 @@ target_link_libraries(
 )
 
 add_library(
+    edge_vision_mot_output
+    src/mot_challenge_writer.cpp
+)
+target_link_libraries(
+    edge_vision_mot_output
+    PUBLIC
+        edge_vision_core
+)
+
+add_executable(
+    edge_vision_mot_challenge_writer_check
+    apps/mot_challenge_writer_check.cpp
+)
+target_link_libraries(
+    edge_vision_mot_challenge_writer_check
+    PRIVATE
+        edge_vision_mot_output
+)
+
+add_library(
     edge_vision_yolox
     src/yolox_preprocessor.cpp
     src/yolox_postprocessor.cpp
@@ -173,6 +193,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
     target_compile_options(
         edge_vision_byte_tracker_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_mot_output
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_mot_challenge_writer_check
         PRIVATE
             -Wall
             -Wextra
@@ -367,6 +401,24 @@ if(EDGE_VISION_ENABLE_TENSORRT)
             ${OpenCV_LIBS}
     )
 
+    add_executable(
+        edge_vision_mot_sequence_infer
+        apps/mot_sequence_infer.cpp
+    )
+    target_include_directories(
+        edge_vision_mot_sequence_infer
+        PRIVATE
+            ${OpenCV_INCLUDE_DIRS}
+    )
+    target_link_libraries(
+        edge_vision_mot_sequence_infer
+        PRIVATE
+            edge_vision_bytetrack
+            edge_vision_detector
+            edge_vision_mot_output
+            ${OpenCV_LIBS}
+    )
+
     if(EDGE_VISION_ENABLE_GSTREAMER)
         add_executable(
             edge_vision_realtime_detect
@@ -412,6 +464,13 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 -Wextra
                 -Wpedantic
         )
+        target_compile_options(
+            edge_vision_mot_sequence_infer
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
         if(EDGE_VISION_ENABLE_GSTREAMER)
             target_compile_options(
                 edge_vision_realtime_detect
@@ -431,3 +490,7 @@ add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
 add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)
 add_test(NAME edge_vision_byte_tracker_check COMMAND edge_vision_byte_tracker_check)
 add_test(NAME edge_vision_video_writer_check COMMAND edge_vision_video_writer_check)
+add_test(
+    NAME edge_vision_mot_challenge_writer_check
+    COMMAND edge_vision_mot_challenge_writer_check
+)

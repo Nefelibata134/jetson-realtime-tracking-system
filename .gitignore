@@ -9,6 +9,9 @@
 /outputs/
 /reports/
 /videos/*.mp4
+/data/
+/external/
+/.venv-trackeval/
 __pycache__/
 *.py[cod]
 *.log
