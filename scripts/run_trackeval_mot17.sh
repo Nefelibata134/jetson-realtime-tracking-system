@@ -60,10 +60,16 @@ fi
     --seqmap "${seqmap}"
 
 "${python_binary}" - <<'PY'
+import warnings
+
 import numpy as np
 import scipy  # noqa: F401
 
-if "float" not in np.__dict__ or "int" not in np.__dict__:
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    legacy_aliases_available = hasattr(np, "float") and hasattr(np, "int")
+
+if not legacy_aliases_available:
     raise SystemExit(
         "The pinned TrackEval revision requires NumPy < 1.24. "
         "On Ubuntu 22.04 install python3-numpy and python3-scipy from apt."
