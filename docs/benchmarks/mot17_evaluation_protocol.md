@@ -16,11 +16,13 @@ frames and ground truth from being counted three times.
 
 | Partition | Sequences | Purpose |
 | --- | --- | --- |
-| Calibration | 01, 06, 08, 12 | Controlled tracker parameter comparison |
-| Holdout | 03, 07, 14 | Final result reported once after configuration selection |
+| Calibration | 02, 04, 05, 10 | Controlled tracker parameter comparison |
+| Holdout | 09, 11, 13 | Final result reported once after configuration selection |
 
 The tracked sequence maps are stored in `configs/mot17/`. Test-set labels are
-not public and are not used by this local benchmark.
+not public and are not used by this local benchmark. Dataset validation checks
+the selected sequence metadata, ground truth, image count, and frame numbering
+before inference or metric computation begins.
 
 ## Frame Policy
 

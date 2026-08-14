@@ -72,6 +72,10 @@ if [[ ! -x "${binary}" ]]; then
     exit 1
 fi
 
+python3 scripts/validate_mot17.py \
+    --train-root "${data_root}" \
+    --seqmap "${seqmap}"
+
 mkdir -p "${output_root}" "${report_root}"
 sequence_count=0
 while IFS= read -r sequence; do

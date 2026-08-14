@@ -228,7 +228,9 @@ The offline evaluation path processes every selected MOT17 frame in sequence,
 exports standard ten-column MOTChallenge result files, and computes HOTA,
 IDF1, MOTA, and identity switches with a pinned official TrackEval revision.
 Only the FRCNN-named copy of each physical MOT17 video is used because this
-runtime supplies its own detector outputs.
+runtime supplies its own detector outputs. The fixed partition uses public
+training sequences only, and each command validates metadata, ground truth,
+image count, and frame numbering before starting inference.
 
 ```bash
 bash scripts/fetch_mot17.sh

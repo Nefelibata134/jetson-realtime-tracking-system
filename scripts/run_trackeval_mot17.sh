@@ -55,6 +55,10 @@ if [[ ! -f "${seqmap}" ]]; then
     exit 1
 fi
 
+"${python_binary}" scripts/validate_mot17.py \
+    --train-root "${gt_root}" \
+    --seqmap "${seqmap}"
+
 "${python_binary}" - <<'PY'
 import numpy as np
 import scipy  # noqa: F401
