@@ -4,11 +4,16 @@
 #include <opencv2/videoio.hpp>
 
 #include <algorithm>
+#include <condition_variable>
 #include <cmath>
+#include <deque>
+#include <exception>
 #include <filesystem>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 namespace edge_vision {
@@ -118,17 +123,112 @@ public:
             config_.frames_per_second <= 0.0) {
             throw std::invalid_argument("video output FPS must be positive");
         }
+        if (config_.queue_capacity == 0) {
+            throw std::invalid_argument(
+                "video output queue capacity must be positive");
+        }
+        worker_ = std::thread(&Impl::run, this);
     }
 
     void write(const Frame& frame, const std::vector<Track>& tracks) {
-        cv::Mat image = frame_to_bgr(frame);
+        if (!frame.valid() || frame.channels != 3) {
+            throw std::invalid_argument(
+                "video output requires a valid three-channel frame");
+        }
+
+        Packet packet{frame, tracks};
+        std::lock_guard<std::mutex> lock(mutex_);
+        rethrow_worker_error_locked();
+        if (stop_requested_) {
+            throw std::runtime_error("annotated video writer is closed");
+        }
+
+        if (queue_.size() == config_.queue_capacity) {
+            queue_.pop_front();
+            ++stats_.frames_dropped;
+        }
+        queue_.push_back(std::move(packet));
+        ++stats_.frames_submitted;
+        stats_.queue_high_watermark =
+            std::max(stats_.queue_high_watermark, queue_.size());
+        ready_.notify_one();
+    }
+
+    void finish() {
+        request_stop();
+        join_worker();
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        rethrow_worker_error_locked();
+    }
+
+    void close() noexcept {
+        request_stop();
+        join_worker();
+    }
+
+    [[nodiscard]] AnnotatedVideoWriterStats stats() const noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return stats_;
+    }
+
+    [[nodiscard]] std::uint64_t frames_written() const noexcept {
+        return stats().frames_written;
+    }
+
+    [[nodiscard]] const std::string& output_path() const noexcept {
+        return config_.output_path;
+    }
+
+private:
+    struct Packet {
+        Frame frame;
+        std::vector<Track> tracks;
+    };
+
+    void run() noexcept {
+        try {
+            while (true) {
+                Packet packet;
+                {
+                    std::unique_lock<std::mutex> lock(mutex_);
+                    ready_.wait(lock, [this] {
+                        return stop_requested_ || !queue_.empty();
+                    });
+                    if (queue_.empty()) {
+                        break;
+                    }
+                    packet = std::move(queue_.front());
+                    queue_.pop_front();
+                }
+
+                write_packet(packet);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    ++stats_.frames_written;
+                }
+            }
+            if (writer_.isOpened()) {
+                writer_.release();
+            }
+        } catch (...) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            worker_error_ = std::current_exception();
+            stats_.frames_dropped += queue_.size();
+            queue_.clear();
+            stop_requested_ = true;
+        }
+    }
+
+    void write_packet(const Packet& packet) {
+        cv::Mat image = frame_to_bgr(packet.frame);
         open_if_needed(image.size());
         if (image.size() != frame_size_) {
             throw std::invalid_argument(
                 "video output frame dimensions changed during the stream");
         }
 
-        for (const Track& track : tracks) {
+        for (const Track& track : packet.tracks) {
             if (track.box.width <= 0.0F || track.box.height <= 0.0F) {
                 continue;
             }
@@ -139,24 +239,28 @@ public:
         }
 
         writer_.write(image);
-        ++frames_written_;
     }
 
-    void close() noexcept {
-        if (writer_.isOpened()) {
-            writer_.release();
+    void request_stop() noexcept {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stop_requested_ = true;
+        }
+        ready_.notify_all();
+    }
+
+    void join_worker() noexcept {
+        if (worker_.joinable()) {
+            worker_.join();
         }
     }
 
-    [[nodiscard]] std::uint64_t frames_written() const noexcept {
-        return frames_written_;
+    void rethrow_worker_error_locked() const {
+        if (worker_error_) {
+            std::rethrow_exception(worker_error_);
+        }
     }
 
-    [[nodiscard]] const std::string& output_path() const noexcept {
-        return config_.output_path;
-    }
-
-private:
     void open_if_needed(const cv::Size& frame_size) {
         if (writer_.isOpened()) {
             return;
@@ -184,7 +288,13 @@ private:
     AnnotatedVideoWriterConfig config_;
     cv::VideoWriter writer_;
     cv::Size frame_size_;
-    std::uint64_t frames_written_{0};
+    mutable std::mutex mutex_;
+    std::condition_variable ready_;
+    std::deque<Packet> queue_;
+    std::thread worker_;
+    std::exception_ptr worker_error_;
+    AnnotatedVideoWriterStats stats_;
+    bool stop_requested_{false};
 };
 
 AnnotatedVideoWriter::AnnotatedVideoWriter(AnnotatedVideoWriterConfig config)
@@ -200,8 +310,16 @@ void AnnotatedVideoWriter::write(
     impl_->write(frame, tracks);
 }
 
+void AnnotatedVideoWriter::finish() {
+    impl_->finish();
+}
+
 void AnnotatedVideoWriter::close() noexcept {
     impl_->close();
+}
+
+AnnotatedVideoWriterStats AnnotatedVideoWriter::stats() const noexcept {
+    return impl_->stats();
 }
 
 std::uint64_t AnnotatedVideoWriter::frames_written() const noexcept {

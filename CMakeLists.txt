@@ -69,6 +69,17 @@ target_link_libraries(
         edge_vision_core
     PRIVATE
         ${OpenCV_LIBS}
+        Threads::Threads
+)
+
+add_executable(
+    edge_vision_video_writer_check
+    apps/video_writer_check.cpp
+)
+target_link_libraries(
+    edge_vision_video_writer_check
+    PRIVATE
+        edge_vision_video_output
 )
 
 set(
@@ -211,6 +222,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
     target_compile_options(
         edge_vision_video_output
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_video_writer_check
         PRIVATE
             -Wall
             -Wextra
@@ -412,3 +430,4 @@ add_test(NAME edge_vision_frame_queue_check COMMAND edge_vision_frame_queue_chec
 add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
 add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)
 add_test(NAME edge_vision_byte_tracker_check COMMAND edge_vision_byte_tracker_check)
+add_test(NAME edge_vision_video_writer_check COMMAND edge_vision_video_writer_check)

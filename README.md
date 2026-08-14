@@ -120,7 +120,8 @@ cmake --build build -j"$(nproc)"
   --track-threshold 0.5 \
   --new-track-threshold 0.6 \
   --track-buffer 30 \
-  --output-video outputs/replay_tracking.mp4
+  --output-video outputs/replay_tracking.mp4 \
+  --output-queue-capacity 4
 
 ./build/edge_vision_realtime_detect \
   --engine models/yolox_nano_fp16.plan \
@@ -136,6 +137,7 @@ cmake --build build -j"$(nproc)"
   --new-track-threshold 0.6 \
   --track-buffer 30 \
   --output-video outputs/imx219_tracking.mp4 \
+  --output-queue-capacity 4 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
@@ -151,10 +153,12 @@ stale tracks. Warmup frames execute the complete pipeline but are excluded
 from detection, tracking, latency, throughput, and steady-state drop
 statistics.
 
-`--output-video` is optional. When enabled, the runtime writes only measured
-frames after warmup and overlays each active track's bounding box, class ID,
-confidence, and persistent track ID. Video encoding latency is reported
-separately from detector, tracker, and end-to-end analytics latency.
+`--output-video` is optional. When enabled, the runtime sends measured frames
+after warmup to a dedicated bounded writer queue and overlays each active
+track's bounding box, class ID, confidence, and persistent track ID. Slow
+encoding drops the oldest pending output frame instead of blocking capture,
+detection, or tracking. Enqueue latency, writer drops, queue watermark, and
+final flush time are reported separately from real-time pipeline latency.
 
 ## Jetson Benchmark Matrix
 

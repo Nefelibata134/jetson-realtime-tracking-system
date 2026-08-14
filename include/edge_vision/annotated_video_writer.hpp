@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -13,6 +14,14 @@ namespace edge_vision {
 struct AnnotatedVideoWriterConfig {
     std::string output_path;
     double frames_per_second{30.0};
+    std::size_t queue_capacity{4};
+};
+
+struct AnnotatedVideoWriterStats {
+    std::uint64_t frames_submitted{0};
+    std::uint64_t frames_written{0};
+    std::uint64_t frames_dropped{0};
+    std::size_t queue_high_watermark{0};
 };
 
 class AnnotatedVideoWriter {
@@ -24,8 +33,10 @@ public:
     AnnotatedVideoWriter& operator=(const AnnotatedVideoWriter&) = delete;
 
     void write(const Frame& frame, const std::vector<Track>& tracks);
+    void finish();
     void close() noexcept;
 
+    [[nodiscard]] AnnotatedVideoWriterStats stats() const noexcept;
     [[nodiscard]] std::uint64_t frames_written() const noexcept;
     [[nodiscard]] const std::string& output_path() const noexcept;
 

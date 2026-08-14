@@ -39,6 +39,7 @@ struct Options {
     std::uint64_t frame_limit{300};
     std::uint64_t warmup_frames{0};
     std::size_t queue_capacity{2};
+    std::size_t output_queue_capacity{4};
     std::uint64_t log_interval{30};
     float score_threshold{0.3F};
     float nms_threshold{0.45F};
@@ -72,6 +73,7 @@ void print_usage(const char* program) {
         << "  --new-track-threshold VALUE\n"
         << "  --track-buffer N\n"
         << "  --output-video PATH\n"
+        << "  --output-queue-capacity N\n"
         << "  --log-interval N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --sensor-id N\n"
@@ -164,6 +166,9 @@ Options parse_options(const int argc, char** argv) {
                 parse_number<int>(require_value(argument), argument);
         } else if (argument == "--output-video") {
             options.output_video_path = require_value(argument);
+        } else if (argument == "--output-queue-capacity") {
+            options.output_queue_capacity =
+                parse_number<std::size_t>(require_value(argument), argument);
         } else if (argument == "--log-interval") {
             options.log_interval =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -205,6 +210,7 @@ Options parse_options(const int argc, char** argv) {
     if (options.engine_path.empty() ||
         options.source_type == Options::SourceType::none ||
         options.frame_limit == 0 || options.queue_capacity == 0 ||
+        options.output_queue_capacity == 0 ||
         options.log_interval == 0 || options.camera.width <= 0 ||
         options.camera.height <= 0 ||
         options.camera.frames_per_second <= 0) {
@@ -308,6 +314,7 @@ int main(int argc, char** argv) {
             writer_config.output_path = options.output_video_path;
             writer_config.frames_per_second =
                 options.camera.frames_per_second;
+            writer_config.queue_capacity = options.output_queue_capacity;
             video_writer =
                 std::make_unique<edge_vision::AnnotatedVideoWriter>(
                     std::move(writer_config));
@@ -356,12 +363,12 @@ int main(int argc, char** argv) {
         std::vector<double> queue_wait_ms;
         std::vector<double> inference_ms;
         std::vector<double> tracking_ms;
-        std::vector<double> video_output_ms;
+        std::vector<double> video_enqueue_ms;
         std::vector<double> end_to_end_ms;
         queue_wait_ms.reserve(options.frame_limit);
         inference_ms.reserve(options.frame_limit);
         tracking_ms.reserve(options.frame_limit);
-        video_output_ms.reserve(options.frame_limit);
+        video_enqueue_ms.reserve(options.frame_limit);
         end_to_end_ms.reserve(options.frame_limit);
         std::optional<std::chrono::steady_clock::time_point>
             measurement_started_at;
@@ -444,13 +451,13 @@ int main(int argc, char** argv) {
             const double e2e_ms = static_cast<double>(
                 tracking_finished_ns - frame->captured_at_ns) / 1'000'000.0;
 
-            double output_ms = 0.0;
+            double enqueue_ms = 0.0;
             if (video_writer) {
                 const std::int64_t output_started_ns = monotonic_time_ns();
                 video_writer->write(*frame, tracks);
-                output_ms = static_cast<double>(
+                enqueue_ms = static_cast<double>(
                     monotonic_time_ns() - output_started_ns) / 1'000'000.0;
-                video_output_ms.push_back(output_ms);
+                video_enqueue_ms.push_back(enqueue_ms);
             }
 
             queue_wait_ms.push_back(queue_ms);
@@ -482,18 +489,24 @@ int main(int argc, char** argv) {
                           << " track_ms=" << track_ms
                           << " e2e_ms=" << e2e_ms;
                 if (video_writer) {
-                    std::cout << " output_ms=" << output_ms;
+                    std::cout << " enqueue_ms=" << enqueue_ms;
                 }
                 std::cout << '\n';
             }
         }
 
-        if (video_writer) {
-            video_writer->close();
-        }
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         const edge_vision::FrameCaptureStats stats = worker.stats();
+        double video_flush_ms = 0.0;
+        if (video_writer) {
+            const auto flush_started_at = std::chrono::steady_clock::now();
+            video_writer->finish();
+            video_flush_ms = std::chrono::duration<double, std::milli>(
+                                 std::chrono::steady_clock::now() -
+                                 flush_started_at)
+                                 .count();
+        }
         const double elapsed_seconds = measurement_started_at.has_value()
                                            ? std::chrono::duration<double>(
                                                  processing_finished_at -
@@ -503,7 +516,8 @@ int main(int argc, char** argv) {
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);
         const LatencySummary tracking_summary = summarize(tracking_ms);
-        const LatencySummary video_output_summary = summarize(video_output_ms);
+        const LatencySummary video_enqueue_summary =
+            summarize(video_enqueue_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
         const bool target_reached = measured_frames == options.frame_limit;
         const std::size_t measured_dropped =
@@ -540,9 +554,19 @@ int main(int argc, char** argv) {
         std::cout << "tracker_resets=" << tracker_resets << '\n';
         std::cout << "tracker_gap_updates=" << tracker_gap_updates << '\n';
         if (video_writer) {
+            const auto video_stats = video_writer->stats();
             std::cout << "output_video=" << video_writer->output_path() << '\n';
-            std::cout << "output_frames=" << video_writer->frames_written()
+            std::cout << "output_frames_submitted="
+                      << video_stats.frames_submitted << '\n';
+            std::cout << "output_frames=" << video_stats.frames_written
                       << '\n';
+            std::cout << "output_frames_dropped="
+                      << video_stats.frames_dropped << '\n';
+            std::cout << "output_queue_capacity="
+                      << options.output_queue_capacity << '\n';
+            std::cout << "output_queue_high_watermark="
+                      << video_stats.queue_high_watermark << '\n';
+            std::cout << "video_flush_ms=" << video_flush_ms << '\n';
         } else {
             std::cout << "output_video=disabled\n";
         }
@@ -554,7 +578,7 @@ int main(int argc, char** argv) {
         print_latency("inference", inference_summary);
         print_latency("tracking", tracking_summary);
         if (video_writer) {
-            print_latency("video_output", video_output_summary);
+            print_latency("video_enqueue", video_enqueue_summary);
         }
         print_latency("end_to_end", e2e_summary);
         std::cout << "effective_fps="
