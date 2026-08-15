@@ -242,16 +242,35 @@ cmake -S . -B build-mot17 \
 cmake --build build-mot17 -j"$(nproc)"
 
 bash scripts/run_mot17_inference.sh \
-  --engine models/yolox_nano_fp16.plan \
-  --seqmap configs/mot17/holdout.txt
+  --engine models/yolox_tiny_fp16.plan \
+  --seqmap configs/mot17/holdout.txt \
+  --output-root outputs/mot17/holdout/final_tiny/edge_vision/data \
+  --report-root reports/mot17/holdout/final_tiny/inference \
+  --score-threshold 0.10 \
+  --nms-threshold 0.45 \
+  --track-threshold 0.30 \
+  --new-track-threshold 0.40 \
+  --match-threshold 0.80 \
+  --track-buffer 30
 
 bash scripts/run_trackeval_mot17.sh \
-  --seqmap configs/mot17/holdout.txt
+  --python /usr/bin/python3 \
+  --seqmap configs/mot17/holdout.txt \
+  --tracker-root outputs/mot17/holdout/final_tiny \
+  --tracker-name edge_vision \
+  --output-root reports/mot17/holdout/final_tiny/trackeval
 ```
+
+The fixed YOLOX-Tiny FP16 configuration achieved **38.89 HOTA**, **46.75
+IDF1**, and **39.19 MOTA** on the three-sequence holdout partition. TensorRT
+inference P95 was 13.98-14.07 ms across the sequences, while ByteTrack P95
+remained below 0.32 ms.
 
 The fixed calibration/holdout partition, frame policy, dependency versions,
 and report generation commands are defined in the
 [MOT17 evaluation protocol](docs/benchmarks/mot17_evaluation_protocol.md).
+The detector comparison and final holdout metrics are recorded in the
+[MOT17 tracking results](docs/benchmarks/mot17_tracking_results.md).
 
 ## Target Platform
 

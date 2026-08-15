@@ -1,0 +1,4 @@
+partition,model,hota,deta,assa,idf1,mota,recall,precision,id_switches,true_positives,false_negatives,false_positives,gt_detections,output_detections
+calibration,YOLOX-Nano FP16,29.193,22.986,37.459,34.498,24.379,30.266,84.332,227,25997,59897,4830,85894,30827
+calibration,YOLOX-Tiny FP16,33.307,26.731,41.956,39.804,29.653,34.141,89.004,232,29325,56569,3623,85894,32948
+holdout,YOLOX-Tiny FP16,38.891,35.262,43.363,46.748,39.189,46.002,87.932,132,12146,14257,1667,26403,13813

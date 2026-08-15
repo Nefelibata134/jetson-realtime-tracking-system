@@ -2,10 +2,12 @@
 
 ## Scope
 
-The benchmark evaluates the complete YOLOX-Nano TensorRT and ByteTrack
-pipeline on pedestrian sequences from the MOT17 training split. Metrics are
-computed with the official TrackEval implementation pinned to commit
-`12c8791b303e0a0b50f753af204249e622d0281a`.
+The benchmark evaluates the complete YOLOX TensorRT and ByteTrack pipeline on
+pedestrian sequences from the MOT17 training split. YOLOX-Nano and YOLOX-Tiny
+are compared under identical tracker parameters on the calibration partition;
+the selected YOLOX-Tiny configuration is then evaluated once on the holdout
+partition. Metrics are computed with the official TrackEval implementation
+pinned to commit `12c8791b303e0a0b50f753af204249e622d0281a`.
 
 MOT17 stores each physical video three times with DPM, FRCNN, and SDP public
 detections. This runtime supplies its own YOLOX detections, so the protocol
@@ -56,30 +58,40 @@ cmake -S . -B build-mot17 \
 cmake --build build-mot17 -j"$(nproc)"
 ```
 
-Run the calibration sequences, select one configuration, then generate the
-holdout tracker files:
+The selected configuration uses a 0.10 detector score threshold, 0.45 NMS
+threshold, 0.30 ByteTrack track threshold, 0.40 new-track threshold, 0.80
+match threshold, and 30-frame track buffer. Generate the final holdout tracker
+files without changing these calibration-selected parameters:
 
 ```bash
 bash scripts/run_mot17_inference.sh \
-  --engine models/yolox_nano_fp16.plan \
-  --seqmap configs/mot17/calibration.txt
-
-bash scripts/run_mot17_inference.sh \
-  --engine models/yolox_nano_fp16.plan \
-  --seqmap configs/mot17/holdout.txt
+  --engine models/yolox_tiny_fp16.plan \
+  --seqmap configs/mot17/holdout.txt \
+  --output-root outputs/mot17/holdout/final_tiny/edge_vision/data \
+  --report-root reports/mot17/holdout/final_tiny/inference \
+  --score-threshold 0.10 \
+  --nms-threshold 0.45 \
+  --track-threshold 0.30 \
+  --new-track-threshold 0.40 \
+  --match-threshold 0.80 \
+  --track-buffer 30
 ```
 
 Compute the official holdout metrics and create the compact report:
 
 ```bash
 bash scripts/run_trackeval_mot17.sh \
-  --seqmap configs/mot17/holdout.txt
+  --python /usr/bin/python3 \
+  --seqmap configs/mot17/holdout.txt \
+  --tracker-root outputs/mot17/holdout/final_tiny \
+  --tracker-name edge_vision \
+  --output-root reports/mot17/holdout/final_tiny/trackeval
 
 python3 scripts/summarize_mot17.py \
-  --summary reports/mot17/trackeval/edge_vision/pedestrian_summary.txt \
-  --json reports/mot17/holdout_metrics.json \
-  --markdown reports/mot17/holdout_metrics.md \
-  --title "MOT17 Holdout Evaluation"
+  --summary reports/mot17/holdout/final_tiny/trackeval/edge_vision/pedestrian_summary.txt \
+  --json reports/mot17/holdout/final_tiny/metrics.json \
+  --markdown reports/mot17/holdout/final_tiny/metrics.md \
+  --title "MOT17 Holdout Final YOLOX-Tiny"
 ```
 
 TrackEval reports HOTA, IDF1, MOTA, and ID switches. HOTA balances detection
