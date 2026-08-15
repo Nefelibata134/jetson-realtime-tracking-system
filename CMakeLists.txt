@@ -142,6 +142,26 @@ target_link_libraries(
 )
 
 add_library(
+    edge_vision_event_analytics
+    src/event_analytics.cpp
+)
+target_link_libraries(
+    edge_vision_event_analytics
+    PUBLIC
+        edge_vision_core
+)
+
+add_executable(
+    edge_vision_event_analytics_check
+    apps/event_analytics_check.cpp
+)
+target_link_libraries(
+    edge_vision_event_analytics_check
+    PRIVATE
+        edge_vision_event_analytics
+)
+
+add_library(
     edge_vision_yolox
     src/yolox_preprocessor.cpp
     src/yolox_postprocessor.cpp
@@ -207,6 +227,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
     target_compile_options(
         edge_vision_mot_challenge_writer_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_analytics
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_analytics_check
         PRIVATE
             -Wall
             -Wextra
@@ -493,4 +527,8 @@ add_test(NAME edge_vision_video_writer_check COMMAND edge_vision_video_writer_ch
 add_test(
     NAME edge_vision_mot_challenge_writer_check
     COMMAND edge_vision_mot_challenge_writer_check
+)
+add_test(
+    NAME edge_vision_event_analytics_check
+    COMMAND edge_vision_event_analytics_check
 )
