@@ -20,8 +20,11 @@
 
 #include "edge_vision/byte_tracker.hpp"
 #include "edge_vision/annotated_video_writer.hpp"
+#include "edge_vision/event_clip_writer.hpp"
+#include "edge_vision/event_evidence.hpp"
 #include "edge_vision/frame_capture_worker.hpp"
 #include "edge_vision/event_analytics.hpp"
+#include "edge_vision/event_journal.hpp"
 #include "edge_vision/gstreamer_frame_source.hpp"
 #include "edge_vision/yolox_detector.hpp"
 
@@ -38,6 +41,9 @@ struct Options {
     std::string engine_path;
     std::string file_path;
     std::string output_video_path;
+    std::string event_jsonl_path;
+    std::string event_snapshot_directory;
+    std::string event_clip_directory;
     std::uint64_t frame_limit{300};
     std::uint64_t warmup_frames{0};
     std::size_t queue_capacity{2};
@@ -51,6 +57,8 @@ struct Options {
     std::optional<std::array<float, 4>> event_roi;
     std::optional<std::array<float, 4>> event_line;
     std::optional<float> event_dwell_seconds;
+    float event_clip_pre_seconds{2.0F};
+    float event_clip_post_seconds{3.0F};
     int event_class_id{0};
     edge_vision::CrossingDirection event_line_direction{
         edge_vision::CrossingDirection::None};
@@ -85,6 +93,11 @@ void print_usage(const char* program) {
         << "  --event-line-direction any|negative-to-positive|positive-to-negative\n"
         << "  --event-dwell-seconds VALUE\n"
         << "  --event-class-id N\n"
+        << "  --event-jsonl PATH\n"
+        << "  --event-snapshot-dir DIRECTORY\n"
+        << "  --event-clip-dir DIRECTORY\n"
+        << "  --event-clip-pre-seconds VALUE\n"
+        << "  --event-clip-post-seconds VALUE\n"
         << "  --output-video PATH\n"
         << "  --output-queue-capacity N\n"
         << "  --log-interval N\n"
@@ -141,6 +154,16 @@ float parse_positive_float(const char* text, const std::string& option) {
     const float number = std::stof(value, &parsed);
     if (parsed != value.size() || !std::isfinite(number) || number <= 0.0F) {
         throw std::invalid_argument(option + " must be positive");
+    }
+    return number;
+}
+
+float parse_nonnegative_float(const char* text, const std::string& option) {
+    const std::string value{text};
+    std::size_t parsed = 0;
+    const float number = std::stof(value, &parsed);
+    if (parsed != value.size() || !std::isfinite(number) || number < 0.0F) {
+        throw std::invalid_argument(option + " must be non-negative");
     }
     return number;
 }
@@ -239,6 +262,18 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--event-class-id") {
             options.event_class_id =
                 parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--event-jsonl") {
+            options.event_jsonl_path = require_value(argument);
+        } else if (argument == "--event-snapshot-dir") {
+            options.event_snapshot_directory = require_value(argument);
+        } else if (argument == "--event-clip-dir") {
+            options.event_clip_directory = require_value(argument);
+        } else if (argument == "--event-clip-pre-seconds") {
+            options.event_clip_pre_seconds =
+                parse_nonnegative_float(require_value(argument), argument);
+        } else if (argument == "--event-clip-post-seconds") {
+            options.event_clip_post_seconds =
+                parse_nonnegative_float(require_value(argument), argument);
         } else if (argument == "--output-video") {
             options.output_video_path = require_value(argument);
         } else if (argument == "--output-queue-capacity") {
@@ -324,7 +359,41 @@ Options parse_options(const int argc, char** argv) {
         throw std::invalid_argument(
             "event-dwell-seconds requires event-roi");
     }
+    const bool event_rules_enabled =
+        options.event_roi.has_value() || options.event_line.has_value();
+    if (!options.event_jsonl_path.empty() && !event_rules_enabled) {
+        throw std::invalid_argument(
+            "event-jsonl requires event-roi or event-line");
+    }
+    if ((!options.event_snapshot_directory.empty() ||
+         !options.event_clip_directory.empty()) &&
+        options.event_jsonl_path.empty()) {
+        throw std::invalid_argument(
+            "event evidence output requires event-jsonl");
+    }
     return options;
+}
+
+edge_vision::FrameAnnotationConfig make_annotation_config(
+    const Options& options) {
+    edge_vision::FrameAnnotationConfig config;
+    if (options.event_roi.has_value()) {
+        const auto& roi = *options.event_roi;
+        config.event_regions.push_back({{
+            {roi[0], roi[1]},
+            {roi[2], roi[1]},
+            {roi[2], roi[3]},
+            {roi[0], roi[3]},
+        }});
+    }
+    if (options.event_line.has_value()) {
+        const auto& line = *options.event_line;
+        config.event_lines.push_back({
+            {line[0], line[1]},
+            {line[2], line[3]},
+        });
+    }
+    return config;
 }
 
 edge_vision::SafetyEventEngineConfig make_event_config(
@@ -480,6 +549,8 @@ int main(int argc, char** argv) {
             options.event_roi.has_value() || options.event_line.has_value();
         edge_vision::SafetyEventEngine event_engine(
             make_event_config(options));
+        const edge_vision::FrameAnnotationConfig annotation_config =
+            make_annotation_config(options);
 
         std::unique_ptr<edge_vision::AnnotatedVideoWriter> video_writer;
         if (!options.output_video_path.empty()) {
@@ -488,22 +559,8 @@ int main(int argc, char** argv) {
             writer_config.frames_per_second =
                 options.camera.frames_per_second;
             writer_config.queue_capacity = options.output_queue_capacity;
-            if (options.event_roi.has_value()) {
-                const auto& roi = *options.event_roi;
-                writer_config.event_regions.push_back({{
-                    {roi[0], roi[1]},
-                    {roi[2], roi[1]},
-                    {roi[2], roi[3]},
-                    {roi[0], roi[3]},
-                }});
-            }
-            if (options.event_line.has_value()) {
-                const auto& line = *options.event_line;
-                writer_config.event_lines.push_back({
-                    {line[0], line[1]},
-                    {line[2], line[3]},
-                });
-            }
+            writer_config.event_regions = annotation_config.event_regions;
+            writer_config.event_lines = annotation_config.event_lines;
             video_writer =
                 std::make_unique<edge_vision::AnnotatedVideoWriter>(
                     std::move(writer_config));
@@ -518,6 +575,51 @@ int main(int argc, char** argv) {
             source = edge_vision::make_gstreamer_csi_source(options.camera);
             source_name = "csi";
         }
+        const std::string source_id =
+            options.source_type == Options::SourceType::file
+                ? "file:" + options.file_path
+                : "csi:" + std::to_string(options.camera.sensor_id);
+
+        std::string event_session_id;
+        std::unique_ptr<edge_vision::JsonlEventJournal> event_journal;
+        std::unique_ptr<edge_vision::EventEvidenceWriter> evidence_writer;
+        std::unique_ptr<edge_vision::EventClipWriter> clip_writer;
+        if (!options.event_jsonl_path.empty()) {
+            event_session_id = edge_vision::make_event_session_id();
+            event_journal =
+                std::make_unique<edge_vision::JsonlEventJournal>(
+                    edge_vision::EventJournalConfig{
+                        options.event_jsonl_path,
+                    });
+        }
+        if (!options.event_snapshot_directory.empty()) {
+            edge_vision::EventEvidenceWriterConfig config;
+            config.snapshot_directory = options.event_snapshot_directory;
+            config.annotation = annotation_config;
+            evidence_writer =
+                std::make_unique<edge_vision::EventEvidenceWriter>(
+                    std::move(config));
+        }
+        if (!options.event_clip_directory.empty()) {
+            edge_vision::EventClipWriterConfig config;
+            config.output_directory = options.event_clip_directory;
+            config.frames_per_second = options.camera.frames_per_second;
+            config.pre_event_seconds = options.event_clip_pre_seconds;
+            config.post_event_seconds = options.event_clip_post_seconds;
+            config.annotation = annotation_config;
+            clip_writer = std::make_unique<edge_vision::EventClipWriter>(
+                std::move(config));
+        }
+        auto append_event_records = [&](
+                                        std::vector<edge_vision::EventRecord>
+                                            records) {
+            if (!event_journal) {
+                return;
+            }
+            for (const edge_vision::EventRecord& record : records) {
+                static_cast<void>(event_journal->append(record));
+            }
+        };
 
         edge_vision::FrameCaptureRecoveryPolicy recovery_policy;
         if (options.source_type == Options::SourceType::csi) {
@@ -558,12 +660,14 @@ int main(int argc, char** argv) {
         std::vector<double> inference_ms;
         std::vector<double> tracking_ms;
         std::vector<double> event_analysis_ms;
+        std::vector<double> event_io_ms;
         std::vector<double> video_enqueue_ms;
         std::vector<double> end_to_end_ms;
         queue_wait_ms.reserve(options.frame_limit);
         inference_ms.reserve(options.frame_limit);
         tracking_ms.reserve(options.frame_limit);
         event_analysis_ms.reserve(options.frame_limit);
+        event_io_ms.reserve(options.frame_limit);
         video_enqueue_ms.reserve(options.frame_limit);
         end_to_end_ms.reserve(options.frame_limit);
         std::optional<std::chrono::steady_clock::time_point>
@@ -583,6 +687,9 @@ int main(int argc, char** argv) {
                 active_stream_generation = frame->stream_generation;
             } else if (*active_stream_generation !=
                        frame->stream_generation) {
+                if (clip_writer) {
+                    append_event_records(clip_writer->reset());
+                }
                 tracker.reset();
                 event_engine.reset();
                 ++tracker_resets;
@@ -664,8 +771,36 @@ int main(int argc, char** argv) {
             const double event_ms = static_cast<double>(
                 event_analysis_finished_ns - tracking_finished_ns) /
                 1'000'000.0;
+
+            std::vector<edge_vision::EventRecord> event_records;
+            if (event_journal) {
+                event_records.reserve(events.size());
+                for (const edge_vision::SafetyEvent& event : events) {
+                    auto record = edge_vision::make_event_record(
+                        event,
+                        event_session_id,
+                        source_id,
+                        frame->stream_generation);
+                    if (evidence_writer) {
+                        record.evidence.snapshot_path =
+                            evidence_writer->write_snapshot(
+                                record, *frame, tracks);
+                    }
+                    event_records.push_back(std::move(record));
+                }
+                if (clip_writer) {
+                    append_event_records(clip_writer->process(
+                        *frame, tracks, std::move(event_records)));
+                } else {
+                    append_event_records(std::move(event_records));
+                }
+            }
+            const std::int64_t event_io_finished_ns = monotonic_time_ns();
+            const double event_output_ms = static_cast<double>(
+                event_io_finished_ns - event_analysis_finished_ns) /
+                1'000'000.0;
             const double e2e_ms = static_cast<double>(
-                event_analysis_finished_ns - frame->captured_at_ns) /
+                event_io_finished_ns - frame->captured_at_ns) /
                 1'000'000.0;
 
             double enqueue_ms = 0.0;
@@ -681,6 +816,7 @@ int main(int argc, char** argv) {
             inference_ms.push_back(infer_ms);
             tracking_ms.push_back(track_ms);
             event_analysis_ms.push_back(event_ms);
+            event_io_ms.push_back(event_output_ms);
             end_to_end_ms.push_back(e2e_ms);
             total_detections += detections.size();
             if (!detections.empty()) {
@@ -734,6 +870,7 @@ int main(int argc, char** argv) {
                           << queue_ms << " infer_ms=" << infer_ms
                           << " track_ms=" << track_ms
                           << " event_ms=" << event_ms
+                          << " event_io_ms=" << event_output_ms
                           << " events=" << events.size()
                           << " e2e_ms=" << e2e_ms;
                 if (video_writer) {
@@ -746,6 +883,15 @@ int main(int argc, char** argv) {
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         const edge_vision::FrameCaptureStats stats = worker.stats();
+        double event_clip_flush_ms = 0.0;
+        if (clip_writer) {
+            const auto flush_started_at = std::chrono::steady_clock::now();
+            append_event_records(clip_writer->finish());
+            event_clip_flush_ms = std::chrono::duration<double, std::milli>(
+                                      std::chrono::steady_clock::now() -
+                                      flush_started_at)
+                                      .count();
+        }
         double video_flush_ms = 0.0;
         if (video_writer) {
             const auto flush_started_at = std::chrono::steady_clock::now();
@@ -766,6 +912,7 @@ int main(int argc, char** argv) {
         const LatencySummary tracking_summary = summarize(tracking_ms);
         const LatencySummary event_analysis_summary =
             summarize(event_analysis_ms);
+        const LatencySummary event_io_summary = summarize(event_io_ms);
         const LatencySummary video_enqueue_summary =
             summarize(video_enqueue_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
@@ -810,6 +957,48 @@ int main(int argc, char** argv) {
         std::cout << "roi_intrusion_events=" << roi_intrusion_events << '\n';
         std::cout << "line_crossing_events=" << line_crossing_events << '\n';
         std::cout << "dwell_events=" << dwell_events << '\n';
+        if (event_journal) {
+            const auto journal_stats = event_journal->stats();
+            std::cout << "event_session_id=" << event_session_id << '\n';
+            std::cout << "event_jsonl=" << event_journal->output_path()
+                      << '\n';
+            std::cout << "event_records_loaded="
+                      << journal_stats.records_loaded << '\n';
+            std::cout << "event_records_written="
+                      << journal_stats.records_written << '\n';
+            std::cout << "event_duplicates_skipped="
+                      << journal_stats.duplicates_skipped << '\n';
+            if (evidence_writer) {
+                const auto evidence_stats = evidence_writer->stats();
+                std::cout << "event_snapshots_written="
+                          << evidence_stats.snapshots_written << '\n';
+                std::cout << "event_snapshots_reused="
+                          << evidence_stats.snapshots_reused << '\n';
+            } else {
+                std::cout << "event_snapshots=disabled\n";
+            }
+            if (clip_writer) {
+                const auto clip_stats = clip_writer->stats();
+                std::cout << "event_clips_started="
+                          << clip_stats.clips_started << '\n';
+                std::cout << "event_clips_completed="
+                          << clip_stats.clips_completed << '\n';
+                std::cout << "event_clips_reused="
+                          << clip_stats.clips_reused << '\n';
+                std::cout << "event_clips_skipped="
+                          << clip_stats.clips_skipped << '\n';
+                std::cout << "event_clip_prebuffer_peak_bytes="
+                          << clip_stats.prebuffer_peak_bytes << '\n';
+                std::cout << "event_clip_max_active="
+                          << clip_stats.max_active_clips << '\n';
+                std::cout << "event_clip_flush_ms="
+                          << event_clip_flush_ms << '\n';
+            } else {
+                std::cout << "event_clips=disabled\n";
+            }
+        } else {
+            std::cout << "event_jsonl=disabled\n";
+        }
         if (video_writer) {
             const auto video_stats = video_writer->stats();
             std::cout << "output_video=" << video_writer->output_path() << '\n';
@@ -835,6 +1024,9 @@ int main(int argc, char** argv) {
         print_latency("inference", inference_summary);
         print_latency("tracking", tracking_summary);
         print_latency("event_analysis", event_analysis_summary);
+        if (event_journal) {
+            print_latency("event_io", event_io_summary);
+        }
         if (video_writer) {
             print_latency("video_enqueue", video_enqueue_summary);
         }

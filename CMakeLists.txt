@@ -53,9 +53,11 @@ target_link_libraries(
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(nlohmann_json 3.2.0 REQUIRED)
 
 add_library(
     edge_vision_video_output
+    src/frame_annotator.cpp
     src/annotated_video_writer.cpp
 )
 target_include_directories(
@@ -162,6 +164,83 @@ target_link_libraries(
 )
 
 add_library(
+    edge_vision_event_journal
+    src/event_journal.cpp
+)
+target_link_libraries(
+    edge_vision_event_journal
+    PUBLIC
+        edge_vision_core
+    PRIVATE
+        nlohmann_json::nlohmann_json
+)
+
+add_executable(
+    edge_vision_event_journal_check
+    apps/event_journal_check.cpp
+)
+target_link_libraries(
+    edge_vision_event_journal_check
+    PRIVATE
+        edge_vision_event_journal
+        nlohmann_json::nlohmann_json
+)
+
+add_library(
+    edge_vision_event_evidence
+    src/event_evidence.cpp
+    src/event_clip_writer.cpp
+)
+target_include_directories(
+    edge_vision_event_evidence
+    PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(
+    edge_vision_event_evidence
+    PUBLIC
+        edge_vision_event_journal
+    PRIVATE
+        edge_vision_video_output
+        ${OpenCV_LIBS}
+)
+
+add_executable(
+    edge_vision_event_evidence_check
+    apps/event_evidence_check.cpp
+)
+target_include_directories(
+    edge_vision_event_evidence_check
+    PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(
+    edge_vision_event_evidence_check
+    PRIVATE
+        edge_vision_event_evidence
+        edge_vision_event_journal
+        nlohmann_json::nlohmann_json
+        ${OpenCV_LIBS}
+)
+
+add_executable(
+    edge_vision_event_clip_writer_check
+    apps/event_clip_writer_check.cpp
+)
+target_include_directories(
+    edge_vision_event_clip_writer_check
+    PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(
+    edge_vision_event_clip_writer_check
+    PRIVATE
+        edge_vision_event_evidence
+        edge_vision_event_journal
+        ${OpenCV_LIBS}
+)
+
+add_library(
     edge_vision_yolox
     src/yolox_preprocessor.cpp
     src/yolox_postprocessor.cpp
@@ -241,6 +320,41 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
     target_compile_options(
         edge_vision_event_analytics_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_journal
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_journal_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_evidence
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_evidence_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_event_clip_writer_check
         PRIVATE
             -Wall
             -Wextra
@@ -465,6 +579,8 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 edge_vision_bytetrack
                 edge_vision_detector
                 edge_vision_event_analytics
+                edge_vision_event_evidence
+                edge_vision_event_journal
                 edge_vision_gstreamer
                 edge_vision_video_output
         )
@@ -532,4 +648,16 @@ add_test(
 add_test(
     NAME edge_vision_event_analytics_check
     COMMAND edge_vision_event_analytics_check
+)
+add_test(
+    NAME edge_vision_event_journal_check
+    COMMAND edge_vision_event_journal_check
+)
+add_test(
+    NAME edge_vision_event_evidence_check
+    COMMAND edge_vision_event_evidence_check
+)
+add_test(
+    NAME edge_vision_event_clip_writer_check
+    COMMAND edge_vision_event_clip_writer_check
 )

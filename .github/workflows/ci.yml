@@ -24,6 +24,7 @@ jobs:
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
             libeigen3-dev \
+            nlohmann-json3-dev \
             libopencv-dev \
             make \
             pkg-config \

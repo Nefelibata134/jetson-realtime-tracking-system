@@ -11,6 +11,7 @@ licenses.
 | GStreamer | https://gstreamer.freedesktop.org/ | LGPL-2.1-or-later |
 | NVIDIA TensorRT | https://developer.nvidia.com/tensorrt | NVIDIA SDK terms |
 | TrackEval | https://github.com/JonathonLuiten/TrackEval | MIT |
+| JSON for Modern C++ | https://github.com/nlohmann/json | MIT |
 
 No third-party model weights or generated TensorRT engines are stored in this
 repository.

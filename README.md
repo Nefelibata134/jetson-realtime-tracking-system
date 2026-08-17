@@ -13,7 +13,8 @@ flowchart LR
     C --> D["TensorRT detector"]
     D --> E["ByteTrack tracker"]
     E --> F["Safety event analyzer"]
-    F --> G["Overlay / event log / metrics"]
+    F --> G["JSONL journal and evidence"]
+    F --> J["Annotated video and metrics"]
     H["Jetson telemetry"] --> G
     I["Watchdog and reconnect policy"] --> B
 ```
@@ -34,7 +35,8 @@ network-stream reconnect and fault-recovery behavior.
 | Continuous detection and tracking | Capture, bounded latest-frame queue, TensorRT detection, ByteTrack association, annotated video output, and latency statistics | Implemented |
 | Benchmark harness | Warmup isolation, power telemetry, and model/resolution/power comparison | Implemented |
 | ByteTrack | Kalman prediction, two-stage association, class-aware identities, and reset semantics | Implemented |
-| Event analyzer | Region, dwell-time, and intrusion rules | Planned |
+| Event analyzer | Confirmed ROI intrusion, finite directional crossing, timestamp dwell, and stream reset | Implemented |
+| Event evidence | Versioned JSONL journal, persistent deduplication, snapshots, and bounded pre/post-event clips | Implemented |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
 | Recovery | Bounded CSI pipeline reconnect with explicit failure status | Implemented |
 | Watchdog | Process supervision and RTSP recovery state machine | Planned |
@@ -52,8 +54,9 @@ ctest --test-dir build --output-on-failure
 ./build/edge_vision_byte_tracker_check
 ```
 
-The default targets require a C++17 compiler, OpenCV, and Eigen 3. TensorRT
-targets are enabled explicitly for Jetson builds.
+The default targets require a C++17 compiler, OpenCV, Eigen 3, and
+`nlohmann-json3-dev`. TensorRT targets are enabled explicitly for Jetson
+builds.
 
 Configure the GStreamer capture targets on Jetson with:
 
@@ -141,6 +144,11 @@ cmake --build build -j"$(nproc)"
   --event-line 0.15 0.70 0.85 0.70 \
   --event-line-direction any \
   --event-class-id 0 \
+  --event-jsonl outputs/events/events.jsonl \
+  --event-snapshot-dir outputs/events/snapshots \
+  --event-clip-dir outputs/events/clips \
+  --event-clip-pre-seconds 2 \
+  --event-clip-post-seconds 3 \
   --output-video outputs/imx219_tracking.mp4 \
   --output-queue-capacity 4 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
@@ -166,6 +174,15 @@ as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.
 `--event-line-direction` selects `any`, `negative-to-positive`, or
 `positive-to-negative` crossing. Rules use each track's bottom-center anchor;
 stream generation changes and timeline restarts clear all event state.
+
+`--event-jsonl` enables the versioned append-only event journal. Optional
+snapshot and clip directories add verified evidence paths to each record.
+Snapshots are committed before the record is appended. Event clips use a
+bounded raw-frame prebuffer and delay publication until the post-event segment
+is closed and verified. The runtime reports journal writes, duplicate skips,
+artifact counts, event I/O latency, and peak clip-buffer memory. The complete
+record contract and durability semantics are defined in the
+[safety event schema](docs/events/event_schema.md).
 
 `--output-video` is optional. When enabled, the runtime sends measured frames
 after warmup to a dedicated bounded writer queue and overlays each active

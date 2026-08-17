@@ -6,16 +6,11 @@
 #include <string>
 #include <vector>
 
-#include "edge_vision/event_analytics.hpp"
+#include "edge_vision/frame_annotator.hpp"
 #include "edge_vision/frame.hpp"
 #include "edge_vision/tracker.hpp"
 
 namespace edge_vision {
-
-struct NormalizedLineSegment {
-    NormalizedPoint start;
-    NormalizedPoint end;
-};
 
 struct AnnotatedVideoWriterConfig {
     std::string output_path;
