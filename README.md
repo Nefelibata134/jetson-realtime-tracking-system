@@ -136,22 +136,36 @@ cmake --build build -j"$(nproc)"
   --track-threshold 0.5 \
   --new-track-threshold 0.6 \
   --track-buffer 30 \
+  --event-roi 0.20 0.35 0.80 0.95 \
+  --event-dwell-seconds 3 \
+  --event-line 0.15 0.70 0.85 0.70 \
+  --event-line-direction any \
+  --event-class-id 0 \
   --output-video outputs/imx219_tracking.mp4 \
   --output-queue-capacity 4 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
 The runtime reports produced, processed, and dropped frames; queue depth and
-sequence gaps; detection and track counts; unique track IDs; queue-wait,
-inference, tracking, and end-to-end P50/P95 latencies; and effective
-throughput. The detector score threshold must remain below the ByteTrack track
-threshold so low-confidence detections remain available for second-stage
-association. A small queue bounds stale-frame delay when capture outpaces
-inference. Missing frame sequences age the tracker with empty updates, while a
-successful source reconnect increments the stream generation and clears all
+sequence gaps; detection, track, and event counts; unique track IDs;
+queue-wait, inference, tracking, event-analysis, and end-to-end P50/P95
+latencies; and effective throughput. The detector score threshold must remain
+below the ByteTrack track threshold so low-confidence detections remain
+available for second-stage association. A small queue bounds stale-frame delay
+when capture outpaces inference. Missing frame sequences age the tracker with
+empty updates, while a successful source reconnect increments the stream
+generation and clears all
 stale tracks. Warmup frames execute the complete pipeline but are excluded
 from detection, tracking, latency, throughput, and steady-state drop
 statistics.
+
+Safety rules are opt-in. `--event-roi` defines a normalized rectangular region
+as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.
+`--event-dwell-seconds` adds a timestamp-based dwell rule for the same region.
+`--event-line` defines a finite normalized segment, while
+`--event-line-direction` selects `any`, `negative-to-positive`, or
+`positive-to-negative` crossing. Rules use each track's bottom-center anchor;
+stream generation changes and timeline restarts clear all event state.
 
 `--output-video` is optional. When enabled, the runtime sends measured frames
 after warmup to a dedicated bounded writer queue and overlays each active

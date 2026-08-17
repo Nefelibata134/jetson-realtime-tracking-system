@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -20,6 +21,7 @@
 #include "edge_vision/byte_tracker.hpp"
 #include "edge_vision/annotated_video_writer.hpp"
 #include "edge_vision/frame_capture_worker.hpp"
+#include "edge_vision/event_analytics.hpp"
 #include "edge_vision/gstreamer_frame_source.hpp"
 #include "edge_vision/yolox_detector.hpp"
 
@@ -46,6 +48,12 @@ struct Options {
     float track_threshold{0.5F};
     float new_track_threshold{0.6F};
     int track_buffer{30};
+    std::optional<std::array<float, 4>> event_roi;
+    std::optional<std::array<float, 4>> event_line;
+    std::optional<float> event_dwell_seconds;
+    int event_class_id{0};
+    edge_vision::CrossingDirection event_line_direction{
+        edge_vision::CrossingDirection::None};
     std::uint64_t reconnect_attempts{3};
     std::uint64_t reconnect_delay_ms{1000};
     edge_vision::CsiCameraConfig camera;
@@ -72,6 +80,11 @@ void print_usage(const char* program) {
         << "  --track-threshold VALUE\n"
         << "  --new-track-threshold VALUE\n"
         << "  --track-buffer N\n"
+        << "  --event-roi LEFT TOP RIGHT BOTTOM\n"
+        << "  --event-line X1 Y1 X2 Y2\n"
+        << "  --event-line-direction any|negative-to-positive|positive-to-negative\n"
+        << "  --event-dwell-seconds VALUE\n"
+        << "  --event-class-id N\n"
         << "  --output-video PATH\n"
         << "  --output-queue-capacity N\n"
         << "  --log-interval N\n"
@@ -107,6 +120,45 @@ float parse_probability(const char* text, const std::string& option) {
         throw std::invalid_argument(option + " must be in (0, 1]");
     }
     return probability;
+}
+
+float parse_normalized_coordinate(
+    const char* text,
+    const std::string& option) {
+    const std::string value{text};
+    std::size_t parsed = 0;
+    const float coordinate = std::stof(value, &parsed);
+    if (parsed != value.size() || !std::isfinite(coordinate) ||
+        coordinate < 0.0F || coordinate > 1.0F) {
+        throw std::invalid_argument(option + " coordinates must be in [0, 1]");
+    }
+    return coordinate;
+}
+
+float parse_positive_float(const char* text, const std::string& option) {
+    const std::string value{text};
+    std::size_t parsed = 0;
+    const float number = std::stof(value, &parsed);
+    if (parsed != value.size() || !std::isfinite(number) || number <= 0.0F) {
+        throw std::invalid_argument(option + " must be positive");
+    }
+    return number;
+}
+
+edge_vision::CrossingDirection parse_crossing_direction(
+    const char* text,
+    const std::string& option) {
+    const std::string value{text};
+    if (value == "any") {
+        return edge_vision::CrossingDirection::None;
+    }
+    if (value == "negative-to-positive") {
+        return edge_vision::CrossingDirection::NegativeToPositive;
+    }
+    if (value == "positive-to-negative") {
+        return edge_vision::CrossingDirection::PositiveToNegative;
+    }
+    throw std::invalid_argument("invalid value for " + option);
 }
 
 void select_source(
@@ -163,6 +215,29 @@ Options parse_options(const int argc, char** argv) {
                 parse_probability(require_value(argument), argument);
         } else if (argument == "--track-buffer") {
             options.track_buffer =
+                parse_number<int>(require_value(argument), argument);
+        } else if (argument == "--event-roi") {
+            options.event_roi = std::array<float, 4>{
+                parse_normalized_coordinate(require_value(argument), argument),
+                parse_normalized_coordinate(require_value(argument), argument),
+                parse_normalized_coordinate(require_value(argument), argument),
+                parse_normalized_coordinate(require_value(argument), argument),
+            };
+        } else if (argument == "--event-line") {
+            options.event_line = std::array<float, 4>{
+                parse_normalized_coordinate(require_value(argument), argument),
+                parse_normalized_coordinate(require_value(argument), argument),
+                parse_normalized_coordinate(require_value(argument), argument),
+                parse_normalized_coordinate(require_value(argument), argument),
+            };
+        } else if (argument == "--event-line-direction") {
+            options.event_line_direction =
+                parse_crossing_direction(require_value(argument), argument);
+        } else if (argument == "--event-dwell-seconds") {
+            options.event_dwell_seconds =
+                parse_positive_float(require_value(argument), argument);
+        } else if (argument == "--event-class-id") {
+            options.event_class_id =
                 parse_number<int>(require_value(argument), argument);
         } else if (argument == "--output-video") {
             options.output_video_path = require_value(argument);
@@ -230,7 +305,101 @@ Options parse_options(const int argc, char** argv) {
     if (options.track_buffer <= 0) {
         throw std::invalid_argument("track-buffer must be positive");
     }
+    if (options.event_roi.has_value()) {
+        const auto& roi = *options.event_roi;
+        if (roi[0] >= roi[2] || roi[1] >= roi[3]) {
+            throw std::invalid_argument(
+                "event-roi requires LEFT < RIGHT and TOP < BOTTOM");
+        }
+    }
+    if (options.event_line.has_value()) {
+        const auto& line = *options.event_line;
+        if (line[0] == line[2] && line[1] == line[3]) {
+            throw std::invalid_argument(
+                "event-line endpoints must be different");
+        }
+    }
+    if (options.event_dwell_seconds.has_value() &&
+        !options.event_roi.has_value()) {
+        throw std::invalid_argument(
+            "event-dwell-seconds requires event-roi");
+    }
     return options;
+}
+
+edge_vision::SafetyEventEngineConfig make_event_config(
+    const Options& options) {
+    edge_vision::SafetyEventEngineConfig config;
+    edge_vision::PolygonRegion region;
+    if (options.event_roi.has_value()) {
+        const auto& roi = *options.event_roi;
+        region.vertices = {
+            {roi[0], roi[1]},
+            {roi[2], roi[1]},
+            {roi[2], roi[3]},
+            {roi[0], roi[3]},
+        };
+        config.roi_intrusion_rules.push_back({
+            "restricted-area-entry",
+            region,
+            options.event_class_id,
+            2,
+            300,
+        });
+    }
+    if (options.event_line.has_value()) {
+        const auto& line = *options.event_line;
+        config.line_crossing_rules.push_back({
+            "directional-crossing",
+            {line[0], line[1]},
+            {line[2], line[3]},
+            options.event_class_id,
+            options.event_line_direction,
+            0.01F,
+            1,
+            300,
+        });
+    }
+    if (options.event_dwell_seconds.has_value()) {
+        const auto dwell_time_ns = static_cast<std::int64_t>(std::llround(
+            static_cast<double>(*options.event_dwell_seconds) *
+            1'000'000'000.0));
+        config.dwell_rules.push_back({
+            "restricted-area-dwell",
+            std::move(region),
+            dwell_time_ns,
+            options.event_class_id,
+            2,
+            3,
+            300,
+        });
+    }
+    return config;
+}
+
+const char* event_type_name(const edge_vision::SafetyEventType type) {
+    switch (type) {
+        case edge_vision::SafetyEventType::RoiIntrusion:
+            return "roi_intrusion";
+        case edge_vision::SafetyEventType::LineCrossing:
+            return "line_crossing";
+        case edge_vision::SafetyEventType::Dwell:
+            return "dwell";
+    }
+    return "unknown";
+}
+
+const char* crossing_direction_name(
+    const edge_vision::CrossingDirection direction) {
+    switch (direction) {
+        case edge_vision::CrossingDirection::None:
+            return "none";
+        case edge_vision::CrossingDirection::NegativeToPositive:
+            return "negative-to-positive";
+        case edge_vision::CrossingDirection::PositiveToNegative:
+            return "positive-to-negative";
+    }
+    return "unknown";
 }
 
 std::int64_t monotonic_time_ns() {
@@ -307,6 +476,10 @@ int main(int argc, char** argv) {
         tracker_config.track_threshold = options.track_threshold;
         tracker_config.new_track_threshold = options.new_track_threshold;
         edge_vision::ByteTracker tracker(tracker_config);
+        const bool event_analysis_enabled =
+            options.event_roi.has_value() || options.event_line.has_value();
+        edge_vision::SafetyEventEngine event_engine(
+            make_event_config(options));
 
         std::unique_ptr<edge_vision::AnnotatedVideoWriter> video_writer;
         if (!options.output_video_path.empty()) {
@@ -354,6 +527,11 @@ int main(int argc, char** argv) {
         std::uint64_t total_track_observations = 0;
         std::uint64_t tracker_resets = 0;
         std::uint64_t tracker_gap_updates = 0;
+        std::uint64_t event_frames = 0;
+        std::uint64_t total_events = 0;
+        std::uint64_t roi_intrusion_events = 0;
+        std::uint64_t line_crossing_events = 0;
+        std::uint64_t dwell_events = 0;
         std::size_t max_active_tracks = 0;
         std::set<std::int64_t> unique_track_ids;
         std::uint64_t previous_sequence = 0;
@@ -363,11 +541,13 @@ int main(int argc, char** argv) {
         std::vector<double> queue_wait_ms;
         std::vector<double> inference_ms;
         std::vector<double> tracking_ms;
+        std::vector<double> event_analysis_ms;
         std::vector<double> video_enqueue_ms;
         std::vector<double> end_to_end_ms;
         queue_wait_ms.reserve(options.frame_limit);
         inference_ms.reserve(options.frame_limit);
         tracking_ms.reserve(options.frame_limit);
+        event_analysis_ms.reserve(options.frame_limit);
         video_enqueue_ms.reserve(options.frame_limit);
         end_to_end_ms.reserve(options.frame_limit);
         std::optional<std::chrono::steady_clock::time_point>
@@ -388,6 +568,7 @@ int main(int argc, char** argv) {
             } else if (*active_stream_generation !=
                        frame->stream_generation) {
                 tracker.reset();
+                event_engine.reset();
                 ++tracker_resets;
                 active_stream_generation = frame->stream_generation;
                 has_previous = false;
@@ -432,6 +613,7 @@ int main(int argc, char** argv) {
                 }
                 if (warmup_processed == options.warmup_frames) {
                     tracker.reset();
+                    event_engine.reset();
                     has_previous = false;
                 }
                 continue;
@@ -448,8 +630,27 @@ int main(int argc, char** argv) {
             const std::int64_t tracking_finished_ns = monotonic_time_ns();
             const double track_ms = static_cast<double>(
                 tracking_finished_ns - inference_finished_ns) / 1'000'000.0;
+
+            std::vector<edge_vision::SafetyEvent> events;
+            if (event_analysis_enabled) {
+                events = event_engine.update(
+                    {
+                        frame->width,
+                        frame->height,
+                        frame->sequence,
+                        frame->pts_ns,
+                        frame->stream_generation,
+                    },
+                    tracks);
+            }
+            const std::int64_t event_analysis_finished_ns =
+                monotonic_time_ns();
+            const double event_ms = static_cast<double>(
+                event_analysis_finished_ns - tracking_finished_ns) /
+                1'000'000.0;
             const double e2e_ms = static_cast<double>(
-                tracking_finished_ns - frame->captured_at_ns) / 1'000'000.0;
+                event_analysis_finished_ns - frame->captured_at_ns) /
+                1'000'000.0;
 
             double enqueue_ms = 0.0;
             if (video_writer) {
@@ -463,6 +664,7 @@ int main(int argc, char** argv) {
             queue_wait_ms.push_back(queue_ms);
             inference_ms.push_back(infer_ms);
             tracking_ms.push_back(track_ms);
+            event_analysis_ms.push_back(event_ms);
             end_to_end_ms.push_back(e2e_ms);
             total_detections += detections.size();
             if (!detections.empty()) {
@@ -476,6 +678,34 @@ int main(int argc, char** argv) {
             for (const auto& track : tracks) {
                 unique_track_ids.insert(track.track_id);
             }
+            if (!events.empty()) {
+                ++event_frames;
+            }
+            total_events += events.size();
+            for (const auto& event : events) {
+                switch (event.type) {
+                    case edge_vision::SafetyEventType::RoiIntrusion:
+                        ++roi_intrusion_events;
+                        break;
+                    case edge_vision::SafetyEventType::LineCrossing:
+                        ++line_crossing_events;
+                        break;
+                    case edge_vision::SafetyEventType::Dwell:
+                        ++dwell_events;
+                        break;
+                }
+                std::cout << "event=" << event_type_name(event.type)
+                          << " rule=" << event.rule_id
+                          << " track_id=" << event.track_id
+                          << " class_id=" << event.class_id
+                          << " frame=" << event.frame_sequence
+                          << " pts_ms=" << std::fixed << std::setprecision(3)
+                          << static_cast<double>(event.pts_ns) / 1'000'000.0
+                          << " anchor=" << event.anchor.x << ','
+                          << event.anchor.y
+                          << " direction="
+                          << crossing_direction_name(event.direction) << '\n';
+            }
 
             ++measured_frames;
             if (measured_frames <= 5 ||
@@ -487,6 +717,8 @@ int main(int argc, char** argv) {
                           << " queue_ms=" << std::fixed << std::setprecision(3)
                           << queue_ms << " infer_ms=" << infer_ms
                           << " track_ms=" << track_ms
+                          << " event_ms=" << event_ms
+                          << " events=" << events.size()
                           << " e2e_ms=" << e2e_ms;
                 if (video_writer) {
                     std::cout << " enqueue_ms=" << enqueue_ms;
@@ -516,6 +748,8 @@ int main(int argc, char** argv) {
         const LatencySummary queue_summary = summarize(queue_wait_ms);
         const LatencySummary inference_summary = summarize(inference_ms);
         const LatencySummary tracking_summary = summarize(tracking_ms);
+        const LatencySummary event_analysis_summary =
+            summarize(event_analysis_ms);
         const LatencySummary video_enqueue_summary =
             summarize(video_enqueue_ms);
         const LatencySummary e2e_summary = summarize(end_to_end_ms);
@@ -553,6 +787,13 @@ int main(int argc, char** argv) {
         std::cout << "max_active_tracks=" << max_active_tracks << '\n';
         std::cout << "tracker_resets=" << tracker_resets << '\n';
         std::cout << "tracker_gap_updates=" << tracker_gap_updates << '\n';
+        std::cout << "event_analysis_enabled=" << std::boolalpha
+                  << event_analysis_enabled << '\n';
+        std::cout << "event_frames=" << event_frames << '\n';
+        std::cout << "total_events=" << total_events << '\n';
+        std::cout << "roi_intrusion_events=" << roi_intrusion_events << '\n';
+        std::cout << "line_crossing_events=" << line_crossing_events << '\n';
+        std::cout << "dwell_events=" << dwell_events << '\n';
         if (video_writer) {
             const auto video_stats = video_writer->stats();
             std::cout << "output_video=" << video_writer->output_path() << '\n';
@@ -577,6 +818,7 @@ int main(int argc, char** argv) {
         print_latency("queue_wait", queue_summary);
         print_latency("inference", inference_summary);
         print_latency("tracking", tracking_summary);
+        print_latency("event_analysis", event_analysis_summary);
         if (video_writer) {
             print_latency("video_enqueue", video_enqueue_summary);
         }

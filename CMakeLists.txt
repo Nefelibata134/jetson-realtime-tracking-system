@@ -464,6 +464,7 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 edge_vision_capture
                 edge_vision_bytetrack
                 edge_vision_detector
+                edge_vision_event_analytics
                 edge_vision_gstreamer
                 edge_vision_video_output
         )
