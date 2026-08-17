@@ -488,6 +488,22 @@ int main(int argc, char** argv) {
             writer_config.frames_per_second =
                 options.camera.frames_per_second;
             writer_config.queue_capacity = options.output_queue_capacity;
+            if (options.event_roi.has_value()) {
+                const auto& roi = *options.event_roi;
+                writer_config.event_regions.push_back({{
+                    {roi[0], roi[1]},
+                    {roi[2], roi[1]},
+                    {roi[2], roi[3]},
+                    {roi[0], roi[3]},
+                }});
+            }
+            if (options.event_line.has_value()) {
+                const auto& line = *options.event_line;
+                writer_config.event_lines.push_back({
+                    {line[0], line[1]},
+                    {line[2], line[3]},
+                });
+            }
             video_writer =
                 std::make_unique<edge_vision::AnnotatedVideoWriter>(
                     std::move(writer_config));
@@ -655,7 +671,7 @@ int main(int argc, char** argv) {
             double enqueue_ms = 0.0;
             if (video_writer) {
                 const std::int64_t output_started_ns = monotonic_time_ns();
-                video_writer->write(*frame, tracks);
+                video_writer->write(*frame, tracks, events);
                 enqueue_ms = static_cast<double>(
                     monotonic_time_ns() - output_started_ns) / 1'000'000.0;
                 video_enqueue_ms.push_back(enqueue_ms);

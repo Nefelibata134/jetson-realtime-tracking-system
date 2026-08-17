@@ -71,6 +71,102 @@ std::string track_label(const Track& track) {
     return label.str();
 }
 
+cv::Point normalized_to_pixel(
+    const NormalizedPoint& point,
+    const cv::Size& image_size) {
+    return {
+        std::clamp(
+            static_cast<int>(std::lround(
+                point.x * static_cast<float>(image_size.width - 1))),
+            0,
+            image_size.width - 1),
+        std::clamp(
+            static_cast<int>(std::lround(
+                point.y * static_cast<float>(image_size.height - 1))),
+            0,
+            image_size.height - 1),
+    };
+}
+
+cv::Scalar event_color(const SafetyEventType type) {
+    switch (type) {
+        case SafetyEventType::RoiIntrusion:
+            return {0, 165, 255};
+        case SafetyEventType::LineCrossing:
+            return {255, 0, 255};
+        case SafetyEventType::Dwell:
+            return {0, 0, 255};
+    }
+    return {255, 255, 255};
+}
+
+std::string event_label(const SafetyEvent& event) {
+    std::ostringstream label;
+    switch (event.type) {
+        case SafetyEventType::RoiIntrusion:
+            label << "ROI INTRUSION";
+            break;
+        case SafetyEventType::LineCrossing:
+            label << "LINE CROSSING";
+            break;
+        case SafetyEventType::Dwell:
+            label << "DWELL";
+            break;
+    }
+    label << " ID " << event.track_id;
+    return label.str();
+}
+
+void draw_rule_geometry(
+    cv::Mat& image,
+    const AnnotatedVideoWriterConfig& config) {
+    for (const PolygonRegion& region : config.event_regions) {
+        std::vector<cv::Point> points;
+        points.reserve(region.vertices.size());
+        for (const NormalizedPoint& point : region.vertices) {
+            points.push_back(normalized_to_pixel(point, image.size()));
+        }
+        if (points.size() >= 3) {
+            cv::polylines(
+                image,
+                points,
+                true,
+                cv::Scalar(0, 165, 255),
+                2,
+                cv::LINE_AA);
+            cv::putText(
+                image,
+                "ROI",
+                points.front() + cv::Point(4, -6),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.6,
+                cv::Scalar(0, 165, 255),
+                2,
+                cv::LINE_AA);
+        }
+    }
+    for (const NormalizedLineSegment& line : config.event_lines) {
+        const cv::Point start = normalized_to_pixel(line.start, image.size());
+        const cv::Point end = normalized_to_pixel(line.end, image.size());
+        cv::line(
+            image,
+            start,
+            end,
+            cv::Scalar(255, 0, 255),
+            3,
+            cv::LINE_AA);
+        cv::putText(
+            image,
+            "LINE",
+            start + cv::Point(4, -6),
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.6,
+            cv::Scalar(255, 0, 255),
+            2,
+            cv::LINE_AA);
+    }
+}
+
 void draw_label(
     cv::Mat& image,
     const cv::Rect& rectangle,
@@ -127,16 +223,24 @@ public:
             throw std::invalid_argument(
                 "video output queue capacity must be positive");
         }
+        if (!std::isfinite(config_.event_label_duration_seconds) ||
+            config_.event_label_duration_seconds <= 0.0) {
+            throw std::invalid_argument(
+                "event label duration must be positive");
+        }
         worker_ = std::thread(&Impl::run, this);
     }
 
-    void write(const Frame& frame, const std::vector<Track>& tracks) {
+    void write(
+        const Frame& frame,
+        const std::vector<Track>& tracks,
+        const std::vector<SafetyEvent>& events) {
         if (!frame.valid() || frame.channels != 3) {
             throw std::invalid_argument(
                 "video output requires a valid three-channel frame");
         }
 
-        Packet packet{frame, tracks};
+        Packet packet{frame, tracks, events};
         std::lock_guard<std::mutex> lock(mutex_);
         rethrow_worker_error_locked();
         if (stop_requested_) {
@@ -184,6 +288,12 @@ private:
     struct Packet {
         Frame frame;
         std::vector<Track> tracks;
+        std::vector<SafetyEvent> events;
+    };
+
+    struct ActiveEvent {
+        SafetyEvent event;
+        std::uint64_t expires_after_sequence{0};
     };
 
     void run() noexcept {
@@ -228,6 +338,7 @@ private:
                 "video output frame dimensions changed during the stream");
         }
 
+        draw_rule_geometry(image, config_);
         for (const Track& track : packet.tracks) {
             if (track.box.width <= 0.0F || track.box.height <= 0.0F) {
                 continue;
@@ -236,6 +347,70 @@ private:
             const cv::Scalar color = track_color(track.track_id);
             cv::rectangle(image, rectangle, color, 2, cv::LINE_AA);
             draw_label(image, rectangle, track_label(track), color);
+            const cv::Point anchor{
+                rectangle.x + rectangle.width / 2,
+                rectangle.y + rectangle.height,
+            };
+            cv::circle(image, anchor, 5, color, cv::FILLED, cv::LINE_AA);
+        }
+
+        const auto label_frames = static_cast<std::uint64_t>(std::max(
+            1.0,
+            std::round(
+                config_.frames_per_second *
+                config_.event_label_duration_seconds)));
+        for (const SafetyEvent& event : packet.events) {
+            active_events_.push_back({
+                event,
+                packet.frame.sequence + label_frames,
+            });
+        }
+        active_events_.erase(
+            std::remove_if(
+                active_events_.begin(),
+                active_events_.end(),
+                [&](const ActiveEvent& event) {
+                    return packet.frame.sequence >
+                           event.expires_after_sequence;
+                }),
+            active_events_.end());
+
+        int label_y = 12;
+        for (const ActiveEvent& active : active_events_) {
+            const std::string label = event_label(active.event);
+            const cv::Scalar color = event_color(active.event.type);
+            int baseline = 0;
+            const cv::Size text_size = cv::getTextSize(
+                label,
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.7,
+                2,
+                &baseline);
+            cv::rectangle(
+                image,
+                cv::Point(12, label_y),
+                cv::Point(
+                    24 + text_size.width,
+                    label_y + text_size.height + baseline + 10),
+                color,
+                cv::FILLED);
+            cv::putText(
+                image,
+                label,
+                cv::Point(18, label_y + text_size.height + 3),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.7,
+                cv::Scalar(255, 255, 255),
+                2,
+                cv::LINE_AA);
+            cv::circle(
+                image,
+                normalized_to_pixel(active.event.anchor, image.size()),
+                8,
+                color,
+                2,
+                cv::LINE_AA);
+            label_y += text_size.height + baseline + 16;
         }
 
         writer_.write(image);
@@ -291,6 +466,7 @@ private:
     mutable std::mutex mutex_;
     std::condition_variable ready_;
     std::deque<Packet> queue_;
+    std::vector<ActiveEvent> active_events_;
     std::thread worker_;
     std::exception_ptr worker_error_;
     AnnotatedVideoWriterStats stats_;
@@ -306,8 +482,9 @@ AnnotatedVideoWriter::~AnnotatedVideoWriter() {
 
 void AnnotatedVideoWriter::write(
     const Frame& frame,
-    const std::vector<Track>& tracks) {
-    impl_->write(frame, tracks);
+    const std::vector<Track>& tracks,
+    const std::vector<SafetyEvent>& events) {
+    impl_->write(frame, tracks, events);
 }
 
 void AnnotatedVideoWriter::finish() {

@@ -14,6 +14,13 @@ int main() {
     config.output_path = output_path.string();
     config.frames_per_second = 30.0;
     config.queue_capacity = 2;
+    config.event_regions.push_back({{
+        {0.5F, 0.2F},
+        {0.9F, 0.2F},
+        {0.9F, 0.9F},
+        {0.5F, 0.9F},
+    }});
+    config.event_lines.push_back({{0.5F, 0.2F}, {0.5F, 0.9F}});
 
     edge_vision::Frame frame;
     frame.width = 320;
@@ -30,10 +37,16 @@ int main() {
     track.state = edge_vision::TrackState::Tracked;
 
     edge_vision::AnnotatedVideoWriter writer(config);
+    edge_vision::SafetyEvent event;
+    event.type = edge_vision::SafetyEventType::RoiIntrusion;
+    event.track_id = track.track_id;
+    event.anchor = {0.6F, 0.6F};
     constexpr std::uint64_t submitted_frames = 12;
     for (std::uint64_t index = 0; index < submitted_frames; ++index) {
         frame.sequence = index;
-        writer.write(frame, {track});
+        writer.write(frame, {track}, index == 2
+                                         ? std::vector{event}
+                                         : std::vector<edge_vision::SafetyEvent>{});
     }
     writer.finish();
 

@@ -169,10 +169,12 @@ stream generation changes and timeline restarts clear all event state.
 
 `--output-video` is optional. When enabled, the runtime sends measured frames
 after warmup to a dedicated bounded writer queue and overlays each active
-track's bounding box, class ID, confidence, and persistent track ID. Slow
-encoding drops the oldest pending output frame instead of blocking capture,
-detection, or tracking. Enqueue latency, writer drops, queue watermark, and
-final flush time are reported separately from real-time pipeline latency.
+track's bounding box, bottom-center anchor, class ID, confidence, and persistent
+track ID. Configured ROI and line geometry remain visible, while triggered
+event labels and anchors persist briefly for review. Slow encoding drops the
+oldest pending output frame instead of blocking capture, detection, or
+tracking. Enqueue latency, writer drops, queue watermark, and final flush time
+are reported separately from real-time pipeline latency.
 
 Measured synchronous and asynchronous output results are available in the
 [annotated video output benchmark](docs/benchmarks/annotated_video_output.md).
