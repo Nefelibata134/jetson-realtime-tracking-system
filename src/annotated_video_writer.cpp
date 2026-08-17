@@ -10,6 +10,7 @@
 #include <exception>
 #include <filesystem>
 #include <iomanip>
+#include <iterator>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
@@ -248,6 +249,10 @@ public:
         }
 
         if (queue_.size() == config_.queue_capacity) {
+            packet.events.insert(
+                packet.events.begin(),
+                std::make_move_iterator(queue_.front().events.begin()),
+                std::make_move_iterator(queue_.front().events.end()));
             queue_.pop_front();
             ++stats_.frames_dropped;
         }
