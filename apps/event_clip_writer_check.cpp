@@ -85,13 +85,16 @@ int main() {
         stats.prebuffer_frames == 0 && stats.prebuffer_bytes == 0;
     const bool accounting_valid =
         stats.clips_started == 1 && stats.clips_completed == 1 &&
-        stats.clips_skipped == 0;
+        stats.clips_skipped == 0 &&
+        stats.encoding_queue_high_watermark == 1;
     const bool passed = clip_valid && bounded_buffer && accounting_valid;
 
     std::cout << std::boolalpha;
     std::cout << "clip_frames=" << frame_count << '\n';
     std::cout << "bounded_buffer=" << bounded_buffer << '\n';
     std::cout << "accounting_valid=" << accounting_valid << '\n';
+    std::cout << "encoding_queue_high_watermark="
+              << stats.encoding_queue_high_watermark << '\n';
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
 
     std::filesystem::remove_all(directory);

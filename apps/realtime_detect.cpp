@@ -999,6 +999,8 @@ int main(int argc, char** argv) {
                           << clip_stats.prebuffer_peak_bytes << '\n';
                 std::cout << "event_clip_max_active="
                           << clip_stats.max_active_clips << '\n';
+                std::cout << "event_clip_encoding_queue_high_watermark="
+                          << clip_stats.encoding_queue_high_watermark << '\n';
                 std::cout << "event_clip_flush_ms="
                           << event_clip_flush_ms << '\n';
             } else {

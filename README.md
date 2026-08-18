@@ -180,9 +180,11 @@ stream generation changes and timeline restarts clear all event state.
 `--event-jsonl` enables the versioned append-only event journal. Optional
 snapshot and clip directories add verified evidence paths to each record.
 Snapshots are committed before the record is appended. Event clips use a
-bounded raw-frame prebuffer and delay publication until the post-event segment
-is closed and verified. The runtime reports journal writes, duplicate skips,
-artifact counts, event I/O latency, and peak clip-buffer memory. The complete
+bounded raw-frame prebuffer, collect shared frame references on the real-time
+thread, and encode completed segments on a bounded background queue. Journal
+publication waits until the clip is closed and verified. The runtime reports
+journal writes, duplicate skips, artifact counts, event I/O latency, and peak
+clip-buffer memory. The complete
 record contract and durability semantics are defined in the
 [safety event schema](docs/events/event_schema.md).
 

@@ -202,6 +202,7 @@ target_link_libraries(
         edge_vision_event_journal
     PRIVATE
         edge_vision_video_output
+        Threads::Threads
         ${OpenCV_LIBS}
 )
 

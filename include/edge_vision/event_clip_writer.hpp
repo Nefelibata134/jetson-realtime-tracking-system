@@ -16,7 +16,8 @@ struct EventClipWriterConfig {
     double frames_per_second{30.0};
     double pre_event_seconds{2.0};
     double post_event_seconds{3.0};
-    std::size_t max_active_clips{8};
+    std::size_t max_active_clips{2};
+    std::size_t encoding_queue_capacity{2};
     FrameAnnotationConfig annotation;
 };
 
@@ -29,6 +30,7 @@ struct EventClipWriterStats {
     std::size_t prebuffer_bytes{0};
     std::size_t prebuffer_peak_bytes{0};
     std::size_t max_active_clips{0};
+    std::size_t encoding_queue_high_watermark{0};
 };
 
 class EventClipWriter final {
