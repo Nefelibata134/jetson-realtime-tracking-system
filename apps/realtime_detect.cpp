@@ -92,7 +92,7 @@ void print_usage(const char* program) {
         << "  --event-line X1 Y1 X2 Y2\n"
         << "  --event-line-direction any|negative-to-positive|positive-to-negative\n"
         << "  --event-dwell-seconds VALUE\n"
-        << "  --event-class-id N\n"
+        << "  --event-class-id N|-1\n"
         << "  --event-jsonl PATH\n"
         << "  --event-snapshot-dir DIRECTORY\n"
         << "  --event-clip-dir DIRECTORY\n"
@@ -122,6 +122,14 @@ Value parse_number(const char* text, const std::string& option) {
         throw std::invalid_argument("invalid value for " + option);
     }
     return static_cast<Value>(number);
+}
+
+int parse_event_class_id(const char* text, const std::string& option) {
+    const std::string value{text};
+    if (value == "-1") {
+        return -1;
+    }
+    return parse_number<int>(text, option);
 }
 
 float parse_probability(const char* text, const std::string& option) {
@@ -261,7 +269,7 @@ Options parse_options(const int argc, char** argv) {
                 parse_positive_float(require_value(argument), argument);
         } else if (argument == "--event-class-id") {
             options.event_class_id =
-                parse_number<int>(require_value(argument), argument);
+                parse_event_class_id(require_value(argument), argument);
         } else if (argument == "--event-jsonl") {
             options.event_jsonl_path = require_value(argument);
         } else if (argument == "--event-snapshot-dir") {

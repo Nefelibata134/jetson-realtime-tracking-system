@@ -172,7 +172,9 @@ as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.
 `--event-dwell-seconds` adds a timestamp-based dwell rule for the same region.
 `--event-line` defines a finite normalized segment, while
 `--event-line-direction` selects `any`, `negative-to-positive`, or
-`positive-to-negative` crossing. Rules use each track's bottom-center anchor;
+`positive-to-negative` crossing. `--event-class-id` selects one COCO class and
+accepts `-1` to apply the configured rules to every tracked class. Rules use
+each track's bottom-center anchor;
 stream generation changes and timeline restarts clear all event state.
 
 `--event-jsonl` enables the versioned append-only event journal. Optional
