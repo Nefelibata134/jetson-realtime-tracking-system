@@ -86,8 +86,7 @@ bool FrameCaptureWorker::restart_source() noexcept {
             return false;
         }
         if (source_->open()) {
-            restart_successes_.fetch_add(1);
-            stream_generation_.fetch_add(1);
+            restart_awaiting_frame_ = true;
             source_exhausted_.store(false);
             return true;
         }
@@ -114,6 +113,11 @@ void FrameCaptureWorker::capture_loop() noexcept {
             break;
         }
 
+        if (restart_awaiting_frame_) {
+            restart_successes_.fetch_add(1);
+            stream_generation_.fetch_add(1);
+            restart_awaiting_frame_ = false;
+        }
         restart_attempts_since_frame_ = 0;
         recovery_exhausted_.store(false);
         frame->stream_generation = stream_generation_.load();

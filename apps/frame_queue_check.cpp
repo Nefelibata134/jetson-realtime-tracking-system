@@ -129,6 +129,29 @@ private:
     std::atomic<bool> opened_{false};
 };
 
+class EmptyRecoveryFrameSource final : public edge_vision::IFrameSource {
+public:
+    bool open() override {
+        opened_ = true;
+        return true;
+    }
+
+    [[nodiscard]] bool is_open() const noexcept override {
+        return opened_;
+    }
+
+    std::optional<edge_vision::Frame> read() override {
+        return std::nullopt;
+    }
+
+    void close() noexcept override {
+        opened_ = false;
+    }
+
+private:
+    bool opened_{false};
+};
+
 bool check_drop_oldest() {
     edge_vision::BoundedFrameQueue queue(2);
     const auto first = queue.push(make_frame(1));
@@ -229,6 +252,24 @@ bool check_recovery_budget_per_outage() {
            !stats.recovery_exhausted;
 }
 
+bool check_empty_reopen_is_not_recovery() {
+    auto source = std::make_unique<EmptyRecoveryFrameSource>();
+    edge_vision::FrameCaptureRecoveryPolicy policy;
+    policy.max_restart_attempts = 3;
+    policy.restart_delay_ms = 0;
+    edge_vision::FrameCaptureWorker worker(
+        std::move(source), 1, policy);
+    if (!worker.start()) {
+        return false;
+    }
+    worker.wait();
+
+    const auto stats = worker.stats();
+    return stats.produced == 0 && stats.restart_attempts == 3 &&
+           stats.restart_successes == 0 && stats.stream_generation == 0 &&
+           stats.source_exhausted && stats.recovery_exhausted;
+}
+
 }  // namespace
 
 int main() {
@@ -238,6 +279,8 @@ int main() {
     const bool capture_recovery = check_capture_recovery();
     const bool recovery_budget_per_outage =
         check_recovery_budget_per_outage();
+    const bool empty_reopen_is_not_recovery =
+        check_empty_reopen_is_not_recovery();
 
     std::cout << "drop_oldest=" << std::boolalpha << drop_oldest << '\n';
     std::cout << "close_unblocks=" << close_unblocks << '\n';
@@ -245,9 +288,12 @@ int main() {
     std::cout << "capture_recovery=" << capture_recovery << '\n';
     std::cout << "recovery_budget_per_outage="
               << recovery_budget_per_outage << '\n';
+    std::cout << "empty_reopen_is_not_recovery="
+              << empty_reopen_is_not_recovery << '\n';
 
     const bool passed = drop_oldest && close_unblocks && capture_worker &&
-                        capture_recovery && recovery_budget_per_outage;
+                        capture_recovery && recovery_budget_per_outage &&
+                        empty_reopen_is_not_recovery;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
 }

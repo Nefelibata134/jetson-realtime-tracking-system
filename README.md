@@ -111,10 +111,11 @@ a bounded pipeline reopen sequence. The RTSP source accepts H.264 video over
 TCP or UDP; TCP is the default for reliable delivery, while UDP can reduce
 transport delay on a controlled network. A no-frame timeout also catches
 connections that remain open without delivering decodable frames. The retry
-budget resets only after a frame is received, so repeated empty reconnects
-cannot continue indefinitely. If the requested frame count is not reached
-after all attempts, the process reports recovery statistics and exits with a
-nonzero status.
+budget, successful-restart count, and stream generation advance only after a
+frame is received, so repeated empty reconnects cannot be reported as recovery
+or continue indefinitely. If the requested frame count is not reached after
+all attempts, the process reports recovery statistics and exits with a nonzero
+status.
 
 Configure the TensorRT runtime on Jetson and execute an engine probe with:
 

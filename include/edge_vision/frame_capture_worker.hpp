@@ -64,6 +64,7 @@ private:
     std::atomic<bool> source_exhausted_{false};
     std::atomic<bool> recovery_exhausted_{false};
     std::uint64_t restart_attempts_since_frame_{0};
+    bool restart_awaiting_frame_{false};
     bool started_{false};
 };
 
