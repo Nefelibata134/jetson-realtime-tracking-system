@@ -14,6 +14,7 @@ option(
 )
 
 find_package(Threads REQUIRED)
+find_package(nlohmann_json 3.2.0 REQUIRED)
 
 add_library(edge_vision_core INTERFACE)
 target_include_directories(
@@ -51,9 +52,84 @@ target_link_libraries(
         edge_vision_capture
 )
 
+add_library(
+    edge_vision_telemetry
+    src/jetson_telemetry.cpp
+)
+target_link_libraries(
+    edge_vision_telemetry
+    PUBLIC
+        edge_vision_core
+    PRIVATE
+        Threads::Threads
+)
+
+add_executable(
+    edge_vision_jetson_telemetry_check
+    apps/jetson_telemetry_check.cpp
+)
+target_link_libraries(
+    edge_vision_jetson_telemetry_check
+    PRIVATE
+        edge_vision_telemetry
+)
+
+add_library(
+    edge_vision_runtime_metrics
+    src/runtime_metrics.cpp
+)
+target_link_libraries(
+    edge_vision_runtime_metrics
+    PUBLIC
+        edge_vision_telemetry
+    PRIVATE
+        nlohmann_json::nlohmann_json
+)
+
+add_executable(
+    edge_vision_runtime_metrics_check
+    apps/runtime_metrics_check.cpp
+)
+target_link_libraries(
+    edge_vision_runtime_metrics_check
+    PRIVATE
+        edge_vision_runtime_metrics
+        nlohmann_json::nlohmann_json
+)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+        edge_vision_telemetry
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_jetson_telemetry_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_runtime_metrics
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_runtime_metrics_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+endif()
+
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(nlohmann_json 3.2.0 REQUIRED)
 
 add_library(
     edge_vision_video_output
@@ -600,7 +676,9 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 edge_vision_event_evidence
                 edge_vision_event_journal
                 edge_vision_gstreamer
+                edge_vision_runtime_metrics
                 edge_vision_video_output
+                nlohmann_json::nlohmann_json
         )
     endif()
 
@@ -655,6 +733,14 @@ endif()
 enable_testing()
 add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
 add_test(NAME edge_vision_frame_queue_check COMMAND edge_vision_frame_queue_check)
+add_test(
+    NAME edge_vision_jetson_telemetry_check
+    COMMAND edge_vision_jetson_telemetry_check
+)
+add_test(
+    NAME edge_vision_runtime_metrics_check
+    COMMAND edge_vision_runtime_metrics_check
+)
 add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
 add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)
 add_test(NAME edge_vision_byte_tracker_check COMMAND edge_vision_byte_tracker_check)

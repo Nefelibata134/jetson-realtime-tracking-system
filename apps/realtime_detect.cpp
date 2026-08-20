@@ -26,6 +26,8 @@
 #include "edge_vision/event_analytics.hpp"
 #include "edge_vision/event_journal.hpp"
 #include "edge_vision/gstreamer_frame_source.hpp"
+#include "edge_vision/jetson_telemetry.hpp"
+#include "edge_vision/runtime_metrics.hpp"
 #include "edge_vision/yolox_detector.hpp"
 
 namespace {
@@ -43,6 +45,8 @@ struct Options {
     std::string file_path;
     std::string rtsp_uri;
     std::string output_video_path;
+    std::string metrics_json_path;
+    std::string tegrastats_path{"/usr/bin/tegrastats"};
     std::string event_jsonl_path;
     std::string event_snapshot_directory;
     std::string event_clip_directory;
@@ -66,6 +70,7 @@ struct Options {
         edge_vision::CrossingDirection::None};
     std::uint64_t reconnect_attempts{3};
     std::uint64_t reconnect_delay_ms{1000};
+    std::uint64_t tegrastats_interval_ms{500};
     edge_vision::CsiCameraConfig camera;
     edge_vision::RtspStreamConfig rtsp;
 };
@@ -104,6 +109,9 @@ void print_usage(const char* program) {
         << "  --event-clip-post-seconds VALUE\n"
         << "  --output-video PATH\n"
         << "  --output-queue-capacity N\n"
+        << "  --metrics-json PATH\n"
+        << "  --tegrastats-path PATH\n"
+        << "  --tegrastats-interval-ms N\n"
         << "  --log-interval N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --rtsp-transport tcp|udp\n"
@@ -296,6 +304,13 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--output-queue-capacity") {
             options.output_queue_capacity =
                 parse_number<std::size_t>(require_value(argument), argument);
+        } else if (argument == "--metrics-json") {
+            options.metrics_json_path = require_value(argument);
+        } else if (argument == "--tegrastats-path") {
+            options.tegrastats_path = require_value(argument);
+        } else if (argument == "--tegrastats-interval-ms") {
+            options.tegrastats_interval_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
         } else if (argument == "--log-interval") {
             options.log_interval =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -357,7 +372,8 @@ Options parse_options(const int argc, char** argv) {
         options.source_type == Options::SourceType::none ||
         options.frame_limit == 0 || options.queue_capacity == 0 ||
         options.output_queue_capacity == 0 ||
-        options.log_interval == 0 || options.camera.width <= 0 ||
+        options.tegrastats_interval_ms == 0 || options.log_interval == 0 ||
+        options.camera.width <= 0 ||
         options.camera.height <= 0 ||
         options.camera.frames_per_second <= 0) {
         throw std::invalid_argument(
@@ -563,6 +579,16 @@ void print_latency(const std::string& name, const LatencySummary& summary) {
     std::cout << name << "_max_ms=" << summary.maximum_ms << '\n';
 }
 
+edge_vision::RuntimeLatencyMetrics runtime_latency(
+    const LatencySummary& summary) {
+    return {
+        summary.mean_ms,
+        summary.p50_ms,
+        summary.p95_ms,
+        summary.maximum_ms,
+    };
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -674,6 +700,20 @@ int main(int argc, char** argv) {
         }
         edge_vision::FrameCaptureWorker worker(
             std::move(source), options.queue_capacity, recovery_policy);
+        std::unique_ptr<edge_vision::JetsonTelemetrySampler>
+            telemetry_sampler;
+        if (!options.metrics_json_path.empty()) {
+            telemetry_sampler =
+                std::make_unique<edge_vision::JetsonTelemetrySampler>(
+                    edge_vision::JetsonTelemetrySamplerConfig{
+                        options.tegrastats_path,
+                        options.tegrastats_interval_ms,
+                    });
+            if (!telemetry_sampler->start()) {
+                std::cerr << "telemetry warning: "
+                          << telemetry_sampler->last_error() << '\n';
+            }
+        }
         if (!worker.start()) {
             std::cerr << "failed to start frame source\n";
             return 1;
@@ -927,6 +967,9 @@ int main(int argc, char** argv) {
 
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
+        if (telemetry_sampler) {
+            telemetry_sampler->stop();
+        }
         const edge_vision::FrameCaptureStats stats = worker.stats();
         double event_clip_flush_ms = 0.0;
         if (clip_writer) {
@@ -966,6 +1009,94 @@ int main(int argc, char** argv) {
             stats.queue.dropped >= warmup_dropped
                 ? stats.queue.dropped - warmup_dropped
                 : 0;
+        const double effective_fps =
+            elapsed_seconds == 0.0
+                ? 0.0
+                : static_cast<double>(measured_frames) / elapsed_seconds;
+        const double drop_rate_percent =
+            measured_frames + measured_dropped == 0
+                ? 0.0
+                : 100.0 * static_cast<double>(measured_dropped) /
+                      static_cast<double>(measured_frames + measured_dropped);
+
+        edge_vision::JetsonTelemetrySummary telemetry_summary;
+        std::string telemetry_error;
+        if (telemetry_sampler) {
+            telemetry_summary = telemetry_sampler->summary();
+            telemetry_error = telemetry_sampler->last_error();
+        }
+
+        if (!options.metrics_json_path.empty()) {
+            edge_vision::RuntimeMetricsReport report;
+            report.source = source_name;
+            report.status = {
+                target_reached,
+                invalid_frames,
+                stats.source_exhausted,
+                stats.recovery_exhausted,
+            };
+            report.pipeline = {
+                stats.produced,
+                processed,
+                warmup_processed,
+                measured_frames,
+                options.frame_limit,
+                warmup_dropped,
+                measured_dropped,
+                stats.queue.dropped,
+                drop_rate_percent,
+                options.queue_capacity,
+                stats.queue.high_watermark,
+                sequence_gaps,
+                stats.restart_attempts,
+                stats.restart_successes,
+                stats.stream_generation,
+                detection_frames,
+                total_detections,
+                tracking_frames,
+                total_track_observations,
+                unique_track_ids.size(),
+                max_active_tracks,
+                tracker_resets,
+                tracker_gap_updates,
+                event_analysis_enabled,
+                event_frames,
+                total_events,
+                roi_intrusion_events,
+                line_crossing_events,
+                dwell_events,
+                effective_fps,
+            };
+            report.latency_ms = {
+                {"queue_wait", runtime_latency(queue_summary)},
+                {"inference", runtime_latency(inference_summary)},
+                {"tracking", runtime_latency(tracking_summary)},
+                {"event_analysis", runtime_latency(event_analysis_summary)},
+                {"end_to_end", runtime_latency(e2e_summary)},
+            };
+            if (event_journal) {
+                report.latency_ms.emplace(
+                    "event_io", runtime_latency(event_io_summary));
+            }
+            if (video_writer) {
+                report.latency_ms.emplace(
+                    "video_enqueue", runtime_latency(video_enqueue_summary));
+            }
+            report.device = telemetry_summary;
+            report.device_sampler_error = telemetry_error;
+            try {
+                edge_vision::write_runtime_metrics_json(
+                    options.metrics_json_path, report);
+                std::cout << "metrics_json=" << options.metrics_json_path
+                          << '\n';
+            } catch (const std::exception& error) {
+                std::cerr << "metrics_write_error=" << error.what() << '\n';
+            }
+            std::cout << "telemetry_available=" << std::boolalpha
+                      << (telemetry_summary.samples > 0) << '\n';
+            std::cout << "telemetry_samples=" << telemetry_summary.samples
+                      << '\n';
+        }
 
         std::cout << std::fixed << std::setprecision(3);
         std::cout << "source=" << source_name << '\n';
@@ -1080,11 +1211,7 @@ int main(int argc, char** argv) {
         }
         print_latency("end_to_end", e2e_summary);
         std::cout << "effective_fps="
-                  << (elapsed_seconds == 0.0
-                          ? 0.0
-                          : static_cast<double>(measured_frames) /
-                                elapsed_seconds)
-                  << '\n';
+                  << effective_fps << '\n';
 
         return target_reached && invalid_frames == 0 ? 0 : 1;
     } catch (const std::exception& error) {

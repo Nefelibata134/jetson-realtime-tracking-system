@@ -37,7 +37,7 @@ network-stream reconnect and fault-recovery behavior.
 | ByteTrack | Kalman prediction, two-stage association, class-aware identities, and reset semantics | Implemented |
 | Event analyzer | Confirmed ROI intrusion, finite directional crossing, timestamp dwell, and stream reset | Implemented |
 | Event evidence | Versioned JSONL journal, persistent deduplication, snapshots, and bounded pre/post-event clips | Implemented |
-| Telemetry | FPS, latency, temperature, power, and memory | Planned |
+| Telemetry | Versioned pipeline metrics plus background Jetson utilization, temperature, power, and memory sampling | Implemented |
 | Recovery | Bounded CSI/RTSP reconnect, no-frame timeout, stream generations, and explicit failure status | Implemented |
 | Watchdog | External process supervision and restart policy | Planned |
 
@@ -177,6 +177,8 @@ cmake --build build -j"$(nproc)"
   --event-clip-post-seconds 3 \
   --output-video outputs/imx219_tracking.mp4 \
   --output-queue-capacity 4 \
+  --metrics-json outputs/metrics/imx219_runtime.json \
+  --tegrastats-interval-ms 500 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
 
 ./build/edge_vision_realtime_detect \
@@ -207,6 +209,15 @@ generation and clears all
 stale tracks. Warmup frames execute the complete pipeline but are excluded
 from detection, tracking, latency, throughput, and steady-state drop
 statistics.
+
+`--metrics-json` publishes the final runtime state as a versioned JSON
+document. Pipeline counters, drop rate, queue watermark, restart state,
+detection/tracking/event totals, effective FPS, and stage latency summaries
+are combined with Jetson telemetry sampled by a dedicated background
+`tegrastats` process. Device sampling never runs on the inference thread; if
+`tegrastats` is unavailable, pipeline metrics are still written and
+`device.available` is `false`. The complete field and unit contract is defined
+in the [runtime metrics schema](docs/metrics/runtime_metrics_schema.md).
 
 Safety rules are opt-in. `--event-roi` defines a normalized rectangular region
 as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.
