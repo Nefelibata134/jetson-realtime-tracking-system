@@ -40,7 +40,10 @@ int main() {
         document.at("latency_ms").at("inference").at("p95") == 7.2;
     const bool device =
         document.at("device").at("available") == true &&
-        document.at("device").at("input_power_w").at("samples") == 2;
+        document.at("device").at("input_power_w").at("samples") == 2 &&
+        document.at("device").at("input_power_w").at("mean").is_number() &&
+        document.at("device").at("input_power_w").at("mean") == 8.0 &&
+        document.at("device").at("sampler_error").is_null();
 
     report.pipeline.measured_frames = 96;
     edge_vision::write_runtime_metrics_json(output.string(), report);

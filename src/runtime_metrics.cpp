@@ -12,7 +12,7 @@ namespace edge_vision {
 namespace {
 
 nlohmann::json optional_number(const std::optional<double>& value) {
-    return value.has_value() ? nlohmann::json{*value} : nlohmann::json{nullptr};
+    return value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
 }
 
 nlohmann::json numeric_summary(const NumericMetricSummary& summary) {
@@ -93,8 +93,8 @@ nlohmann::json make_json(const RuntimeMetricsReport& report) {
              {"samples", device.samples},
              {"sampler_error",
               report.device_sampler_error.empty()
-                  ? nlohmann::json{nullptr}
-                  : nlohmann::json{report.device_sampler_error}},
+                  ? nlohmann::json(nullptr)
+                  : nlohmann::json(report.device_sampler_error)},
              {"ram_used_mb", numeric_summary(device.ram_used_mb)},
              {"ram_total_mb", numeric_summary(device.ram_total_mb)},
              {"cpu_utilization_percent",
