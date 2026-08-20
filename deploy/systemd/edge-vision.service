@@ -29,7 +29,6 @@ StandardOutput=append:/var/log/edge-vision/runtime.log
 StandardError=append:/var/log/edge-vision/runtime.log
 UMask=0027
 NoNewPrivileges=true
-PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 LimitCORE=0

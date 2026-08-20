@@ -4,6 +4,12 @@ The runtime can be installed as a systemd service for unattended Jetson
 operation. The service uses the same TensorRT, GStreamer, ByteTrack, event, and
 telemetry code paths as the command-line runtime.
 
+The main service deliberately does not enable systemd `PrivateTmp`. NVIDIA
+Argus camera capture communicates through a host-managed endpoint under
+`/tmp`, so an isolated temporary directory would prevent `nvarguscamerasrc`
+from reaching the camera daemon. The spool-pruning service does not use the
+camera and keeps its temporary-directory isolation.
+
 ## Lifecycle
 
 ```text
