@@ -1,0 +1,38 @@
+[Unit]
+Description=Jetson realtime video analytics
+Wants=network-online.target
+After=network-online.target nvargus-daemon.service
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=edge-vision
+Group=edge-vision
+SupplementaryGroups=video render
+EnvironmentFile=-/etc/edge-vision/edge-vision.env
+ExecStart=/opt/edge-vision/bin/run-edge-vision
+Restart=on-failure
+RestartSec=5
+RuntimeMaxSec=24h
+TimeoutStartSec=60
+TimeoutStopSec=20
+WatchdogSec=30
+KillSignal=SIGTERM
+KillMode=mixed
+StateDirectory=edge-vision
+CacheDirectory=edge-vision
+LogsDirectory=edge-vision
+WorkingDirectory=/var/lib/edge-vision
+StandardOutput=append:/var/log/edge-vision/runtime.log
+StandardError=append:/var/log/edge-vision/runtime.log
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target

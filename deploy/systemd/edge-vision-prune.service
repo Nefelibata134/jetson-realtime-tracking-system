@@ -1,0 +1,14 @@
+[Unit]
+Description=Prune completed edge video event sessions
+
+[Service]
+Type=oneshot
+User=edge-vision
+Group=edge-vision
+EnvironmentFile=-/etc/edge-vision/edge-vision.env
+ExecStart=/usr/bin/python3 /opt/edge-vision/bin/prune-event-spool --root /var/lib/edge-vision/spool --max-bytes ${EDGE_VISION_SPOOL_MAX_BYTES} --max-age-days ${EDGE_VISION_SPOOL_MAX_AGE_DAYS} --keep-latest 1
+StateDirectory=edge-vision
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

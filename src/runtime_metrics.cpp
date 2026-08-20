@@ -50,6 +50,9 @@ nlohmann::json make_json(const RuntimeMetricsReport& report) {
              {"invalid_frames", report.status.invalid_frames},
              {"source_exhausted", report.status.source_exhausted},
              {"recovery_exhausted", report.status.recovery_exhausted},
+             {"continuous", report.status.continuous},
+             {"shutdown_requested", report.status.shutdown_requested},
+             {"shutdown_signal", report.status.shutdown_signal},
          }},
         {"pipeline",
          {
@@ -85,6 +88,8 @@ nlohmann::json make_json(const RuntimeMetricsReport& report) {
              {"line_crossing_events", pipeline.line_crossing_events},
              {"dwell_events", pipeline.dwell_events},
              {"effective_fps", pipeline.effective_fps},
+             {"latency_window_capacity", pipeline.latency_window_capacity},
+             {"latency_window_samples", pipeline.latency_window_samples},
          }},
         {"latency_ms", std::move(latencies)},
         {"device",

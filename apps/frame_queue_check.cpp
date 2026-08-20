@@ -198,6 +198,22 @@ bool check_capture_worker() {
            stats.source_exhausted && !stats.running;
 }
 
+bool check_timed_wait_states() {
+    edge_vision::BoundedFrameQueue queue(1);
+    const auto timeout = queue.wait_pop_for(std::chrono::milliseconds(1));
+    queue.push(make_frame(7));
+    const auto frame = queue.wait_pop_for(std::chrono::milliseconds(1));
+    queue.close();
+    const auto closed = queue.wait_pop_for(std::chrono::milliseconds(1));
+
+    return timeout.status == edge_vision::QueuePopStatus::timeout &&
+           !timeout.frame.has_value() &&
+           frame.status == edge_vision::QueuePopStatus::frame &&
+           frame.frame.has_value() && frame.frame->sequence == 7 &&
+           closed.status == edge_vision::QueuePopStatus::closed &&
+           !closed.frame.has_value();
+}
+
 bool check_capture_recovery() {
     auto source = std::make_unique<RecoveringFrameSource>();
     edge_vision::FrameCaptureRecoveryPolicy policy;
@@ -275,6 +291,7 @@ bool check_empty_reopen_is_not_recovery() {
 int main() {
     const bool drop_oldest = check_drop_oldest();
     const bool close_unblocks = check_close_unblocks_waiter();
+    const bool timed_wait_states = check_timed_wait_states();
     const bool capture_worker = check_capture_worker();
     const bool capture_recovery = check_capture_recovery();
     const bool recovery_budget_per_outage =
@@ -284,6 +301,7 @@ int main() {
 
     std::cout << "drop_oldest=" << std::boolalpha << drop_oldest << '\n';
     std::cout << "close_unblocks=" << close_unblocks << '\n';
+    std::cout << "timed_wait_states=" << timed_wait_states << '\n';
     std::cout << "capture_worker=" << capture_worker << '\n';
     std::cout << "capture_recovery=" << capture_recovery << '\n';
     std::cout << "recovery_budget_per_outage="
@@ -291,7 +309,8 @@ int main() {
     std::cout << "empty_reopen_is_not_recovery="
               << empty_reopen_is_not_recovery << '\n';
 
-    const bool passed = drop_oldest && close_unblocks && capture_worker &&
+    const bool passed = drop_oldest && close_unblocks && timed_wait_states &&
+                        capture_worker &&
                         capture_recovery && recovery_budget_per_outage &&
                         empty_reopen_is_not_recovery;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';

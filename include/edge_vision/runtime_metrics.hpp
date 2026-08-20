@@ -14,6 +14,9 @@ struct RuntimeStatusMetrics {
     std::uint64_t invalid_frames{0};
     bool source_exhausted{false};
     bool recovery_exhausted{false};
+    bool continuous{false};
+    bool shutdown_requested{false};
+    int shutdown_signal{0};
 };
 
 struct RuntimePipelineMetrics {
@@ -47,6 +50,8 @@ struct RuntimePipelineMetrics {
     std::uint64_t line_crossing_events{0};
     std::uint64_t dwell_events{0};
     double effective_fps{0.0};
+    std::size_t latency_window_capacity{0};
+    std::size_t latency_window_samples{0};
 };
 
 struct RuntimeLatencyMetrics {

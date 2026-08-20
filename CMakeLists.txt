@@ -31,6 +31,26 @@ add_executable(
 target_link_libraries(edge_vision_contract_check PRIVATE edge_vision_core)
 
 add_library(
+    edge_vision_service_runtime
+    src/service_runtime.cpp
+)
+target_link_libraries(
+    edge_vision_service_runtime
+    PUBLIC
+        edge_vision_core
+)
+
+add_executable(
+    edge_vision_service_runtime_check
+    apps/service_runtime_check.cpp
+)
+target_link_libraries(
+    edge_vision_service_runtime_check
+    PRIVATE
+        edge_vision_service_runtime
+)
+
+add_library(
     edge_vision_capture
     src/frame_capture_worker.cpp
 )
@@ -98,6 +118,20 @@ target_link_libraries(
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+        edge_vision_service_runtime
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+    target_compile_options(
+        edge_vision_service_runtime_check
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
     target_compile_options(
         edge_vision_telemetry
         PRIVATE
@@ -677,6 +711,7 @@ if(EDGE_VISION_ENABLE_TENSORRT)
                 edge_vision_event_journal
                 edge_vision_gstreamer
                 edge_vision_runtime_metrics
+                edge_vision_service_runtime
                 edge_vision_video_output
                 nlohmann_json::nlohmann_json
         )
@@ -732,6 +767,10 @@ endif()
 
 enable_testing()
 add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
+add_test(
+    NAME edge_vision_service_runtime_check
+    COMMAND edge_vision_service_runtime_check
+)
 add_test(NAME edge_vision_frame_queue_check COMMAND edge_vision_frame_queue_check)
 add_test(
     NAME edge_vision_jetson_telemetry_check

@@ -56,6 +56,11 @@ std::optional<Frame> FrameCaptureWorker::wait_pop() {
     return queue_.wait_pop();
 }
 
+FrameQueuePopResult FrameCaptureWorker::wait_pop_for(
+    const std::chrono::milliseconds timeout) {
+    return queue_.wait_pop_for(timeout);
+}
+
 std::optional<Frame> FrameCaptureWorker::try_pop() {
     return queue_.try_pop();
 }

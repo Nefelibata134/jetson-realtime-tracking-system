@@ -15,6 +15,8 @@ file.
   section reports `available: false` and preserves the sampler error.
 - `schema_version` changes when field meaning or structure becomes
   incompatible.
+- Finite runs summarize all measured frames. Continuous runs retain only the
+  latest `latency_window_capacity` samples, preventing unbounded memory use.
 
 ## Top-Level Fields
 
@@ -26,6 +28,11 @@ file.
 | `pipeline` | Frame, queue, recovery, detection, tracking, and event metrics |
 | `latency_ms` | Per-stage latency summaries in milliseconds |
 | `device` | Jetson memory, utilization, temperature, and input power summaries |
+
+The `status` object records whether the run was finite or continuous, whether
+SIGINT/SIGTERM requested shutdown, and the received signal number. Continuous
+runs encode `target_frames` as `0`; a clean signal-driven stop has
+`target_reached: false` and `shutdown_requested: true`.
 
 ## Metric Types
 
@@ -70,13 +77,18 @@ Unavailable values are encoded as JSON `null` rather than zero.
     "target_reached": true,
     "invalid_frames": 0,
     "source_exhausted": false,
-    "recovery_exhausted": false
+    "recovery_exhausted": false,
+    "continuous": false,
+    "shutdown_requested": false,
+    "shutdown_signal": 0
   },
   "pipeline": {
     "measured_frames": 300,
     "dropped_frames": 1,
     "drop_rate_percent": 0.332,
-    "effective_fps": 29.9
+    "effective_fps": 29.9,
+    "latency_window_capacity": 300,
+    "latency_window_samples": 300
   },
   "latency_ms": {
     "inference": {

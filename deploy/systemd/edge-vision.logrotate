@@ -1,0 +1,11 @@
+/var/log/edge-vision/runtime.log {
+    daily
+    maxsize 20M
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su edge-vision edge-vision
+}

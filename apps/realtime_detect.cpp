@@ -28,6 +28,7 @@
 #include "edge_vision/gstreamer_frame_source.hpp"
 #include "edge_vision/jetson_telemetry.hpp"
 #include "edge_vision/runtime_metrics.hpp"
+#include "edge_vision/service_runtime.hpp"
 #include "edge_vision/yolox_detector.hpp"
 
 namespace {
@@ -51,6 +52,8 @@ struct Options {
     std::string event_snapshot_directory;
     std::string event_clip_directory;
     std::uint64_t frame_limit{300};
+    bool frame_limit_explicit{false};
+    bool continuous{false};
     std::uint64_t warmup_frames{0};
     std::size_t queue_capacity{2};
     std::size_t output_queue_capacity{4};
@@ -71,6 +74,7 @@ struct Options {
     std::uint64_t reconnect_attempts{3};
     std::uint64_t reconnect_delay_ms{1000};
     std::uint64_t tegrastats_interval_ms{500};
+    std::size_t metrics_window_frames{4096};
     edge_vision::CsiCameraConfig camera;
     edge_vision::RtspStreamConfig rtsp;
 };
@@ -82,6 +86,36 @@ struct LatencySummary {
     double maximum_ms{0.0};
 };
 
+class BoundedLatencySamples final {
+public:
+    explicit BoundedLatencySamples(const std::size_t capacity)
+        : capacity_(capacity) {
+        values_.reserve(capacity_);
+    }
+
+    void add(const double value) {
+        if (values_.size() < capacity_) {
+            values_.push_back(value);
+            return;
+        }
+        values_[next_] = value;
+        next_ = (next_ + 1) % capacity_;
+    }
+
+    [[nodiscard]] const std::vector<double>& values() const noexcept {
+        return values_;
+    }
+
+    [[nodiscard]] std::size_t size() const noexcept {
+        return values_.size();
+    }
+
+private:
+    std::size_t capacity_{0};
+    std::size_t next_{0};
+    std::vector<double> values_;
+};
+
 void print_usage(const char* program) {
     std::cerr
         << "Usage:\n"
@@ -90,6 +124,7 @@ void print_usage(const char* program) {
         << "  " << program << " --engine ENGINE --rtsp URI [options]\n\n"
         << "Options:\n"
         << "  --frames N\n"
+        << "  --continuous\n"
         << "  --warmup-frames N\n"
         << "  --queue-capacity N\n"
         << "  --score-threshold VALUE\n"
@@ -112,6 +147,7 @@ void print_usage(const char* program) {
         << "  --metrics-json PATH\n"
         << "  --tegrastats-path PATH\n"
         << "  --tegrastats-interval-ms N\n"
+        << "  --metrics-window-frames N\n"
         << "  --log-interval N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
         << "  --rtsp-transport tcp|udp\n"
@@ -243,6 +279,9 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--frames") {
             options.frame_limit =
                 parse_number<std::uint64_t>(require_value(argument), argument);
+            options.frame_limit_explicit = true;
+        } else if (argument == "--continuous") {
+            options.continuous = true;
         } else if (argument == "--warmup-frames") {
             options.warmup_frames =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -311,6 +350,9 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--tegrastats-interval-ms") {
             options.tegrastats_interval_ms = parse_number<std::uint64_t>(
                 require_value(argument), argument);
+        } else if (argument == "--metrics-window-frames") {
+            options.metrics_window_frames = parse_number<std::size_t>(
+                require_value(argument), argument);
         } else if (argument == "--log-interval") {
             options.log_interval =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -370,15 +412,21 @@ Options parse_options(const int argc, char** argv) {
 
     if (options.engine_path.empty() ||
         options.source_type == Options::SourceType::none ||
-        options.frame_limit == 0 || options.queue_capacity == 0 ||
+        (!options.continuous && options.frame_limit == 0) ||
+        options.queue_capacity == 0 ||
         options.output_queue_capacity == 0 ||
-        options.tegrastats_interval_ms == 0 || options.log_interval == 0 ||
+        options.tegrastats_interval_ms == 0 ||
+        options.metrics_window_frames == 0 || options.log_interval == 0 ||
         options.camera.width <= 0 ||
         options.camera.height <= 0 ||
         options.camera.frames_per_second <= 0) {
         throw std::invalid_argument(
             "engine, source, frame limit, queue capacity, and log interval "
             "must be specified");
+    }
+    if (options.continuous && options.frame_limit_explicit) {
+        throw std::invalid_argument(
+            "continuous and frames are mutually exclusive");
     }
     if (options.score_threshold >= options.track_threshold) {
         throw std::invalid_argument(
@@ -594,6 +642,8 @@ edge_vision::RuntimeLatencyMetrics runtime_latency(
 int main(int argc, char** argv) {
     try {
         const Options options = parse_options(argc, argv);
+        edge_vision::ShutdownSignalHandler shutdown_signals;
+        edge_vision::SystemdNotifier service_notifier;
 
         edge_vision::YoloXDetectorConfig detector_config;
         detector_config.score_threshold = options.score_threshold;
@@ -719,6 +769,31 @@ int main(int argc, char** argv) {
             return 1;
         }
 
+        static_cast<void>(service_notifier.notify_ready(
+            "video analytics runtime is ready"));
+        const auto watchdog_interval =
+            service_notifier.watchdog_interval();
+        const auto watchdog_heartbeat_period = watchdog_interval.has_value()
+            ? std::max(
+                  std::chrono::microseconds(1),
+                  *watchdog_interval / 2)
+            : std::chrono::microseconds(0);
+        auto last_frame_progress = std::chrono::steady_clock::now();
+        auto next_watchdog = last_frame_progress;
+        auto maintain_watchdog = [&]() {
+            if (!watchdog_interval.has_value()) {
+                return;
+            }
+            const auto now = std::chrono::steady_clock::now();
+            if (now < next_watchdog) {
+                return;
+            }
+            if (now - last_frame_progress <= watchdog_heartbeat_period) {
+                static_cast<void>(service_notifier.notify_watchdog());
+            }
+            next_watchdog = now + watchdog_heartbeat_period;
+        };
+
         std::uint64_t processed = 0;
         std::uint64_t warmup_processed = 0;
         std::uint64_t measured_frames = 0;
@@ -741,28 +816,36 @@ int main(int argc, char** argv) {
         bool has_previous = false;
         std::optional<std::uint64_t> active_stream_generation;
         std::size_t warmup_dropped = 0;
-        std::vector<double> queue_wait_ms;
-        std::vector<double> inference_ms;
-        std::vector<double> tracking_ms;
-        std::vector<double> event_analysis_ms;
-        std::vector<double> event_io_ms;
-        std::vector<double> video_enqueue_ms;
-        std::vector<double> end_to_end_ms;
-        queue_wait_ms.reserve(options.frame_limit);
-        inference_ms.reserve(options.frame_limit);
-        tracking_ms.reserve(options.frame_limit);
-        event_analysis_ms.reserve(options.frame_limit);
-        event_io_ms.reserve(options.frame_limit);
-        video_enqueue_ms.reserve(options.frame_limit);
-        end_to_end_ms.reserve(options.frame_limit);
+        const std::size_t latency_capacity = options.continuous
+            ? options.metrics_window_frames
+            : static_cast<std::size_t>(options.frame_limit);
+        BoundedLatencySamples queue_wait_ms(latency_capacity);
+        BoundedLatencySamples inference_ms(latency_capacity);
+        BoundedLatencySamples tracking_ms(latency_capacity);
+        BoundedLatencySamples event_analysis_ms(latency_capacity);
+        BoundedLatencySamples event_io_ms(latency_capacity);
+        BoundedLatencySamples video_enqueue_ms(latency_capacity);
+        BoundedLatencySamples end_to_end_ms(latency_capacity);
         std::optional<std::chrono::steady_clock::time_point>
             measurement_started_at;
 
-        while (measured_frames < options.frame_limit) {
-            auto frame = worker.wait_pop();
-            if (!frame.has_value()) {
+        while ((options.continuous || measured_frames < options.frame_limit) &&
+               !edge_vision::ShutdownSignalHandler::requested()) {
+            maintain_watchdog();
+            auto pop_result =
+                worker.wait_pop_for(std::chrono::milliseconds(250));
+            if (edge_vision::ShutdownSignalHandler::requested()) {
                 break;
             }
+            if (pop_result.status == edge_vision::QueuePopStatus::timeout) {
+                continue;
+            }
+            if (pop_result.status == edge_vision::QueuePopStatus::closed ||
+                !pop_result.frame.has_value()) {
+                break;
+            }
+            auto frame = std::move(pop_result.frame);
+            last_frame_progress = std::chrono::steady_clock::now();
             if (!frame->valid()) {
                 ++invalid_frames;
                 continue;
@@ -894,15 +977,15 @@ int main(int argc, char** argv) {
                 video_writer->write(*frame, tracks, events);
                 enqueue_ms = static_cast<double>(
                     monotonic_time_ns() - output_started_ns) / 1'000'000.0;
-                video_enqueue_ms.push_back(enqueue_ms);
+                video_enqueue_ms.add(enqueue_ms);
             }
 
-            queue_wait_ms.push_back(queue_ms);
-            inference_ms.push_back(infer_ms);
-            tracking_ms.push_back(track_ms);
-            event_analysis_ms.push_back(event_ms);
-            event_io_ms.push_back(event_output_ms);
-            end_to_end_ms.push_back(e2e_ms);
+            queue_wait_ms.add(queue_ms);
+            inference_ms.add(infer_ms);
+            tracking_ms.add(track_ms);
+            event_analysis_ms.add(event_ms);
+            event_io_ms.add(event_output_ms);
+            end_to_end_ms.add(e2e_ms);
             total_detections += detections.size();
             if (!detections.empty()) {
                 ++detection_frames;
@@ -963,8 +1046,16 @@ int main(int argc, char** argv) {
                 }
                 std::cout << '\n';
             }
+            maintain_watchdog();
         }
 
+        const bool shutdown_requested =
+            edge_vision::ShutdownSignalHandler::requested();
+        const int shutdown_signal =
+            edge_vision::ShutdownSignalHandler::signal_number();
+        static_cast<void>(service_notifier.notify_stopping(
+            shutdown_requested ? "graceful shutdown in progress"
+                               : "runtime is stopping"));
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
         if (telemetry_sampler) {
@@ -995,16 +1086,21 @@ int main(int argc, char** argv) {
                                                  *measurement_started_at)
                                                  .count()
                                            : 0.0;
-        const LatencySummary queue_summary = summarize(queue_wait_ms);
-        const LatencySummary inference_summary = summarize(inference_ms);
-        const LatencySummary tracking_summary = summarize(tracking_ms);
+        const LatencySummary queue_summary = summarize(queue_wait_ms.values());
+        const LatencySummary inference_summary =
+            summarize(inference_ms.values());
+        const LatencySummary tracking_summary =
+            summarize(tracking_ms.values());
         const LatencySummary event_analysis_summary =
-            summarize(event_analysis_ms);
-        const LatencySummary event_io_summary = summarize(event_io_ms);
+            summarize(event_analysis_ms.values());
+        const LatencySummary event_io_summary =
+            summarize(event_io_ms.values());
         const LatencySummary video_enqueue_summary =
-            summarize(video_enqueue_ms);
-        const LatencySummary e2e_summary = summarize(end_to_end_ms);
-        const bool target_reached = measured_frames == options.frame_limit;
+            summarize(video_enqueue_ms.values());
+        const LatencySummary e2e_summary =
+            summarize(end_to_end_ms.values());
+        const bool target_reached =
+            !options.continuous && measured_frames == options.frame_limit;
         const std::size_t measured_dropped =
             stats.queue.dropped >= warmup_dropped
                 ? stats.queue.dropped - warmup_dropped
@@ -1029,18 +1125,19 @@ int main(int argc, char** argv) {
         if (!options.metrics_json_path.empty()) {
             edge_vision::RuntimeMetricsReport report;
             report.source = source_name;
-            report.status = {
-                target_reached,
-                invalid_frames,
-                stats.source_exhausted,
-                stats.recovery_exhausted,
-            };
+            report.status.target_reached = target_reached;
+            report.status.invalid_frames = invalid_frames;
+            report.status.source_exhausted = stats.source_exhausted;
+            report.status.recovery_exhausted = stats.recovery_exhausted;
+            report.status.continuous = options.continuous;
+            report.status.shutdown_requested = shutdown_requested;
+            report.status.shutdown_signal = shutdown_signal;
             report.pipeline = {
                 stats.produced,
                 processed,
                 warmup_processed,
                 measured_frames,
-                options.frame_limit,
+                options.continuous ? 0 : options.frame_limit,
                 warmup_dropped,
                 measured_dropped,
                 stats.queue.dropped,
@@ -1066,6 +1163,8 @@ int main(int argc, char** argv) {
                 line_crossing_events,
                 dwell_events,
                 effective_fps,
+                latency_capacity,
+                queue_wait_ms.size(),
             };
             report.latency_ms = {
                 {"queue_wait", runtime_latency(queue_summary)},
@@ -1104,9 +1203,14 @@ int main(int argc, char** argv) {
         std::cout << "processed=" << processed << '\n';
         std::cout << "warmup_frames=" << warmup_processed << '\n';
         std::cout << "measured_frames=" << measured_frames << '\n';
-        std::cout << "target_frames=" << options.frame_limit << '\n';
+        std::cout << "continuous=" << std::boolalpha << options.continuous
+                  << '\n';
+        std::cout << "target_frames="
+                  << (options.continuous ? 0 : options.frame_limit) << '\n';
         std::cout << "target_reached=" << std::boolalpha << target_reached
                   << '\n';
+        std::cout << "shutdown_requested=" << shutdown_requested << '\n';
+        std::cout << "shutdown_signal=" << shutdown_signal << '\n';
         std::cout << "restart_attempts=" << stats.restart_attempts << '\n';
         std::cout << "restart_successes=" << stats.restart_successes << '\n';
         std::cout << "stream_generation=" << stats.stream_generation << '\n';
@@ -1199,6 +1303,9 @@ int main(int argc, char** argv) {
                   << stats.source_exhausted << '\n';
         std::cout << "recovery_exhausted=" << stats.recovery_exhausted
                   << '\n';
+        std::cout << "latency_window_capacity=" << latency_capacity << '\n';
+        std::cout << "latency_window_samples=" << queue_wait_ms.size()
+                  << '\n';
         print_latency("queue_wait", queue_summary);
         print_latency("inference", inference_summary);
         print_latency("tracking", tracking_summary);
@@ -1213,7 +1320,9 @@ int main(int argc, char** argv) {
         std::cout << "effective_fps="
                   << effective_fps << '\n';
 
-        return target_reached && invalid_frames == 0 ? 0 : 1;
+        return (target_reached || shutdown_requested) && invalid_frames == 0
+                   ? 0
+                   : 1;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         print_usage(argv[0]);

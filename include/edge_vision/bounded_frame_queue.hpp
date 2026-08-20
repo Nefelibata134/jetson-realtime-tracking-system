@@ -1,6 +1,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <chrono>
 #include <cstddef>
 #include <deque>
 #include <mutex>
@@ -16,6 +17,17 @@ enum class QueuePushResult {
     pushed,
     replaced_oldest,
     closed,
+};
+
+enum class QueuePopStatus {
+    frame,
+    timeout,
+    closed,
+};
+
+struct FrameQueuePopResult {
+    QueuePopStatus status{QueuePopStatus::closed};
+    std::optional<Frame> frame;
 };
 
 struct FrameQueueStats {
@@ -68,6 +80,25 @@ public:
         Frame frame = std::move(queue_.front());
         queue_.pop_front();
         return frame;
+    }
+
+    FrameQueuePopResult wait_pop_for(
+        const std::chrono::milliseconds timeout) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!ready_.wait_for(
+                lock,
+                timeout,
+                [this] { return closed_ || !queue_.empty(); })) {
+            return {QueuePopStatus::timeout, std::nullopt};
+        }
+
+        if (queue_.empty()) {
+            return {QueuePopStatus::closed, std::nullopt};
+        }
+
+        Frame frame = std::move(queue_.front());
+        queue_.pop_front();
+        return {QueuePopStatus::frame, std::move(frame)};
     }
 
     std::optional<Frame> try_pop() {

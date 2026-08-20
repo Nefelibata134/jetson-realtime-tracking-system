@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -44,6 +45,7 @@ public:
     void stop() noexcept;
 
     std::optional<Frame> wait_pop();
+    FrameQueuePopResult wait_pop_for(std::chrono::milliseconds timeout);
     std::optional<Frame> try_pop();
     [[nodiscard]] FrameCaptureStats stats() const;
 

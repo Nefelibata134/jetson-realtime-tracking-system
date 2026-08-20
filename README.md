@@ -39,7 +39,8 @@ network-stream reconnect and fault-recovery behavior.
 | Event evidence | Versioned JSONL journal, persistent deduplication, snapshots, and bounded pre/post-event clips | Implemented |
 | Telemetry | Versioned pipeline metrics plus background Jetson utilization, temperature, power, and memory sampling | Implemented |
 | Recovery | Bounded CSI/RTSP reconnect, no-frame timeout, stream generations, and explicit failure status | Implemented |
-| Watchdog | External process supervision and restart policy | Planned |
+| Service lifecycle | Continuous mode, SIGTERM shutdown, systemd readiness, progress watchdog, and bounded latency window | Implemented |
+| Operations | systemd installation, persistent local event spool, retention timer, and log rotation | Implemented |
 
 ## Build
 
@@ -220,6 +221,20 @@ are combined with Jetson telemetry sampled by a dedicated background
 in the [runtime metrics schema](docs/metrics/runtime_metrics_schema.md).
 The measured sampling overhead comparison is recorded in the
 [runtime telemetry benchmark](docs/benchmarks/runtime_telemetry_overhead.md).
+
+For unattended operation, `--continuous` removes the finite frame target and
+keeps latency memory bounded to the latest `--metrics-window-frames` samples.
+SIGINT and SIGTERM request an orderly shutdown: capture stops, pending event
+clips and annotated video are finalized, telemetry is stopped, and the final
+metrics document is atomically published. Under systemd, the runtime sends
+`READY=1`, frame-progress watchdog heartbeats, and `STOPPING=1`. Heartbeats are
+withheld when real frames stop arriving, allowing systemd to recover a stalled
+capture or inference process rather than accepting an idle event loop as
+healthy.
+
+The supported headless installation, persistent state layout, retention
+policy, service checks, and log rotation commands are documented in the
+[service operations guide](docs/operations/headless_service.md).
 
 Safety rules are opt-in. `--event-roi` defines a normalized rectangular region
 as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.

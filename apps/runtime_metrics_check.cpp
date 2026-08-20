@@ -1,4 +1,5 @@
 #include <cmath>
+#include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -17,10 +18,15 @@ int main() {
     edge_vision::RuntimeMetricsReport report;
     report.source = "csi";
     report.status.target_reached = true;
+    report.status.continuous = false;
+    report.status.shutdown_requested = true;
+    report.status.shutdown_signal = SIGTERM;
     report.pipeline.measured_frames = 95;
     report.pipeline.dropped_frames = 5;
     report.pipeline.drop_rate_percent = 5.0;
     report.pipeline.effective_fps = 30.0;
+    report.pipeline.latency_window_capacity = 4096;
+    report.pipeline.latency_window_samples = 95;
     report.latency_ms["inference"] = {6.0, 5.8, 7.2, 12.0};
     report.device.samples = 2;
     report.device.input_power_w = {2, 8.0, 8.9, 9.0};
@@ -31,6 +37,12 @@ int main() {
     stream >> document;
 
     const bool schema = document.at("schema_version") == 1;
+    const bool lifecycle =
+        document.at("status").at("continuous") == false &&
+        document.at("status").at("shutdown_requested") == true &&
+        document.at("status").at("shutdown_signal") == SIGTERM &&
+        document.at("pipeline").at("latency_window_capacity") == 4096 &&
+        document.at("pipeline").at("latency_window_samples") == 95;
     const bool pipeline =
         document.at("pipeline").at("measured_frames") == 95 &&
         std::abs(
@@ -55,13 +67,15 @@ int main() {
     const bool atomic = !std::filesystem::exists(output.string() + ".tmp");
 
     std::cout << "schema=" << std::boolalpha << schema << '\n';
+    std::cout << "lifecycle=" << lifecycle << '\n';
     std::cout << "pipeline=" << pipeline << '\n';
     std::cout << "latency=" << latency << '\n';
     std::cout << "device=" << device << '\n';
     std::cout << "replace=" << replace << '\n';
     std::cout << "atomic=" << atomic << '\n';
     const bool passed =
-        schema && pipeline && latency && device && replace && atomic;
+        schema && lifecycle && pipeline && latency && device && replace &&
+        atomic;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
 
     std::filesystem::remove(output);
