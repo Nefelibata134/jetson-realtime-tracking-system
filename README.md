@@ -218,6 +218,8 @@ are combined with Jetson telemetry sampled by a dedicated background
 `tegrastats` is unavailable, pipeline metrics are still written and
 `device.available` is `false`. The complete field and unit contract is defined
 in the [runtime metrics schema](docs/metrics/runtime_metrics_schema.md).
+The measured sampling overhead comparison is recorded in the
+[runtime telemetry benchmark](docs/benchmarks/runtime_telemetry_overhead.md).
 
 Safety rules are opt-in. `--event-roi` defines a normalized rectangular region
 as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.
