@@ -65,6 +65,7 @@ FrameCaptureStats FrameCaptureWorker::stats() const {
         produced_.load(),
         restart_attempts_.load(),
         restart_successes_.load(),
+        stream_generation_.load(),
         queue_.stats(),
         running_.load(),
         source_exhausted_.load(),
@@ -75,8 +76,9 @@ FrameCaptureStats FrameCaptureWorker::stats() const {
 bool FrameCaptureWorker::restart_source() noexcept {
     source_->close();
     while (!stop_requested_.load() &&
-           restart_attempts_.load() <
+           restart_attempts_since_frame_ <
                recovery_policy_.max_restart_attempts) {
+        ++restart_attempts_since_frame_;
         restart_attempts_.fetch_add(1);
         std::this_thread::sleep_for(
             std::chrono::milliseconds(recovery_policy_.restart_delay_ms));
@@ -92,7 +94,7 @@ bool FrameCaptureWorker::restart_source() noexcept {
     }
 
     if (recovery_policy_.max_restart_attempts > 0 &&
-        restart_attempts_.load() >=
+        restart_attempts_since_frame_ >=
             recovery_policy_.max_restart_attempts) {
         recovery_exhausted_.store(true);
     }
@@ -112,6 +114,8 @@ void FrameCaptureWorker::capture_loop() noexcept {
             break;
         }
 
+        restart_attempts_since_frame_ = 0;
+        recovery_exhausted_.store(false);
         frame->stream_generation = stream_generation_.load();
         produced_.fetch_add(1);
         if (queue_.push(std::move(*frame)) == QueuePushResult::closed) {

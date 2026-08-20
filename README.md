@@ -28,7 +28,7 @@ network-stream reconnect and fault-recovery behavior.
 | Component | Responsibility | Status |
 | --- | --- | --- |
 | Runtime contracts | Frame, source, detector, and detection types | Implemented |
-| GStreamer source | File replay and IMX219 CSI capture | Implemented |
+| GStreamer source | File replay, IMX219 CSI capture, and H.264 RTSP ingestion | Implemented |
 | Capture pipeline | Dedicated producer thread, bounded queue, timestamps, and drop-oldest backpressure | Implemented |
 | TensorRT runtime | Engine loading, CUDA buffers, and execution | Implemented |
 | YOLOX detector | Preprocessing, TensorRT execution, grid decoding, confidence filtering, and NMS | Implemented |
@@ -38,8 +38,8 @@ network-stream reconnect and fault-recovery behavior.
 | Event analyzer | Confirmed ROI intrusion, finite directional crossing, timestamp dwell, and stream reset | Implemented |
 | Event evidence | Versioned JSONL journal, persistent deduplication, snapshots, and bounded pre/post-event clips | Implemented |
 | Telemetry | FPS, latency, temperature, power, and memory | Planned |
-| Recovery | Bounded CSI pipeline reconnect with explicit failure status | Implemented |
-| Watchdog | Process supervision and RTSP recovery state machine | Planned |
+| Recovery | Bounded CSI/RTSP reconnect, no-frame timeout, stream generations, and explicit failure status | Implemented |
+| Watchdog | External process supervision and restart policy | Planned |
 
 ## Build
 
@@ -76,6 +76,14 @@ cmake --build build -j"$(nproc)"
   --width 1280 --height 720 --fps 30 \
   --frames 300 --queue-capacity 4 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
+
+./build/edge_vision_capture_stream \
+  --rtsp rtsp://192.168.1.20:8554/camera \
+  --rtsp-transport tcp \
+  --rtsp-latency-ms 200 --rtsp-timeout-ms 5000 \
+  --width 1280 --height 720 --fps 30 \
+  --frames 300 --queue-capacity 4 \
+  --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 
 The capture worker runs the source on a dedicated producer thread. Its bounded
@@ -84,12 +92,29 @@ bounded and prioritizing fresh frames for realtime analytics. Set
 `--consumer-delay-ms` to create a controlled overload and inspect queue depth,
 dropped frames, sequence gaps, and queue residence time.
 
+A deterministic RTSP endpoint can be created from an H.264 MP4 replay file:
+
+```bash
+sudo apt-get install -y python3-gi gir1.2-gst-rtsp-server-1.0
+python3 scripts/serve_rtsp_replay.py videos/replay.mp4 \
+  --port 8554 --mount /replay
+```
+
+The client URI is `rtsp://HOST:8554/replay`, where `HOST` is the server's LAN
+address. Stopping and restarting this process creates a controlled network
+stream outage without changing the detector or tracker configuration.
+
 CSI capture and application output rates are configured independently. For the
 IMX219, the command above selects native sensor mode 4 at 1280x720/60 FPS and
 uses `videorate` to deliver 30 FPS to the application. Unexpected EOS triggers
-a bounded pipeline reopen sequence. If the requested frame count is not
-reached after all attempts, the process reports recovery statistics and exits
-with a nonzero status.
+a bounded pipeline reopen sequence. The RTSP source accepts H.264 video over
+TCP or UDP; TCP is the default for reliable delivery, while UDP can reduce
+transport delay on a controlled network. A no-frame timeout also catches
+connections that remain open without delivering decodable frames. The retry
+budget resets only after a frame is received, so repeated empty reconnects
+cannot continue indefinitely. If the requested frame count is not reached
+after all attempts, the process reports recovery statistics and exits with a
+nonzero status.
 
 Configure the TensorRT runtime on Jetson and execute an engine probe with:
 
@@ -151,6 +176,21 @@ cmake --build build -j"$(nproc)"
   --event-clip-post-seconds 3 \
   --output-video outputs/imx219_tracking.mp4 \
   --output-queue-capacity 4 \
+  --reconnect-attempts 3 --reconnect-delay-ms 1000
+
+./build/edge_vision_realtime_detect \
+  --engine models/yolox_nano_fp16.plan \
+  --rtsp rtsp://192.168.1.20:8554/camera \
+  --rtsp-transport tcp \
+  --rtsp-latency-ms 200 --rtsp-timeout-ms 5000 \
+  --width 1280 --height 720 --fps 30 \
+  --warmup-frames 30 \
+  --frames 300 \
+  --queue-capacity 2 \
+  --score-threshold 0.3 \
+  --track-threshold 0.5 \
+  --new-track-threshold 0.6 \
+  --track-buffer 30 \
   --reconnect-attempts 3 --reconnect-delay-ms 1000
 ```
 

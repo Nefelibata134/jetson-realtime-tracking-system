@@ -16,6 +16,7 @@ struct FrameCaptureStats {
     std::uint64_t produced{0};
     std::uint64_t restart_attempts{0};
     std::uint64_t restart_successes{0};
+    std::uint64_t stream_generation{0};
     FrameQueueStats queue;
     bool running{false};
     bool source_exhausted{false};
@@ -62,6 +63,7 @@ private:
     std::atomic<bool> running_{false};
     std::atomic<bool> source_exhausted_{false};
     std::atomic<bool> recovery_exhausted_{false};
+    std::uint64_t restart_attempts_since_frame_{0};
     bool started_{false};
 };
 

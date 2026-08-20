@@ -1,8 +1,11 @@
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <future>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <thread>
 #include <vector>
 
 #include "edge_vision/bounded_frame_queue.hpp"
@@ -56,6 +59,10 @@ private:
 class RecoveringFrameSource final : public edge_vision::IFrameSource {
 public:
     bool open() override {
+        if (next_ == 4) {
+            opened_ = false;
+            return false;
+        }
         opened_ = true;
         reads_this_session_ = 0;
         return true;
@@ -81,6 +88,45 @@ private:
     std::uint64_t next_{0};
     std::uint64_t reads_this_session_{0};
     bool opened_{false};
+};
+
+class RepeatedRecoveryFrameSource final : public edge_vision::IFrameSource {
+public:
+    bool open() override {
+        opened_.store(true);
+        reads_this_session_ = 0;
+        return true;
+    }
+
+    [[nodiscard]] bool is_open() const noexcept override {
+        return opened_.load();
+    }
+
+    std::optional<edge_vision::Frame> read() override {
+        if (!opened_.load()) {
+            return std::nullopt;
+        }
+        if (next_ == 6) {
+            while (opened_.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            return std::nullopt;
+        }
+        if (reads_this_session_ == 2) {
+            return std::nullopt;
+        }
+        ++reads_this_session_;
+        return make_frame(next_++);
+    }
+
+    void close() noexcept override {
+        opened_.store(false);
+    }
+
+private:
+    std::uint64_t next_{0};
+    std::uint64_t reads_this_session_{0};
+    std::atomic<bool> opened_{false};
 };
 
 bool check_drop_oldest() {
@@ -148,8 +194,39 @@ bool check_capture_recovery() {
     const auto stats = worker.stats();
     return generations == std::vector<std::uint64_t>({0, 0, 1, 1}) &&
            stats.produced == 4 &&
-           stats.restart_attempts == 1 && stats.restart_successes == 1 &&
+           stats.restart_attempts == 2 && stats.restart_successes == 1 &&
+           stats.stream_generation == 1 &&
            stats.source_exhausted && stats.recovery_exhausted;
+}
+
+bool check_recovery_budget_per_outage() {
+    auto source = std::make_unique<RepeatedRecoveryFrameSource>();
+    edge_vision::FrameCaptureRecoveryPolicy policy;
+    policy.max_restart_attempts = 1;
+    policy.restart_delay_ms = 0;
+    edge_vision::FrameCaptureWorker worker(
+        std::move(source), 6, policy);
+    if (!worker.start()) {
+        return false;
+    }
+
+    std::vector<std::uint64_t> generations;
+    for (int index = 0; index < 6; ++index) {
+        const auto frame = worker.wait_pop();
+        if (!frame.has_value()) {
+            worker.stop();
+            return false;
+        }
+        generations.push_back(frame->stream_generation);
+    }
+    worker.stop();
+
+    const auto stats = worker.stats();
+    return generations ==
+               std::vector<std::uint64_t>({0, 0, 1, 1, 2, 2}) &&
+           stats.produced == 6 && stats.restart_attempts == 2 &&
+           stats.restart_successes == 2 && stats.stream_generation == 2 &&
+           !stats.recovery_exhausted;
 }
 
 }  // namespace
@@ -159,14 +236,18 @@ int main() {
     const bool close_unblocks = check_close_unblocks_waiter();
     const bool capture_worker = check_capture_worker();
     const bool capture_recovery = check_capture_recovery();
+    const bool recovery_budget_per_outage =
+        check_recovery_budget_per_outage();
 
     std::cout << "drop_oldest=" << std::boolalpha << drop_oldest << '\n';
     std::cout << "close_unblocks=" << close_unblocks << '\n';
     std::cout << "capture_worker=" << capture_worker << '\n';
     std::cout << "capture_recovery=" << capture_recovery << '\n';
+    std::cout << "recovery_budget_per_outage="
+              << recovery_budget_per_outage << '\n';
 
     const bool passed = drop_oldest && close_unblocks && capture_worker &&
-                        capture_recovery;
+                        capture_recovery && recovery_budget_per_outage;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
 }

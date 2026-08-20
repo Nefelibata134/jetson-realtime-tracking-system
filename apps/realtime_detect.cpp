@@ -35,11 +35,13 @@ struct Options {
         none,
         file,
         csi,
+        rtsp,
     };
 
     SourceType source_type{SourceType::none};
     std::string engine_path;
     std::string file_path;
+    std::string rtsp_uri;
     std::string output_video_path;
     std::string event_jsonl_path;
     std::string event_snapshot_directory;
@@ -65,6 +67,7 @@ struct Options {
     std::uint64_t reconnect_attempts{3};
     std::uint64_t reconnect_delay_ms{1000};
     edge_vision::CsiCameraConfig camera;
+    edge_vision::RtspStreamConfig rtsp;
 };
 
 struct LatencySummary {
@@ -78,7 +81,8 @@ void print_usage(const char* program) {
     std::cerr
         << "Usage:\n"
         << "  " << program << " --engine ENGINE --file VIDEO [options]\n"
-        << "  " << program << " --engine ENGINE --csi [options]\n\n"
+        << "  " << program << " --engine ENGINE --csi [options]\n"
+        << "  " << program << " --engine ENGINE --rtsp URI [options]\n\n"
         << "Options:\n"
         << "  --frames N\n"
         << "  --warmup-frames N\n"
@@ -102,6 +106,8 @@ void print_usage(const char* program) {
         << "  --output-queue-capacity N\n"
         << "  --log-interval N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
+        << "  --rtsp-transport tcp|udp\n"
+        << "  --rtsp-latency-ms N --rtsp-timeout-ms N\n"
         << "  --sensor-id N\n"
         << "  --sensor-mode N\n"
         << "  --capture-width N --capture-height N --capture-fps N\n"
@@ -223,6 +229,9 @@ Options parse_options(const int argc, char** argv) {
                 require_value(argument));
         } else if (argument == "--csi") {
             select_source(options, Options::SourceType::csi);
+        } else if (argument == "--rtsp") {
+            select_source(options, Options::SourceType::rtsp);
+            options.rtsp_uri = require_value(argument);
         } else if (argument == "--frames") {
             options.frame_limit =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -296,6 +305,22 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--reconnect-delay-ms") {
             options.reconnect_delay_ms = parse_number<std::uint64_t>(
                 require_value(argument), argument);
+        } else if (argument == "--rtsp-transport") {
+            const std::string transport = require_value(argument);
+            if (transport == "tcp") {
+                options.rtsp.transport = edge_vision::RtspTransport::tcp;
+            } else if (transport == "udp") {
+                options.rtsp.transport = edge_vision::RtspTransport::udp;
+            } else {
+                throw std::invalid_argument(
+                    "rtsp-transport must be tcp or udp");
+            }
+        } else if (argument == "--rtsp-latency-ms") {
+            options.rtsp.latency_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
+        } else if (argument == "--rtsp-timeout-ms") {
+            options.rtsp.read_timeout_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
         } else if (argument == "--sensor-id") {
             options.camera.sensor_id =
                 parse_number<int>(require_value(argument), argument);
@@ -314,12 +339,15 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--width") {
             options.camera.width =
                 parse_number<int>(require_value(argument), argument);
+            options.rtsp.width = options.camera.width;
         } else if (argument == "--height") {
             options.camera.height =
                 parse_number<int>(require_value(argument), argument);
+            options.rtsp.height = options.camera.height;
         } else if (argument == "--fps") {
             options.camera.frames_per_second =
                 parse_number<int>(require_value(argument), argument);
+            options.rtsp.frames_per_second = options.camera.frames_per_second;
         } else {
             throw std::invalid_argument("unknown option: " + argument);
         }
@@ -579,14 +607,23 @@ int main(int argc, char** argv) {
         if (options.source_type == Options::SourceType::file) {
             source = edge_vision::make_gstreamer_file_source(options.file_path);
             source_name = "file";
-        } else {
+        } else if (options.source_type == Options::SourceType::csi) {
             source = edge_vision::make_gstreamer_csi_source(options.camera);
             source_name = "csi";
+        } else {
+            auto rtsp_config = options.rtsp;
+            rtsp_config.uri = options.rtsp_uri;
+            source = edge_vision::make_gstreamer_rtsp_source(rtsp_config);
+            source_name = "rtsp";
         }
-        const std::string source_id =
-            options.source_type == Options::SourceType::file
-                ? "file:" + options.file_path
-                : "csi:" + std::to_string(options.camera.sensor_id);
+        std::string source_id;
+        if (options.source_type == Options::SourceType::file) {
+            source_id = "file:" + options.file_path;
+        } else if (options.source_type == Options::SourceType::csi) {
+            source_id = "csi:" + std::to_string(options.camera.sensor_id);
+        } else {
+            source_id = "rtsp";
+        }
 
         std::string event_session_id;
         std::unique_ptr<edge_vision::JsonlEventJournal> event_journal;
@@ -630,7 +667,7 @@ int main(int argc, char** argv) {
         };
 
         edge_vision::FrameCaptureRecoveryPolicy recovery_policy;
-        if (options.source_type == Options::SourceType::csi) {
+        if (options.source_type != Options::SourceType::file) {
             recovery_policy.max_restart_attempts =
                 options.reconnect_attempts;
             recovery_policy.restart_delay_ms = options.reconnect_delay_ms;
@@ -941,6 +978,7 @@ int main(int argc, char** argv) {
                   << '\n';
         std::cout << "restart_attempts=" << stats.restart_attempts << '\n';
         std::cout << "restart_successes=" << stats.restart_successes << '\n';
+        std::cout << "stream_generation=" << stats.stream_generation << '\n';
         std::cout << "warmup_dropped=" << warmup_dropped << '\n';
         std::cout << "dropped=" << measured_dropped << '\n';
         std::cout << "dropped_total=" << stats.queue.dropped << '\n';

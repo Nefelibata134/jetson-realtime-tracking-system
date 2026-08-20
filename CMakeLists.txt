@@ -453,6 +453,16 @@ if(EDGE_VISION_ENABLE_GSTREAMER)
             edge_vision_gstreamer
     )
 
+    add_executable(
+        edge_vision_gstreamer_source_check
+        apps/gstreamer_source_check.cpp
+    )
+    target_link_libraries(
+        edge_vision_gstreamer_source_check
+        PRIVATE
+            edge_vision_gstreamer
+    )
+
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(
             edge_vision_gstreamer
@@ -463,6 +473,13 @@ if(EDGE_VISION_ENABLE_GSTREAMER)
         )
         target_compile_options(
             edge_vision_capture_stream
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+        target_compile_options(
+            edge_vision_gstreamer_source_check
             PRIVATE
                 -Wall
                 -Wextra
@@ -662,3 +679,9 @@ add_test(
     NAME edge_vision_event_clip_writer_check
     COMMAND edge_vision_event_clip_writer_check
 )
+if(EDGE_VISION_ENABLE_GSTREAMER)
+    add_test(
+        NAME edge_vision_gstreamer_source_check
+        COMMAND edge_vision_gstreamer_source_check
+    )
+endif()

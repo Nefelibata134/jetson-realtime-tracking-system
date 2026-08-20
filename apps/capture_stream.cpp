@@ -20,28 +20,34 @@ struct Options {
         none,
         file,
         csi,
+        rtsp,
     };
 
     SourceType source_type{SourceType::none};
     std::string file_path;
+    std::string rtsp_uri;
     std::uint64_t frame_limit{300};
     std::size_t queue_capacity{4};
     int consumer_delay_ms{0};
     std::uint64_t reconnect_attempts{3};
     std::uint64_t reconnect_delay_ms{1000};
     edge_vision::CsiCameraConfig camera;
+    edge_vision::RtspStreamConfig rtsp;
 };
 
 void print_usage(const char* program) {
     std::cerr
         << "Usage:\n"
         << "  " << program << " --file VIDEO [options]\n"
-        << "  " << program << " --csi [options]\n\n"
+        << "  " << program << " --csi [options]\n"
+        << "  " << program << " --rtsp URI [options]\n\n"
         << "Options:\n"
         << "  --frames N\n"
         << "  --queue-capacity N\n"
         << "  --consumer-delay-ms N\n"
         << "  --reconnect-attempts N --reconnect-delay-ms N\n"
+        << "  --rtsp-transport tcp|udp\n"
+        << "  --rtsp-latency-ms N --rtsp-timeout-ms N\n"
         << "  --sensor-id N\n"
         << "  --sensor-mode N\n"
         << "  --capture-width N --capture-height N --capture-fps N\n"
@@ -66,6 +72,12 @@ Value parse_number(const char* text, const std::string& option) {
 
 Options parse_options(const int argc, char** argv) {
     Options options;
+    auto select_source = [&](const Options::SourceType source_type) {
+        if (options.source_type != Options::SourceType::none) {
+            throw std::invalid_argument("exactly one input source is required");
+        }
+        options.source_type = source_type;
+    };
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         auto require_value = [&](const std::string& option) -> const char* {
@@ -76,10 +88,13 @@ Options parse_options(const int argc, char** argv) {
         };
 
         if (argument == "--file") {
-            options.source_type = Options::SourceType::file;
+            select_source(Options::SourceType::file);
             options.file_path = require_value(argument);
         } else if (argument == "--csi") {
-            options.source_type = Options::SourceType::csi;
+            select_source(Options::SourceType::csi);
+        } else if (argument == "--rtsp") {
+            select_source(Options::SourceType::rtsp);
+            options.rtsp_uri = require_value(argument);
         } else if (argument == "--frames") {
             options.frame_limit =
                 parse_number<std::uint64_t>(require_value(argument), argument);
@@ -94,6 +109,22 @@ Options parse_options(const int argc, char** argv) {
                 require_value(argument), argument);
         } else if (argument == "--reconnect-delay-ms") {
             options.reconnect_delay_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
+        } else if (argument == "--rtsp-transport") {
+            const std::string transport = require_value(argument);
+            if (transport == "tcp") {
+                options.rtsp.transport = edge_vision::RtspTransport::tcp;
+            } else if (transport == "udp") {
+                options.rtsp.transport = edge_vision::RtspTransport::udp;
+            } else {
+                throw std::invalid_argument(
+                    "rtsp-transport must be tcp or udp");
+            }
+        } else if (argument == "--rtsp-latency-ms") {
+            options.rtsp.latency_ms = parse_number<std::uint64_t>(
+                require_value(argument), argument);
+        } else if (argument == "--rtsp-timeout-ms") {
+            options.rtsp.read_timeout_ms = parse_number<std::uint64_t>(
                 require_value(argument), argument);
         } else if (argument == "--sensor-id") {
             options.camera.sensor_id =
@@ -113,12 +144,15 @@ Options parse_options(const int argc, char** argv) {
         } else if (argument == "--width") {
             options.camera.width =
                 parse_number<int>(require_value(argument), argument);
+            options.rtsp.width = options.camera.width;
         } else if (argument == "--height") {
             options.camera.height =
                 parse_number<int>(require_value(argument), argument);
+            options.rtsp.height = options.camera.height;
         } else if (argument == "--fps") {
             options.camera.frames_per_second =
                 parse_number<int>(require_value(argument), argument);
+            options.rtsp.frames_per_second = options.camera.frames_per_second;
         } else {
             throw std::invalid_argument("unknown option: " + argument);
         }
@@ -147,13 +181,18 @@ int main(int argc, char** argv) {
         if (options.source_type == Options::SourceType::file) {
             source = edge_vision::make_gstreamer_file_source(options.file_path);
             source_name = "file";
-        } else {
+        } else if (options.source_type == Options::SourceType::csi) {
             source = edge_vision::make_gstreamer_csi_source(options.camera);
             source_name = "csi";
+        } else {
+            auto rtsp_config = options.rtsp;
+            rtsp_config.uri = options.rtsp_uri;
+            source = edge_vision::make_gstreamer_rtsp_source(rtsp_config);
+            source_name = "rtsp";
         }
 
         edge_vision::FrameCaptureRecoveryPolicy recovery_policy;
-        if (options.source_type == Options::SourceType::csi) {
+        if (options.source_type != Options::SourceType::file) {
             recovery_policy.max_restart_attempts =
                 options.reconnect_attempts;
             recovery_policy.restart_delay_ms = options.reconnect_delay_ms;
@@ -237,6 +276,7 @@ int main(int argc, char** argv) {
                   << '\n';
         std::cout << "restart_attempts=" << stats.restart_attempts << '\n';
         std::cout << "restart_successes=" << stats.restart_successes << '\n';
+        std::cout << "stream_generation=" << stats.stream_generation << '\n';
         std::cout << "source_exhausted=" << stats.source_exhausted << '\n';
         std::cout << "recovery_exhausted=" << stats.recovery_exhausted
                   << '\n';

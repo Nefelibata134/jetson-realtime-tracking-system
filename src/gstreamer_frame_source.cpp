@@ -15,6 +15,7 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -46,9 +47,13 @@ std::string quote_property(const std::string& value) {
 
 class GStreamerFrameSource final : public IFrameSource {
 public:
-    GStreamerFrameSource(std::string pipeline, std::string required_file)
+    GStreamerFrameSource(
+        std::string pipeline,
+        std::string required_file,
+        const std::uint64_t read_timeout_ms = 0)
         : pipeline_description_(std::move(pipeline)),
-          required_file_(std::move(required_file)) {}
+          required_file_(std::move(required_file)),
+          read_timeout_ms_(read_timeout_ms) {}
 
     ~GStreamerFrameSource() override {
         close();
@@ -118,6 +123,7 @@ public:
             pipeline = GST_ELEMENT(gst_object_ref(pipeline_));
         }
         GstBus* bus = gst_element_get_bus(pipeline);
+        const auto read_started_at = std::chrono::steady_clock::now();
 
         std::optional<Frame> result;
         bool terminal_message = false;
@@ -153,6 +159,12 @@ public:
                         }
                         gst_message_unref(message);
                     }
+                }
+                if (!terminal_message && read_timeout_ms_ > 0 &&
+                    std::chrono::steady_clock::now() - read_started_at >=
+                        std::chrono::milliseconds(read_timeout_ms_)) {
+                    std::cerr << "GStreamer source timed out waiting for a frame\n";
+                    terminal_message = true;
                 }
                 continue;
             }
@@ -257,6 +269,7 @@ public:
 private:
     std::string pipeline_description_;
     std::string required_file_;
+    std::uint64_t read_timeout_ms_{0};
     mutable std::mutex state_mutex_;
     GstElement* pipeline_{nullptr};
     GstElement* sink_{nullptr};
@@ -313,6 +326,49 @@ std::unique_ptr<IFrameSource> make_gstreamer_csi_source(
     pipeline << " ! videoconvert"
              << sink_fragment();
     return std::make_unique<GStreamerFrameSource>(pipeline.str(), "");
+}
+
+std::string build_gstreamer_rtsp_pipeline(const RtspStreamConfig& config) {
+    if (config.uri.rfind("rtsp://", 0) != 0 &&
+        config.uri.rfind("rtsps://", 0) != 0) {
+        throw std::invalid_argument("RTSP URI must start with rtsp:// or rtsps://");
+    }
+    if (config.latency_ms == 0 || config.read_timeout_ms == 0 ||
+        config.width <= 0 || config.height <= 0 ||
+        config.frames_per_second <= 0) {
+        throw std::invalid_argument(
+            "RTSP latency, timeout, dimensions, and FPS must be positive");
+    }
+
+    const char* transport =
+        config.transport == RtspTransport::tcp ? "tcp" : "udp";
+    const std::uint64_t timeout_us = config.read_timeout_ms * 1000;
+
+    std::ostringstream pipeline;
+    pipeline << "rtspsrc location=" << quote_property(config.uri)
+             << " protocols=" << transport
+             << " latency=" << config.latency_ms
+             << " drop-on-latency=true";
+    if (config.transport == RtspTransport::tcp) {
+        pipeline << " tcp-timeout=" << timeout_us;
+    } else {
+        pipeline << " timeout=" << timeout_us;
+    }
+    pipeline << " ! rtph264depay ! h264parse ! nvv4l2decoder ! nvvidconv"
+             << " ! video/x-raw,format=BGRx,width=" << config.width
+             << ",height=" << config.height
+             << " ! videorate ! video/x-raw,format=BGRx,framerate="
+             << config.frames_per_second << "/1 ! videoconvert"
+             << sink_fragment();
+    return pipeline.str();
+}
+
+std::unique_ptr<IFrameSource> make_gstreamer_rtsp_source(
+    const RtspStreamConfig& config) {
+    return std::make_unique<GStreamerFrameSource>(
+        build_gstreamer_rtsp_pipeline(config),
+        "",
+        config.read_timeout_ms);
 }
 
 }  // namespace edge_vision
