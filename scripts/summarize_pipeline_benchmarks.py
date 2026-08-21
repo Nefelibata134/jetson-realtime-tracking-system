@@ -208,6 +208,18 @@ def markdown(rows: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
+def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=CSV_FIELDS,
+            extrasaction="ignore",
+            lineterminator="\n",
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-dir", type=Path, default=Path("reports/benchmarks/pipeline/raw"))
@@ -230,10 +242,7 @@ def main() -> None:
 
     args.csv.parent.mkdir(parents=True, exist_ok=True)
     args.markdown.parent.mkdir(parents=True, exist_ok=True)
-    with args.csv.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv(args.csv, rows)
     args.markdown.write_text(markdown(rows))
     print(f"runs={len(rows)}")
     print(f"csv={args.csv}")

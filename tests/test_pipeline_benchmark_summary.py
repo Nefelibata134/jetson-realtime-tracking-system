@@ -91,6 +91,15 @@ runtime_exit_code=0
         self.assertEqual(len(latest), 1)
         self.assertEqual(latest[0]["timestamp"], "2")
 
+    def test_csv_uses_lf_line_endings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "matrix.csv"
+            MODULE.write_csv(path, [{"status": "PASS"}])
+            content = path.read_bytes()
+
+        self.assertNotIn(b"\r", content)
+        self.assertEqual(content.count(b"\n"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
