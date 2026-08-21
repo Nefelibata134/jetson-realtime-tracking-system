@@ -59,6 +59,34 @@ struct RuntimeLatencyMetrics {
     double p50_ms{0.0};
     double p95_ms{0.0};
     double maximum_ms{0.0};
+    std::size_t samples{0};
+};
+
+struct RuntimeOutputMetrics {
+    bool event_journal_enabled{false};
+    std::uint64_t event_records_written{0};
+    std::uint64_t event_duplicates_skipped{0};
+    bool snapshot_output_enabled{false};
+    std::uint64_t snapshots_written{0};
+    std::uint64_t snapshots_reused{0};
+    bool event_clip_output_enabled{false};
+    std::uint64_t event_clips_started{0};
+    std::uint64_t event_clips_completed{0};
+    std::uint64_t event_clips_reused{0};
+    std::uint64_t event_clips_skipped{0};
+    std::uint64_t event_clip_frames_encoded{0};
+    std::size_t event_clip_queue_high_watermark{0};
+    double event_clip_encoding_total_ms{0.0};
+    double event_clip_encoding_max_ms{0.0};
+    double event_clip_flush_ms{0.0};
+    bool annotated_video_enabled{false};
+    std::uint64_t video_frames_submitted{0};
+    std::uint64_t video_frames_written{0};
+    std::uint64_t video_frames_dropped{0};
+    std::size_t video_queue_high_watermark{0};
+    double video_encoding_total_ms{0.0};
+    double video_encoding_max_ms{0.0};
+    double video_flush_ms{0.0};
 };
 
 struct RuntimeMetricsReport {
@@ -67,6 +95,7 @@ struct RuntimeMetricsReport {
     RuntimeStatusMetrics status;
     RuntimePipelineMetrics pipeline;
     std::map<std::string, RuntimeLatencyMetrics> latency_ms;
+    RuntimeOutputMetrics outputs;
     JetsonTelemetrySummary device;
     std::string device_sampler_error;
 };

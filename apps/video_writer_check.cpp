@@ -60,6 +60,9 @@ int main() {
     const bool output_valid =
         stats.frames_written > 0 && std::filesystem::exists(output_path) &&
         std::filesystem::file_size(output_path) > 0;
+    const bool encoding_measured =
+        stats.encoding_total_ms > 0.0 && stats.encoding_max_ms > 0.0 &&
+        stats.encoding_max_ms <= stats.encoding_total_ms;
 
     std::cout << "submitted=" << stats.frames_submitted << '\n';
     std::cout << "written=" << stats.frames_written << '\n';
@@ -70,9 +73,11 @@ int main() {
               << '\n';
     std::cout << "queue_valid=" << queue_valid << '\n';
     std::cout << "output_valid=" << output_valid << '\n';
+    std::cout << "encoding_measured=" << encoding_measured << '\n';
 
     std::filesystem::remove(output_path);
-    const bool passed = accounting_valid && queue_valid && output_valid;
+    const bool passed =
+        accounting_valid && queue_valid && output_valid && encoding_measured;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
 }

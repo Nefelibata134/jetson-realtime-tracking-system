@@ -26,6 +26,7 @@ nlohmann::json numeric_summary(const NumericMetricSummary& summary) {
 
 nlohmann::json latency_summary(const RuntimeLatencyMetrics& summary) {
     return {
+        {"samples", summary.samples},
         {"mean", summary.mean_ms},
         {"p50", summary.p50_ms},
         {"p95", summary.p95_ms},
@@ -40,6 +41,7 @@ nlohmann::json make_json(const RuntimeMetricsReport& report) {
     }
 
     const auto& pipeline = report.pipeline;
+    const auto& outputs = report.outputs;
     const auto& device = report.device;
     return {
         {"schema_version", report.schema_version},
@@ -92,6 +94,54 @@ nlohmann::json make_json(const RuntimeMetricsReport& report) {
              {"latency_window_samples", pipeline.latency_window_samples},
          }},
         {"latency_ms", std::move(latencies)},
+        {"outputs",
+         {
+             {"event_journal",
+              {
+                  {"enabled", outputs.event_journal_enabled},
+                  {"records_written", outputs.event_records_written},
+                  {"duplicates_skipped",
+                   outputs.event_duplicates_skipped},
+              }},
+             {"snapshots",
+              {
+                  {"enabled", outputs.snapshot_output_enabled},
+                  {"written", outputs.snapshots_written},
+                  {"reused", outputs.snapshots_reused},
+              }},
+             {"event_clips",
+              {
+                  {"enabled", outputs.event_clip_output_enabled},
+                  {"started", outputs.event_clips_started},
+                  {"completed", outputs.event_clips_completed},
+                  {"reused", outputs.event_clips_reused},
+                  {"skipped", outputs.event_clips_skipped},
+                  {"frames_encoded",
+                   outputs.event_clip_frames_encoded},
+                  {"queue_high_watermark",
+                   outputs.event_clip_queue_high_watermark},
+                  {"encoding_total_ms",
+                   outputs.event_clip_encoding_total_ms},
+                  {"encoding_max_ms",
+                   outputs.event_clip_encoding_max_ms},
+                  {"flush_ms", outputs.event_clip_flush_ms},
+              }},
+             {"annotated_video",
+              {
+                  {"enabled", outputs.annotated_video_enabled},
+                  {"frames_submitted",
+                   outputs.video_frames_submitted},
+                  {"frames_written", outputs.video_frames_written},
+                  {"frames_dropped", outputs.video_frames_dropped},
+                  {"queue_high_watermark",
+                   outputs.video_queue_high_watermark},
+                  {"encoding_total_ms",
+                   outputs.video_encoding_total_ms},
+                  {"encoding_max_ms",
+                   outputs.video_encoding_max_ms},
+                  {"flush_ms", outputs.video_flush_ms},
+              }},
+         }},
         {"device",
          {
              {"available", device.samples > 0},

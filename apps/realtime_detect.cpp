@@ -84,6 +84,7 @@ struct LatencySummary {
     double p50_ms{0.0};
     double p95_ms{0.0};
     double maximum_ms{0.0};
+    std::size_t samples{0};
 };
 
 class BoundedLatencySamples final {
@@ -602,6 +603,7 @@ LatencySummary summarize(std::vector<double> values) {
         percentile(values, 0.50),
         percentile(values, 0.95),
         values.back(),
+        values.size(),
     };
 }
 
@@ -634,6 +636,7 @@ edge_vision::RuntimeLatencyMetrics runtime_latency(
         summary.p50_ms,
         summary.p95_ms,
         summary.maximum_ms,
+        summary.samples,
     };
 }
 
@@ -821,9 +824,13 @@ int main(int argc, char** argv) {
             : static_cast<std::size_t>(options.frame_limit);
         BoundedLatencySamples queue_wait_ms(latency_capacity);
         BoundedLatencySamples inference_ms(latency_capacity);
+        BoundedLatencySamples detector_preprocess_ms(latency_capacity);
+        BoundedLatencySamples tensorrt_inference_ms(latency_capacity);
+        BoundedLatencySamples detector_postprocess_ms(latency_capacity);
         BoundedLatencySamples tracking_ms(latency_capacity);
         BoundedLatencySamples event_analysis_ms(latency_capacity);
         BoundedLatencySamples event_io_ms(latency_capacity);
+        BoundedLatencySamples event_io_active_ms(latency_capacity);
         BoundedLatencySamples video_enqueue_ms(latency_capacity);
         BoundedLatencySamples end_to_end_ms(latency_capacity);
         std::optional<std::chrono::steady_clock::time_point>
@@ -885,7 +892,8 @@ int main(int argc, char** argv) {
             const std::int64_t inference_started_ns = monotonic_time_ns();
             const double queue_ms = static_cast<double>(
                 inference_started_ns - frame->captured_at_ns) / 1'000'000.0;
-            const auto detections = detector.infer(*frame);
+            auto detector_result = detector.infer_profiled(*frame);
+            const auto& detections = detector_result.detections;
             const std::int64_t inference_finished_ns = monotonic_time_ns();
             const double infer_ms = static_cast<double>(
                 inference_finished_ns - inference_started_ns) / 1'000'000.0;
@@ -967,9 +975,6 @@ int main(int argc, char** argv) {
             const double event_output_ms = static_cast<double>(
                 event_io_finished_ns - event_analysis_finished_ns) /
                 1'000'000.0;
-            const double e2e_ms = static_cast<double>(
-                event_io_finished_ns - frame->captured_at_ns) /
-                1'000'000.0;
 
             double enqueue_ms = 0.0;
             if (video_writer) {
@@ -979,12 +984,23 @@ int main(int argc, char** argv) {
                     monotonic_time_ns() - output_started_ns) / 1'000'000.0;
                 video_enqueue_ms.add(enqueue_ms);
             }
+            const double e2e_ms = static_cast<double>(
+                monotonic_time_ns() - frame->captured_at_ns) / 1'000'000.0;
 
             queue_wait_ms.add(queue_ms);
             inference_ms.add(infer_ms);
+            detector_preprocess_ms.add(
+                detector_result.timing.preprocess_ms);
+            tensorrt_inference_ms.add(
+                detector_result.timing.tensorrt_inference_ms);
+            detector_postprocess_ms.add(
+                detector_result.timing.postprocess_ms);
             tracking_ms.add(track_ms);
             event_analysis_ms.add(event_ms);
             event_io_ms.add(event_output_ms);
+            if (!events.empty()) {
+                event_io_active_ms.add(event_output_ms);
+            }
             end_to_end_ms.add(e2e_ms);
             total_detections += detections.size();
             if (!detections.empty()) {
@@ -1036,6 +1052,12 @@ int main(int argc, char** argv) {
                           << " track_ids=" << format_track_ids(tracks)
                           << " queue_ms=" << std::fixed << std::setprecision(3)
                           << queue_ms << " infer_ms=" << infer_ms
+                          << " preprocess_ms="
+                          << detector_result.timing.preprocess_ms
+                          << " trt_ms="
+                          << detector_result.timing.tensorrt_inference_ms
+                          << " postprocess_ms="
+                          << detector_result.timing.postprocess_ms
                           << " track_ms=" << track_ms
                           << " event_ms=" << event_ms
                           << " event_io_ms=" << event_output_ms
@@ -1058,9 +1080,6 @@ int main(int argc, char** argv) {
                                : "runtime is stopping"));
         const auto processing_finished_at = std::chrono::steady_clock::now();
         worker.stop();
-        if (telemetry_sampler) {
-            telemetry_sampler->stop();
-        }
         const edge_vision::FrameCaptureStats stats = worker.stats();
         double event_clip_flush_ms = 0.0;
         if (clip_writer) {
@@ -1080,6 +1099,9 @@ int main(int argc, char** argv) {
                                  flush_started_at)
                                  .count();
         }
+        if (telemetry_sampler) {
+            telemetry_sampler->stop();
+        }
         const double elapsed_seconds = measurement_started_at.has_value()
                                            ? std::chrono::duration<double>(
                                                  processing_finished_at -
@@ -1089,12 +1111,20 @@ int main(int argc, char** argv) {
         const LatencySummary queue_summary = summarize(queue_wait_ms.values());
         const LatencySummary inference_summary =
             summarize(inference_ms.values());
+        const LatencySummary detector_preprocess_summary =
+            summarize(detector_preprocess_ms.values());
+        const LatencySummary tensorrt_inference_summary =
+            summarize(tensorrt_inference_ms.values());
+        const LatencySummary detector_postprocess_summary =
+            summarize(detector_postprocess_ms.values());
         const LatencySummary tracking_summary =
             summarize(tracking_ms.values());
         const LatencySummary event_analysis_summary =
             summarize(event_analysis_ms.values());
         const LatencySummary event_io_summary =
             summarize(event_io_ms.values());
+        const LatencySummary event_io_active_summary =
+            summarize(event_io_active_ms.values());
         const LatencySummary video_enqueue_summary =
             summarize(video_enqueue_ms.values());
         const LatencySummary e2e_summary =
@@ -1121,6 +1151,18 @@ int main(int argc, char** argv) {
             telemetry_summary = telemetry_sampler->summary();
             telemetry_error = telemetry_sampler->last_error();
         }
+        const edge_vision::EventJournalStats journal_stats =
+            event_journal ? event_journal->stats()
+                          : edge_vision::EventJournalStats{};
+        const edge_vision::EventEvidenceWriterStats evidence_stats =
+            evidence_writer ? evidence_writer->stats()
+                            : edge_vision::EventEvidenceWriterStats{};
+        const edge_vision::EventClipWriterStats clip_stats =
+            clip_writer ? clip_writer->stats()
+                        : edge_vision::EventClipWriterStats{};
+        const edge_vision::AnnotatedVideoWriterStats video_stats =
+            video_writer ? video_writer->stats()
+                         : edge_vision::AnnotatedVideoWriterStats{};
 
         if (!options.metrics_json_path.empty()) {
             edge_vision::RuntimeMetricsReport report;
@@ -1169,6 +1211,13 @@ int main(int argc, char** argv) {
             report.latency_ms = {
                 {"queue_wait", runtime_latency(queue_summary)},
                 {"inference", runtime_latency(inference_summary)},
+                {"detection", runtime_latency(inference_summary)},
+                {"detector_preprocess",
+                 runtime_latency(detector_preprocess_summary)},
+                {"tensorrt_inference",
+                 runtime_latency(tensorrt_inference_summary)},
+                {"detector_postprocess",
+                 runtime_latency(detector_postprocess_summary)},
                 {"tracking", runtime_latency(tracking_summary)},
                 {"event_analysis", runtime_latency(event_analysis_summary)},
                 {"end_to_end", runtime_latency(e2e_summary)},
@@ -1176,11 +1225,55 @@ int main(int argc, char** argv) {
             if (event_journal) {
                 report.latency_ms.emplace(
                     "event_io", runtime_latency(event_io_summary));
+                report.latency_ms.emplace(
+                    "event_io_active",
+                    runtime_latency(event_io_active_summary));
             }
             if (video_writer) {
                 report.latency_ms.emplace(
                     "video_enqueue", runtime_latency(video_enqueue_summary));
             }
+            report.outputs.event_journal_enabled =
+                static_cast<bool>(event_journal);
+            report.outputs.event_records_written =
+                journal_stats.records_written;
+            report.outputs.event_duplicates_skipped =
+                journal_stats.duplicates_skipped;
+            report.outputs.snapshot_output_enabled =
+                static_cast<bool>(evidence_writer);
+            report.outputs.snapshots_written =
+                evidence_stats.snapshots_written;
+            report.outputs.snapshots_reused =
+                evidence_stats.snapshots_reused;
+            report.outputs.event_clip_output_enabled =
+                static_cast<bool>(clip_writer);
+            report.outputs.event_clips_started = clip_stats.clips_started;
+            report.outputs.event_clips_completed =
+                clip_stats.clips_completed;
+            report.outputs.event_clips_reused = clip_stats.clips_reused;
+            report.outputs.event_clips_skipped = clip_stats.clips_skipped;
+            report.outputs.event_clip_frames_encoded =
+                clip_stats.encoded_frames;
+            report.outputs.event_clip_queue_high_watermark =
+                clip_stats.encoding_queue_high_watermark;
+            report.outputs.event_clip_encoding_total_ms =
+                clip_stats.encoding_total_ms;
+            report.outputs.event_clip_encoding_max_ms =
+                clip_stats.encoding_max_ms;
+            report.outputs.event_clip_flush_ms = event_clip_flush_ms;
+            report.outputs.annotated_video_enabled =
+                static_cast<bool>(video_writer);
+            report.outputs.video_frames_submitted =
+                video_stats.frames_submitted;
+            report.outputs.video_frames_written = video_stats.frames_written;
+            report.outputs.video_frames_dropped = video_stats.frames_dropped;
+            report.outputs.video_queue_high_watermark =
+                video_stats.queue_high_watermark;
+            report.outputs.video_encoding_total_ms =
+                video_stats.encoding_total_ms;
+            report.outputs.video_encoding_max_ms =
+                video_stats.encoding_max_ms;
+            report.outputs.video_flush_ms = video_flush_ms;
             report.device = telemetry_summary;
             report.device_sampler_error = telemetry_error;
             try {
@@ -1239,7 +1332,6 @@ int main(int argc, char** argv) {
         std::cout << "line_crossing_events=" << line_crossing_events << '\n';
         std::cout << "dwell_events=" << dwell_events << '\n';
         if (event_journal) {
-            const auto journal_stats = event_journal->stats();
             std::cout << "event_session_id=" << event_session_id << '\n';
             std::cout << "event_jsonl=" << event_journal->output_path()
                       << '\n';
@@ -1250,7 +1342,6 @@ int main(int argc, char** argv) {
             std::cout << "event_duplicates_skipped="
                       << journal_stats.duplicates_skipped << '\n';
             if (evidence_writer) {
-                const auto evidence_stats = evidence_writer->stats();
                 std::cout << "event_snapshots_written="
                           << evidence_stats.snapshots_written << '\n';
                 std::cout << "event_snapshots_reused="
@@ -1259,7 +1350,6 @@ int main(int argc, char** argv) {
                 std::cout << "event_snapshots=disabled\n";
             }
             if (clip_writer) {
-                const auto clip_stats = clip_writer->stats();
                 std::cout << "event_clips_started="
                           << clip_stats.clips_started << '\n';
                 std::cout << "event_clips_completed="
@@ -1274,6 +1364,12 @@ int main(int argc, char** argv) {
                           << clip_stats.max_active_clips << '\n';
                 std::cout << "event_clip_encoding_queue_high_watermark="
                           << clip_stats.encoding_queue_high_watermark << '\n';
+                std::cout << "event_clip_frames_encoded="
+                          << clip_stats.encoded_frames << '\n';
+                std::cout << "event_clip_encoding_total_ms="
+                          << clip_stats.encoding_total_ms << '\n';
+                std::cout << "event_clip_encoding_max_ms="
+                          << clip_stats.encoding_max_ms << '\n';
                 std::cout << "event_clip_flush_ms="
                           << event_clip_flush_ms << '\n';
             } else {
@@ -1283,7 +1379,6 @@ int main(int argc, char** argv) {
             std::cout << "event_jsonl=disabled\n";
         }
         if (video_writer) {
-            const auto video_stats = video_writer->stats();
             std::cout << "output_video=" << video_writer->output_path() << '\n';
             std::cout << "output_frames_submitted="
                       << video_stats.frames_submitted << '\n';
@@ -1295,6 +1390,10 @@ int main(int argc, char** argv) {
                       << options.output_queue_capacity << '\n';
             std::cout << "output_queue_high_watermark="
                       << video_stats.queue_high_watermark << '\n';
+            std::cout << "video_encoding_total_ms="
+                      << video_stats.encoding_total_ms << '\n';
+            std::cout << "video_encoding_max_ms="
+                      << video_stats.encoding_max_ms << '\n';
             std::cout << "video_flush_ms=" << video_flush_ms << '\n';
         } else {
             std::cout << "output_video=disabled\n";
@@ -1308,10 +1407,15 @@ int main(int argc, char** argv) {
                   << '\n';
         print_latency("queue_wait", queue_summary);
         print_latency("inference", inference_summary);
+        print_latency("detection", inference_summary);
+        print_latency("detector_preprocess", detector_preprocess_summary);
+        print_latency("tensorrt_inference", tensorrt_inference_summary);
+        print_latency("detector_postprocess", detector_postprocess_summary);
         print_latency("tracking", tracking_summary);
         print_latency("event_analysis", event_analysis_summary);
         if (event_journal) {
             print_latency("event_io", event_io_summary);
+            print_latency("event_io_active", event_io_active_summary);
         }
         if (video_writer) {
             print_latency("video_enqueue", video_enqueue_summary);

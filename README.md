@@ -200,8 +200,10 @@ cmake --build build -j"$(nproc)"
 
 The runtime reports produced, processed, and dropped frames; queue depth and
 sequence gaps; detection, track, and event counts; unique track IDs;
-queue-wait, inference, tracking, event-analysis, and end-to-end P50/P95
-latencies; and effective throughput. The detector score threshold must remain
+queue-wait, detector preprocessing, TensorRT execution, detector
+postprocessing, tracking, event-analysis, event-output, video-enqueue, and
+end-to-end P50/P95 latencies; and effective throughput. The detector score
+threshold must remain
 below the ByteTrack track threshold so low-confidence detections remain
 available for second-stage association. A small queue bounds stale-frame delay
 when capture outpaces inference. Missing frame sequences age the tracker with
@@ -213,8 +215,8 @@ statistics.
 
 `--metrics-json` publishes the final runtime state as a versioned JSON
 document. Pipeline counters, drop rate, queue watermark, restart state,
-detection/tracking/event totals, effective FPS, and stage latency summaries
-are combined with Jetson telemetry sampled by a dedicated background
+detection/tracking/event totals, output-writer workload, effective FPS, and
+stage latency summaries are combined with Jetson telemetry sampled by a dedicated background
 `tegrastats` process. Device sampling never runs on the inference thread; if
 `tegrastats` is unavailable, pipeline metrics are still written and
 `device.available` is `false`. The complete field and unit contract is defined
@@ -264,7 +266,9 @@ track ID. Configured ROI and line geometry remain visible, while triggered
 event labels and anchors persist briefly for review. Slow encoding drops the
 oldest pending output frame instead of blocking capture, detection, or
 tracking. Enqueue latency, writer drops, queue watermark, and final flush time
-are reported separately from real-time pipeline latency.
+are reported separately from real-time pipeline latency. Background encoding
+total and maximum execution time are also reported; enqueue time alone does
+not represent codec or storage cost.
 
 Measured synchronous and asynchronous output results are available in the
 [annotated video output benchmark](docs/benchmarks/annotated_video_output.md).
@@ -327,6 +331,50 @@ python3 scripts/summarize_jetson_benchmarks.py
 The resulting CSV and Markdown files report steady-state FPS, inference and
 end-to-end P95 latency, drop rate, mean and peak power, temperature, GPU
 utilization, and FPS per watt.
+
+## Full Pipeline Benchmark
+
+The full pipeline benchmark keeps YOLOX-Nano fixed and measures detection,
+ByteTrack, safety rules, event snapshots and clips, annotated video output,
+and Jetson telemetry together. It rejects an active `edge-vision.service` and
+unlocked GPU clocks so the camera and frequency state cannot silently change
+between runs.
+
+Select a power mode, lock clocks, and run both capture resolutions:
+
+```bash
+cmake -S . -B build-pipeline-benchmark \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
+  -DEDGE_VISION_ENABLE_TENSORRT=ON
+cmake --build build-pipeline-benchmark -j"$(nproc)"
+
+sudo systemctl stop edge-vision.service
+sudo nvpmodel -m 1
+sudo jetson_clocks
+
+bash scripts/run_pipeline_benchmark.sh \
+  --model nano \
+  --engine models/yolox_nano_fp16.plan \
+  --resolution 720p \
+  --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
+
+bash scripts/run_pipeline_benchmark.sh \
+  --model nano \
+  --engine models/yolox_nano_fp16.plan \
+  --resolution 1080p \
+  --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
+```
+
+Repeat after selecting and locking the second power mode, then generate the
+tracked report:
+
+```bash
+python3 scripts/summarize_pipeline_benchmarks.py
+```
+
+The protocol and metric interpretation are defined in the
+[full pipeline benchmark protocol](docs/benchmarks/full_pipeline_benchmark.md).
 
 ## MOT17 Tracking Evaluation
 

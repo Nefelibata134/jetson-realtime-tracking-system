@@ -31,6 +31,9 @@ struct EventClipWriterStats {
     std::size_t prebuffer_peak_bytes{0};
     std::size_t max_active_clips{0};
     std::size_t encoding_queue_high_watermark{0};
+    std::uint64_t encoded_frames{0};
+    double encoding_total_ms{0.0};
+    double encoding_max_ms{0.0};
 };
 
 class EventClipWriter final {

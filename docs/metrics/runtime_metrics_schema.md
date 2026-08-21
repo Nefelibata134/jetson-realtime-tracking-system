@@ -27,6 +27,7 @@ file.
 | `status` | Completion and source health state |
 | `pipeline` | Frame, queue, recovery, detection, tracking, and event metrics |
 | `latency_ms` | Per-stage latency summaries in milliseconds |
+| `outputs` | Event journal, snapshot, clip, and annotated video workload |
 | `device` | Jetson memory, utilization, temperature, and input power summaries |
 
 The `status` object records whether the run was finite or continuous, whether
@@ -50,6 +51,44 @@ observed state. Latency and device measurements use window summaries with
 
 Warmup drops remain available as `warmup_dropped_frames` but are excluded from
 the steady-state drop rate.
+
+Every latency summary includes `samples`, `mean`, `p50`, `p95`, and `max`.
+An empty conditional stage has `samples: 0`; its zero-valued percentiles must
+not be interpreted as measured zero latency.
+
+## Stage Boundaries
+
+| Stage | Start | End |
+| --- | --- | --- |
+| `queue_wait` | Frame capture timestamp | Detector call begins |
+| `detector_preprocess` | Detector call begins | Letterbox/NCHW tensor is ready |
+| `tensorrt_inference` | Tensor is ready | TensorRT output is synchronized and copied |
+| `detector_postprocess` | TensorRT output is ready | Decode, thresholding, NMS, and coordinate restore finish |
+| `detection` / `inference` | Detector call begins | Detection vector is returned |
+| `tracking` | Detection finishes | ByteTrack update finishes |
+| `event_analysis` | Tracking finishes | Rule state machines finish |
+| `event_io` | Event analysis finishes | Synchronous snapshot/journal work and clip submission finish |
+| `event_io_active` | Same as `event_io` | Same boundary, sampled only on newly triggered event frames |
+| `video_enqueue` | Annotated video submission begins | Bounded writer queue accepts the frame |
+| `end_to_end` | Frame capture timestamp | All real-time-thread output submissions finish |
+
+`inference` remains an alias for total `detection` latency for compatibility
+with earlier reports. It does not mean TensorRT execution alone.
+
+## Output Workload
+
+The `outputs` object separates asynchronous worker load from real-time-thread
+latency:
+
+- `event_journal` reports committed and duplicate event records.
+- `snapshots` reports atomically written and reused JPEG evidence.
+- `event_clips` reports clip accounting, encoded frames, queue watermark,
+  background encode time, and final flush time.
+- `annotated_video` reports submitted, written, and dropped frames, queue
+  watermark, background encode time, and final flush time.
+
+Encoding total divided by written frames is a workload rate, not per-frame
+request latency. `video_enqueue` measures only bounded queue submission.
 
 ## Device Units
 

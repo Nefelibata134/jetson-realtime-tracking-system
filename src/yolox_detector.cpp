@@ -1,5 +1,6 @@
 #include "edge_vision/yolox_detector.hpp"
 
+#include <chrono>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -43,13 +44,38 @@ YoloXDetector::YoloXDetector(
 }
 
 std::vector<Detection> YoloXDetector::infer(const Frame& frame) {
+    return infer_profiled(frame).detections;
+}
+
+YoloXDetectorResult YoloXDetector::infer_profiled(const Frame& frame) {
+    const auto total_started_at = std::chrono::steady_clock::now();
     const auto preprocessed = preprocessor_.run(frame);
+    const auto preprocess_finished_at = std::chrono::steady_clock::now();
     const auto output = engine_.infer(preprocessed.tensor);
-    return postprocessor_.run(
+    const auto inference_finished_at = std::chrono::steady_clock::now();
+    auto detections = postprocessor_.run(
         output,
         frame.width,
         frame.height,
         preprocessed.scale);
+    const auto postprocess_finished_at = std::chrono::steady_clock::now();
+
+    const auto elapsed_ms = [](
+                                const auto started_at,
+                                const auto finished_at) {
+        return std::chrono::duration<double, std::milli>(
+                   finished_at - started_at)
+            .count();
+    };
+    return {
+        std::move(detections),
+        {
+            elapsed_ms(total_started_at, preprocess_finished_at),
+            elapsed_ms(preprocess_finished_at, inference_finished_at),
+            elapsed_ms(inference_finished_at, postprocess_finished_at),
+            elapsed_ms(total_started_at, postprocess_finished_at),
+        },
+    };
 }
 
 const TensorContract& YoloXDetector::input_contract() const noexcept {

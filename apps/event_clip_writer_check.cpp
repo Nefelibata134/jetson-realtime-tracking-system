@@ -87,7 +87,12 @@ int main() {
         stats.clips_started == 1 && stats.clips_completed == 1 &&
         stats.clips_skipped == 0 &&
         stats.encoding_queue_high_watermark == 1;
-    const bool passed = clip_valid && bounded_buffer && accounting_valid;
+    const bool encoding_measured =
+        stats.encoded_frames == 5 && stats.encoding_total_ms > 0.0 &&
+        stats.encoding_max_ms > 0.0 &&
+        stats.encoding_max_ms <= stats.encoding_total_ms;
+    const bool passed =
+        clip_valid && bounded_buffer && accounting_valid && encoding_measured;
 
     std::cout << std::boolalpha;
     std::cout << "clip_frames=" << frame_count << '\n';
@@ -95,6 +100,8 @@ int main() {
     std::cout << "accounting_valid=" << accounting_valid << '\n';
     std::cout << "encoding_queue_high_watermark="
               << stats.encoding_queue_high_watermark << '\n';
+    std::cout << "encoded_frames=" << stats.encoded_frames << '\n';
+    std::cout << "encoding_measured=" << encoding_measured << '\n';
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
 
     std::filesystem::remove_all(directory);

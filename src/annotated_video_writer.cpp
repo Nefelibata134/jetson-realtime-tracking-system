@@ -3,6 +3,7 @@
 #include <opencv2/videoio.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <cmath>
 #include <deque>
@@ -128,10 +129,20 @@ private:
                     queue_.pop_front();
                 }
 
+                const auto encoding_started_at =
+                    std::chrono::steady_clock::now();
                 write_packet(packet);
+                const double encoding_ms =
+                    std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() -
+                        encoding_started_at)
+                        .count();
                 {
                     std::lock_guard<std::mutex> lock(mutex_);
                     ++stats_.frames_written;
+                    stats_.encoding_total_ms += encoding_ms;
+                    stats_.encoding_max_ms =
+                        std::max(stats_.encoding_max_ms, encoding_ms);
                 }
             }
             if (writer_.isOpened()) {

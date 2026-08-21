@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "edge_vision/detector.hpp"
 #include "edge_vision/tensorrt_engine.hpp"
@@ -17,6 +18,18 @@ struct YoloXDetectorConfig {
     float nms_threshold{0.45F};
 };
 
+struct YoloXDetectorStageTiming {
+    double preprocess_ms{0.0};
+    double tensorrt_inference_ms{0.0};
+    double postprocess_ms{0.0};
+    double total_ms{0.0};
+};
+
+struct YoloXDetectorResult {
+    std::vector<Detection> detections;
+    YoloXDetectorStageTiming timing;
+};
+
 class YoloXDetector final : public IDetector {
 public:
     explicit YoloXDetector(
@@ -24,6 +37,7 @@ public:
         YoloXDetectorConfig config = {});
 
     [[nodiscard]] std::vector<Detection> infer(const Frame& frame) override;
+    [[nodiscard]] YoloXDetectorResult infer_profiled(const Frame& frame);
 
     [[nodiscard]] const TensorContract& input_contract() const noexcept;
     [[nodiscard]] const TensorContract& output_contract() const noexcept;

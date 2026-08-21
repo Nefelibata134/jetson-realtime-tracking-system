@@ -27,7 +27,21 @@ int main() {
     report.pipeline.effective_fps = 30.0;
     report.pipeline.latency_window_capacity = 4096;
     report.pipeline.latency_window_samples = 95;
-    report.latency_ms["inference"] = {6.0, 5.8, 7.2, 12.0};
+    report.latency_ms["inference"] = {6.0, 5.8, 7.2, 12.0, 95};
+    report.latency_ms["tensorrt_inference"] = {
+        4.0, 3.8, 4.5, 6.0, 95};
+    report.outputs.event_journal_enabled = true;
+    report.outputs.event_records_written = 2;
+    report.outputs.snapshot_output_enabled = true;
+    report.outputs.snapshots_written = 2;
+    report.outputs.event_clip_output_enabled = true;
+    report.outputs.event_clips_completed = 2;
+    report.outputs.event_clip_frames_encoded = 120;
+    report.outputs.event_clip_encoding_total_ms = 80.0;
+    report.outputs.annotated_video_enabled = true;
+    report.outputs.video_frames_submitted = 95;
+    report.outputs.video_frames_written = 95;
+    report.outputs.video_encoding_total_ms = 190.0;
     report.device.samples = 2;
     report.device.input_power_w = {2, 8.0, 8.9, 9.0};
 
@@ -49,7 +63,22 @@ int main() {
             document.at("pipeline").at("drop_rate_percent").get<double>() -
             5.0) < 0.001;
     const bool latency =
-        document.at("latency_ms").at("inference").at("p95") == 7.2;
+        document.at("latency_ms").at("inference").at("p95") == 7.2 &&
+        document.at("latency_ms").at("inference").at("samples") == 95 &&
+        document.at("latency_ms")
+                .at("tensorrt_inference")
+                .at("p95") == 4.5;
+    const bool outputs =
+        document.at("outputs")
+                .at("event_journal")
+                .at("records_written") == 2 &&
+        document.at("outputs").at("snapshots").at("written") == 2 &&
+        document.at("outputs")
+                .at("event_clips")
+                .at("frames_encoded") == 120 &&
+        document.at("outputs")
+                .at("annotated_video")
+                .at("frames_written") == 95;
     const bool device =
         document.at("device").at("available") == true &&
         document.at("device").at("input_power_w").at("samples") == 2 &&
@@ -70,12 +99,13 @@ int main() {
     std::cout << "lifecycle=" << lifecycle << '\n';
     std::cout << "pipeline=" << pipeline << '\n';
     std::cout << "latency=" << latency << '\n';
+    std::cout << "outputs=" << outputs << '\n';
     std::cout << "device=" << device << '\n';
     std::cout << "replace=" << replace << '\n';
     std::cout << "atomic=" << atomic << '\n';
     const bool passed =
-        schema && lifecycle && pipeline && latency && device && replace &&
-        atomic;
+        schema && lifecycle && pipeline && latency && outputs && device &&
+        replace && atomic;
     std::cout << "status=" << (passed ? "PASS" : "FAIL") << '\n';
 
     std::filesystem::remove(output);

@@ -3,6 +3,7 @@
 #include <opencv2/videoio.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <deque>
@@ -327,7 +328,15 @@ private:
                     queue_.pop_front();
                 }
 
+                const std::uint64_t encoded_frames = job.frames.size();
+                const auto encoding_started_at =
+                    std::chrono::steady_clock::now();
                 EventRecord record = encode(std::move(job));
+                const double encoding_ms =
+                    std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() -
+                        encoding_started_at)
+                        .count();
                 {
                     std::lock_guard<std::mutex> lock(mutex_);
                     encoding_ids_.erase(record.event_id);
@@ -335,6 +344,10 @@ private:
                         *record.evidence.clip_path;
                     completed_.push_back(std::move(record));
                     ++stats_.clips_completed;
+                    stats_.encoded_frames += encoded_frames;
+                    stats_.encoding_total_ms += encoding_ms;
+                    stats_.encoding_max_ms =
+                        std::max(stats_.encoding_max_ms, encoding_ms);
                 }
             }
         } catch (...) {

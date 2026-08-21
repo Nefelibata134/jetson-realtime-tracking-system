@@ -26,6 +26,8 @@ struct AnnotatedVideoWriterStats {
     std::uint64_t frames_written{0};
     std::uint64_t frames_dropped{0};
     std::size_t queue_high_watermark{0};
+    double encoding_total_ms{0.0};
+    double encoding_max_ms{0.0};
 };
 
 class AnnotatedVideoWriter {
