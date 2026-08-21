@@ -41,6 +41,7 @@ network-stream reconnect and fault-recovery behavior.
 | Recovery | Bounded CSI/RTSP reconnect, no-frame timeout, stream generations, and explicit failure status | Implemented |
 | Service lifecycle | Continuous mode, SIGTERM shutdown, systemd readiness, progress watchdog, and bounded latency window | Implemented |
 | Operations | systemd installation, persistent local event spool, retention timer, and log rotation | Implemented |
+| Stability validation | Service soak sampling, resource trends, process crash injection, and RTSP outage recovery | Implemented |
 
 ## Build
 
@@ -237,6 +238,9 @@ healthy.
 The supported headless installation, persistent state layout, retention
 policy, service checks, and log rotation commands are documented in the
 [service operations guide](docs/operations/headless_service.md).
+Long-running health criteria and repeatable process/source fault injection are
+defined in the
+[stability and recovery validation guide](docs/operations/stability_validation.md).
 
 Safety rules are opt-in. `--event-roi` defines a normalized rectangular region
 as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.
