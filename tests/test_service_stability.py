@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +27,22 @@ RTSP = load("rtsp_outage", ROOT / "scripts" / "inject_rtsp_outage.py")
 
 
 class ServiceStabilityTest(unittest.TestCase):
+    def test_ownership_helpers_cover_parent_directory_and_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "nested"
+            nested.mkdir()
+            file_path = nested / "sample.jsonl"
+            file_path.write_text("{}\n")
+            with mock.patch.dict(
+                os.environ, {"SUDO_UID": "1000", "SUDO_GID": "1001"}
+            ), mock.patch.object(COLLECT.os, "chown", create=True) as chown:
+                COLLECT.chown_path(root)
+                COLLECT.chown_tree(root)
+
+        visited = {Path(call.args[0]) for call in chown.call_args_list}
+        self.assertEqual(visited, {root, nested, file_path})
+
     def test_runtime_log_parser_accepts_complete_frame_record_only(self) -> None:
         record = COLLECT.parse_frame_line(
             "frame=900 detections=2 tracks=1 queue_ms=0.6 infer_ms=3.5 "

@@ -161,6 +161,8 @@ def chown_tree(path: Path) -> None:
         os.chown(root, uid, gid)
         for name in directories:
             os.chown(Path(root) / name, uid, gid)
+        for name in files:
+            os.chown(Path(root) / name, uid, gid)
 
 
 def chown_path(path: Path) -> None:
@@ -168,8 +170,6 @@ def chown_path(path: Path) -> None:
     gid = integer(os.environ.get("SUDO_GID"))
     if uid is not None and gid is not None:
         os.chown(path, uid, gid)
-        for name in files:
-            os.chown(Path(root) / name, uid, gid)
 
 
 def parse_args() -> argparse.Namespace:
