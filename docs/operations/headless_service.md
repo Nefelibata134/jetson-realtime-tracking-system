@@ -123,7 +123,9 @@ Runtime output is written to `/var/log/edge-vision/runtime.log`. The installed
 logrotate policy rotates daily or at 20 MiB, retains seven compressed
 generations, and uses `copytruncate` because stdout remains open for the life
 of the process. systemd opens the append target as root before launching the
-unprivileged service, so logrotate retains root privileges for this file.
+unprivileged service, so logrotate retains root privileges for this file. The
+launcher line-buffers stdout and stderr so operational records become visible
+without waiting for a full userspace output buffer.
 
 ```bash
 sudo logrotate -d /etc/logrotate.d/edge-vision

@@ -120,4 +120,4 @@ if [[ $rules_enabled -eq 1 ]]; then
 fi
 
 echo "session_directory=$session_directory"
-exec "$binary" "${args[@]}"
+exec stdbuf -oL -eL "$binary" "${args[@]}"
