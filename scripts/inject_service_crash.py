@@ -83,6 +83,22 @@ def evaluate_recovery(before: dict[str, Any], after: dict[str, Any]) -> list[str
     return failures
 
 
+def build_kill_command(service: str, help_text: str) -> list[str]:
+    if "--kill-whom=" in help_text:
+        selector = "--kill-whom=main"
+    elif "--kill-who=" in help_text:
+        selector = "--kill-who=main"
+    else:
+        raise RuntimeError("systemctl does not expose a main-process kill selector")
+    return [
+        "systemctl",
+        "kill",
+        selector,
+        "--signal=SIGKILL",
+        service,
+    ]
+
+
 def give_output_to_invoking_user(path: Path) -> None:
     try:
         uid = int(os.environ["SUDO_UID"])
@@ -116,13 +132,12 @@ def main() -> None:
     if before.get("active_state") != "active" or not before.get("main_pid"):
         raise SystemExit("service is not active before fault injection")
 
-    command = [
-        "systemctl",
-        "kill",
-        "--kill-whom=main",
-        "--signal=SIGKILL",
-        args.service,
-    ]
+    help_result = subprocess.run(
+        ["systemctl", "--help"], text=True, capture_output=True, check=False
+    )
+    command = build_kill_command(
+        args.service, help_result.stdout + help_result.stderr
+    )
     subprocess.run(command, check=True)
 
     deadline = time.monotonic() + args.timeout_seconds

@@ -148,6 +148,18 @@ class ServiceStabilityTest(unittest.TestCase):
             CRASH.evaluate_recovery(before, after),
         )
 
+    def test_process_kill_command_supports_systemd_option_versions(self) -> None:
+        legacy = CRASH.build_kill_command(
+            "edge-vision.service", "--kill-who=WHO Whom to send signal to"
+        )
+        current = CRASH.build_kill_command(
+            "edge-vision.service", "--kill-whom=WHO Whom to send signal to"
+        )
+        self.assertIn("--kill-who=main", legacy)
+        self.assertIn("--kill-whom=main", current)
+        with self.assertRaises(RuntimeError):
+            CRASH.build_kill_command("edge-vision.service", "no selector")
+
     def test_rtsp_recovery_requires_real_frame_generation(self) -> None:
         values = {
             "target_reached": "true",
