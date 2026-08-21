@@ -34,6 +34,9 @@ Build the Jetson runtime first, then install the binary and the device-built
 TensorRT engine:
 
 ```bash
+sudo apt-get update
+sudo apt-get install -y logrotate
+
 cmake -S . -B build-service \
   -DCMAKE_BUILD_TYPE=Release \
   -DEDGE_VISION_ENABLE_GSTREAMER=ON \

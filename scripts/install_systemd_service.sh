@@ -28,6 +28,19 @@ done
   echo "run this installer with sudo" >&2
   exit 1
 }
+
+missing_commands=()
+for command in systemctl python3 logrotate; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    missing_commands+=("$command")
+  fi
+done
+if [[ ${#missing_commands[@]} -ne 0 ]]; then
+  echo "missing required commands: ${missing_commands[*]}" >&2
+  echo "Ubuntu: apt-get install -y python3 logrotate" >&2
+  exit 1
+fi
+
 [[ -x $binary && -f $engine ]] || {
   usage
   exit 2
