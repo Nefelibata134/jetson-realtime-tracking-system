@@ -7,5 +7,5 @@
     missingok
     notifempty
     copytruncate
-    su edge-vision edge-vision
+    su root root
 }
