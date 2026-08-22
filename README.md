@@ -1,27 +1,129 @@
 # Jetson Realtime Tracking System
 
-A C++17 edge video analytics runtime for NVIDIA Jetson. The system combines
-GStreamer video ingestion, TensorRT object detection, ByteTrack multi-object
-tracking, rule-based safety event analysis, and device telemetry.
+[![CI](https://github.com/Nefelibata134/jetson-realtime-tracking-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Nefelibata134/jetson-realtime-tracking-system/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A production-oriented C++17 edge video analytics runtime for NVIDIA Jetson.
+It ingests file, IMX219 CSI, or H.264 RTSP video; runs YOLOX with TensorRT;
+maintains class-aware ByteTrack identities; evaluates ROI, line-crossing, and
+dwell rules; and persists auditable event evidence without blocking the
+real-time path.
+
+## Measured On Jetson
+
+The complete pipeline includes capture, detection, tracking, safety rules,
+event screenshots and clips, annotated video, metrics, and device telemetry.
+All figures below were measured on a Jetson Orin Nano 8GB with locked clocks.
+
+| Configuration | FPS | Capture drop | TRT P95 | E2E P95 | Mean input power |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 720p, 25W | 30.03 | 0.00% | 3.53 ms | 9.99 ms | 8.69 W |
+| 720p, MAXN_SUPER | 30.04 | 0.00% | 3.22 ms | 8.46 ms | 9.00 W |
+| 1080p, 25W | 30.04 | 0.00% | 3.49 ms | 14.17 ms | 8.93 W |
+| 1080p, MAXN_SUPER | 29.99 | 0.00% | 3.24 ms | 12.13 ms | 9.46 W |
+
+Additional validation:
+
+- A 60-minute CSI service soak completed with 100% active coverage, zero
+  restarts, zero watchdog stalls, zero frame stalls, 30.00 FPS, and 0.00%
+  capture drop.
+- Controlled SIGKILL and RTSP source-outage tests recovered to real frame
+  processing rather than accepting a restarted but idle process.
+- The fixed YOLOX-Tiny MOT17 holdout achieved 38.89 HOTA, 46.75 IDF1, and
+  39.19 MOTA. This result measures the complete detector-tracker pair.
+
+See the [full pipeline matrix](docs/benchmarks/jetson_full_pipeline_matrix.md),
+[MOT17 tracking results](docs/benchmarks/mot17_tracking_results.md), and
+[service stability report](docs/operations/stability_report.md) for protocols,
+sample counts, and limitations.
+
+## Runtime Evidence
+
+A representative live event record and steady-state summary look like:
+
+```text
+event=line_crossing rule=directional-crossing track_id=2 class_id=0 frame=131 pts_ms=4366.667
+target_reached=true
+invalid_frames=0
+output_frames=240
+output_frames_dropped=0
+event_analysis_p95_ms=0.006
+end_to_end_p95_ms=15.038
+effective_fps=30.093
+```
+
+Captured video, snapshots, clips, JSONL journals, and raw metrics are written
+under `outputs/` or the configured service spool. These runtime artifacts are
+ignored by Git so captured content and device-generated model engines are not
+published accidentally.
 
 ## Runtime Architecture
 
 ```mermaid
 flowchart LR
-    A["File / IMX219 CSI / RTSP"] --> B["GStreamer frame source"]
-    B --> C["Latest-frame queue"]
-    C --> D["TensorRT detector"]
-    D --> E["ByteTrack tracker"]
-    E --> F["Safety event analyzer"]
-    F --> G["JSONL journal and evidence"]
-    F --> J["Annotated video and metrics"]
-    H["Jetson telemetry"] --> G
-    I["Watchdog and reconnect policy"] --> B
+    A["File / IMX219 CSI / H.264 RTSP"] --> B["GStreamer capture thread"]
+    B --> C["Bounded drop-oldest frame queue"]
+    C --> D["YOLOX preprocess + TensorRT + NMS"]
+    D --> E["Class-aware ByteTrack"]
+    E --> F["ROI / crossing / dwell state machines"]
+    F --> G["Bounded evidence workers"]
+    F --> H["Bounded annotated-video worker"]
+    I["tegrastats sampler"] --> J["Atomic runtime metrics JSON"]
+    D --> J
+    K["systemd frame watchdog"] -. supervises .-> B
+    L["Reconnect + stream generation"] -. resets .-> E
 ```
 
 The file source provides deterministic replay for regression and benchmark
 runs. The IMX219 CSI source is the primary live input. RTSP is used to verify
 network-stream reconnect and fault-recovery behavior.
+
+The bounded capture queue protects freshness by dropping the oldest pending
+frame during overload. Evidence and annotated-video encoding run on separate
+bounded workers, so slow storage or software encoding cannot block detection.
+Successful source recovery requires a real decoded frame, increments the
+stream generation, and clears stale tracking and event state.
+
+## Quick Start On Jetson
+
+Install build dependencies, fetch the checksum-pinned model, and build its
+FP16 TensorRT engine on the target Jetson:
+
+```bash
+sudo apt-get install -y \
+  cmake g++ pkg-config libopencv-dev libeigen3-dev nlohmann-json3-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+bash scripts/fetch_yolox_nano.sh
+bash scripts/build_tensorrt_engine.sh \
+  models/yolox_nano.onnx models/yolox_nano_fp16.plan
+
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
+  -DEDGE_VISION_ENABLE_TENSORRT=ON
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure
+```
+
+Run a finite IMX219 validation and atomically publish its metrics:
+
+```bash
+./build/edge_vision_realtime_detect \
+  --engine models/yolox_nano_fp16.plan \
+  --csi --sensor-id 0 --sensor-mode 4 \
+  --capture-width 1280 --capture-height 720 --capture-fps 60 \
+  --width 1280 --height 720 --fps 30 \
+  --warmup-frames 30 --frames 300 --queue-capacity 2 \
+  --score-threshold 0.3 \
+  --track-threshold 0.5 --new-track-threshold 0.6 --track-buffer 30 \
+  --metrics-json outputs/metrics/imx219.json
+```
+
+TensorRT plan files are hardware- and software-coupled artifacts and must be
+built on the deployment Jetson. See [Model Artifacts](#model-artifacts) and
+the [service operations guide](docs/operations/headless_service.md) before
+installing continuous unattended operation.
 
 ## Components
 

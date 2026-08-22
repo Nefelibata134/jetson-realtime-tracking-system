@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(jetson_realtime_tracking_system LANGUAGES CXX)
+project(jetson_realtime_tracking_system VERSION 1.0.0 LANGUAGES CXX)
 
 option(
     EDGE_VISION_ENABLE_TENSORRT
