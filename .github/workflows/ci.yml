@@ -45,8 +45,11 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      - name: Validate benchmark tools
-        run: |
-          bash -n scripts/*.sh
-          python3 -m unittest discover -s tests -p 'test_*.py'
-          python3 scripts/validate_release.py
+      - name: Validate shell tools
+        run: bash -n scripts/*.sh
+
+      - name: Validate Python tools
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Validate release contract
+        run: python3 scripts/validate_release.py

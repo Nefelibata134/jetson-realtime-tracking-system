@@ -114,7 +114,11 @@ def validate(root: Path) -> list[str]:
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
-    failures = validate(root)
+    try:
+        failures = validate(root)
+    except (OSError, subprocess.CalledProcessError, UnicodeError) as error:
+        print(f"FAIL release validation could not inspect the repository: {error}")
+        return 1
     if failures:
         for failure in failures:
             print(f"FAIL {failure}")
