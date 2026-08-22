@@ -31,7 +31,7 @@ jobs:
             python3
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure
         run: >-
@@ -52,4 +52,6 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Validate release contract
-        run: python3 scripts/validate_release.py
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python3 scripts/validate_release.py
