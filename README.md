@@ -241,6 +241,8 @@ policy, service checks, and log rotation commands are documented in the
 Long-running health criteria and repeatable process/source fault injection are
 defined in the
 [stability and recovery validation guide](docs/operations/stability_validation.md).
+Measured one-hour soak and fault-injection results are published in the
+[Jetson service stability report](docs/operations/stability_report.md).
 
 Safety rules are opt-in. `--event-roi` defines a normalized rectangular region
 as `LEFT TOP RIGHT BOTTOM` and enables confirmed ROI intrusion events.

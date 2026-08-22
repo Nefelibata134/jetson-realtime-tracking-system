@@ -265,10 +265,33 @@ def build_summary(
         if not isinstance(drop_rate, (int, float)) or drop_rate > max_drop_rate_percent:
             failures.append(f"drop rate exceeds {max_drop_rate_percent:.2f}%")
 
+    final_fps = nested(final_metrics, "pipeline", "effective_fps")
+    final_frames = nested(final_metrics, "pipeline", "measured_frames")
+    generation_seconds = (
+        float(final_frames) / float(final_fps)
+        if isinstance(final_frames, (int, float))
+        and isinstance(final_fps, (int, float))
+        and final_fps > 0
+        else None
+    )
+    generation_to_soak_ratio = (
+        generation_seconds / observed_duration
+        if generation_seconds is not None and observed_duration > 0
+        else None
+    )
+    notes = []
+    if generation_to_soak_ratio is not None and not 0.9 <= generation_to_soak_ratio <= 1.1:
+        notes.append(
+            "final runtime metrics cover a different generation window than "
+            "the sampled soak; restart immediately before collection and "
+            "finalize promptly for aligned windows"
+        )
+
     return {
         "schema_version": 1,
         "status": "PASS" if not failures else "FAIL",
         "failures": failures,
+        "notes": notes,
         "run_directory": str(run_directory),
         "duration": {
             "requested_seconds": requested_duration,
@@ -305,11 +328,13 @@ def build_summary(
         "tegrastats": telemetry,
         "final_runtime_metrics": {
             "available": final_metrics is not None,
-            "effective_fps": nested(final_metrics, "pipeline", "effective_fps"),
+            "effective_fps": final_fps,
             "drop_rate_percent": nested(
                 final_metrics, "pipeline", "drop_rate_percent"
             ),
-            "measured_frames": nested(final_metrics, "pipeline", "measured_frames"),
+            "measured_frames": final_frames,
+            "estimated_generation_seconds": generation_seconds,
+            "generation_to_soak_ratio": generation_to_soak_ratio,
             "inference_p95_ms": nested(
                 final_metrics, "latency_ms", "tensorrt_inference", "p95"
             ),
@@ -397,10 +422,13 @@ def markdown(summary: dict[str, Any]) -> str:
         "",
         "## Final Runtime Metrics",
         "",
-        "| Frames | FPS | Drop % | TRT P95 | E2E P95 |",
-        "| ---: | ---: | ---: | ---: | ---: |",
-        "| {frames} | {fps} | {drop} | {trt} ms | {e2e} ms |".format(
+        "| Frames | Estimated generation | FPS | Drop % | TRT P95 | E2E P95 |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| {frames} | {generation} min | {fps} | {drop} | {trt} ms | {e2e} ms |".format(
             frames=final["measured_frames"],
+            generation=number(final["estimated_generation_seconds"] / 60.0)
+            if final["estimated_generation_seconds"] is not None
+            else "n/a",
             fps=number(final["effective_fps"]),
             drop=number(final["drop_rate_percent"]),
             trt=number(final["inference_p95_ms"]),
@@ -410,6 +438,10 @@ def markdown(summary: dict[str, Any]) -> str:
         "The final metrics are emitted by the runtime after a graceful SIGTERM. Live samples use systemd state, watchdog progress, and line-buffered frame records.",
         "",
     ]
+    if summary["notes"]:
+        lines.extend(["## Notes", ""])
+        lines.extend(f"- {note}" for note in summary["notes"])
+        lines.append("")
     if summary["failures"]:
         lines.extend(["## Failed Checks", ""])
         lines.extend(f"- {failure}" for failure in summary["failures"])

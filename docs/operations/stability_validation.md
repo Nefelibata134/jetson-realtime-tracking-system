@@ -19,9 +19,11 @@ temperature. It does not modify the inference thread or its timing boundaries.
 
 ## Baseline Soak
 
-Keep the normal 720p/25W service configuration active and run:
+Restart the normal 720p/25W service immediately before collection so the
+runtime generation and sampled soak windows align, then run:
 
 ```bash
+sudo systemctl restart edge-vision.service
 sudo python3 scripts/collect_service_soak.py \
   --duration-seconds 3600 \
   --sample-interval-seconds 30 \
@@ -41,9 +43,9 @@ sudo nohup python3 scripts/collect_service_soak.py \
 head -n 1 /tmp/edge-vision-soak-collector.log
 ```
 
-The command prints a `run_directory`. After collection, gracefully stop the
-generation, copy its atomically published final metrics, summarize the run,
-and restore the service:
+The command prints a `run_directory`. After collection completes, promptly
+gracefully stop the generation, copy its atomically published final metrics,
+summarize the run, and restore the service:
 
 ```bash
 run_dir=reports/stability/raw/service_soak_TIMESTAMP_PID
@@ -56,6 +58,11 @@ generation remains active, watchdog and frame progress continue, temperature
 and disk stay within limits, memory has no sustained upward trend, and final
 runtime metrics retain at least 25 FPS with at most 1% steady-state capture
 drops. Final metrics must show a clean SIGTERM shutdown.
+
+If finalization is delayed, live samples still describe the exact requested
+soak interval, while final runtime counters cover the longer process
+generation. The report estimates and discloses both windows rather than
+silently treating them as identical.
 
 Raw `samples.jsonl` and `tegrastats.log` remain under the ignored `reports/`
 tree. A compact reviewed report can be published separately.

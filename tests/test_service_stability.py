@@ -113,6 +113,21 @@ class ServiceStabilityTest(unittest.TestCase):
         self.assertEqual(summary["status"], "PASS")
         self.assertEqual(summary["service"]["watchdog_stall_windows"], 0)
         self.assertEqual(summary["final_runtime_metrics"]["effective_fps"], 30.0)
+        self.assertEqual(summary["final_runtime_metrics"]["estimated_generation_seconds"], 60.0)
+        self.assertEqual(summary["notes"], [])
+
+    def test_soak_summary_discloses_misaligned_final_metrics_window(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_run(root)
+            metrics_path = root / "final_metrics.json"
+            metrics = json.loads(metrics_path.read_text())
+            metrics["pipeline"]["measured_frames"] = 3600
+            metrics_path.write_text(json.dumps(metrics))
+            summary = SUMMARY.build_summary(root)
+        self.assertEqual(summary["status"], "PASS")
+        self.assertEqual(summary["final_runtime_metrics"]["generation_to_soak_ratio"], 2.0)
+        self.assertEqual(len(summary["notes"]), 1)
 
     def test_soak_summary_rejects_watchdog_stall(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
