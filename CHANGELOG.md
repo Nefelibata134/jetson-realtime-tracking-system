@@ -40,6 +40,11 @@ All notable changes to this project are documented in this file.
 - OpenCV MP4V software encoding cannot preserve every 1080p/30 annotated frame
   on the measured device; the bounded output queue protects the analytics
   path by dropping stale output frames.
+- Snapshot and JSONL publication remain synchronous to preserve evidence
+  ordering, so slow storage can increase latency on event frames. Clip and
+  annotated-video encoding use bounded background workers.
+- RTSP URIs are process arguments; credentials embedded in a URI can be
+  visible to local process inspection tools.
 - Event evidence is persisted locally. Remote upload, authentication, and
   fleet management are outside this release.
 

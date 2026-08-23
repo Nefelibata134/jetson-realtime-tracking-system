@@ -12,7 +12,7 @@ local evidence persistence, telemetry, and systemd watchdog supervision.
 | Main-process SIGKILL recovery | PASS |
 | Controlled RTSP source outage | PASS |
 | C++ regression suite | 15/15 passed |
-| Python operations tests | 22/22 passed |
+| Python operations tests | 23/23 passed |
 
 Raw logs, event evidence, and captured video remain in ignored runtime
 directories and are not part of the repository.

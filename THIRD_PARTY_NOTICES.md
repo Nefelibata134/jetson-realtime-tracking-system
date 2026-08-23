@@ -9,6 +9,9 @@ licenses.
 | YOLOX | https://github.com/Megvii-BaseDetection/YOLOX | Apache-2.0 |
 | ByteTrack | https://github.com/FoundationVision/ByteTrack | MIT |
 | GStreamer | https://gstreamer.freedesktop.org/ | LGPL-2.1-or-later |
+| OpenCV | https://opencv.org/ | Apache-2.0 |
+| Eigen | https://gitlab.com/libeigen/eigen | MPL-2.0 |
+| NVIDIA CUDA Toolkit | https://developer.nvidia.com/cuda-toolkit | NVIDIA CUDA EULA / SDK terms |
 | NVIDIA TensorRT | https://developer.nvidia.com/tensorrt | NVIDIA SDK terms |
 | TrackEval | https://github.com/JonathonLuiten/TrackEval | MIT |
 | JSON for Modern C++ | https://github.com/nlohmann/json | MIT |

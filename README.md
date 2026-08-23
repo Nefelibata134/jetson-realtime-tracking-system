@@ -6,8 +6,8 @@
 A production-oriented C++17 edge video analytics runtime for NVIDIA Jetson.
 It ingests file, IMX219 CSI, or H.264 RTSP video; runs YOLOX with TensorRT;
 maintains class-aware ByteTrack identities; evaluates ROI, line-crossing, and
-dwell rules; and persists auditable event evidence without blocking the
-real-time path.
+dwell rules; and persists auditable event evidence with measured synchronous
+I/O and bounded asynchronous encoders.
 
 ## Measured On Jetson
 
@@ -66,12 +66,13 @@ flowchart LR
     C --> D["YOLOX preprocess + TensorRT + NMS"]
     D --> E["Class-aware ByteTrack"]
     E --> F["ROI / crossing / dwell state machines"]
-    F --> G["Bounded evidence workers"]
-    F --> H["Bounded annotated-video worker"]
-    I["tegrastats sampler"] --> J["Atomic runtime metrics JSON"]
-    D --> J
-    K["systemd frame watchdog"] -. supervises .-> B
-    L["Reconnect + stream generation"] -. resets .-> E
+    F --> G["Snapshot + JSONL measured main-thread I/O"]
+    F --> H["Bounded event-clip worker"]
+    F --> I["Bounded annotated-video worker"]
+    J["tegrastats sampler"] --> K["Atomic runtime metrics JSON"]
+    D --> K
+    L["systemd frame watchdog"] -. supervises .-> B
+    M["Reconnect + stream generation"] -. resets .-> E
 ```
 
 The file source provides deterministic replay for regression and benchmark
@@ -79,10 +80,13 @@ runs. The IMX219 CSI source is the primary live input. RTSP is used to verify
 network-stream reconnect and fault-recovery behavior.
 
 The bounded capture queue protects freshness by dropping the oldest pending
-frame during overload. Evidence and annotated-video encoding run on separate
-bounded workers, so slow storage or software encoding cannot block detection.
-Successful source recovery requires a real decoded frame, increments the
-stream generation, and clears stale tracking and event state.
+frame during overload. Event-clip and annotated-video encoding run on separate
+bounded workers, so software encoding cannot block detection. Snapshot and
+JSONL writes remain on the processing thread to preserve publication order;
+their cost is reported separately as active event I/O, and slow storage can
+increase latency on event frames. Successful source recovery requires a real
+decoded frame, increments the stream generation, and clears stale tracking and
+event state.
 
 ## Quick Start On Jetson
 
@@ -90,9 +94,13 @@ Install build dependencies, fetch the checksum-pinned model, and build its
 FP16 TensorRT engine on the target Jetson:
 
 ```bash
+sudo apt-get update
 sudo apt-get install -y \
-  cmake g++ pkg-config libopencv-dev libeigen3-dev nlohmann-json3-dev \
+  git curl cmake g++ pkg-config libopencv-dev libeigen3-dev nlohmann-json3-dev \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+git clone https://github.com/Nefelibata134/jetson-realtime-tracking-system.git
+cd jetson-realtime-tracking-system
 
 bash scripts/fetch_yolox_nano.sh
 bash scripts/build_tensorrt_engine.sh \
@@ -207,6 +215,11 @@ python3 scripts/serve_rtsp_replay.py videos/replay.mp4 \
 The client URI is `rtsp://HOST:8554/replay`, where `HOST` is the server's LAN
 address. Stopping and restarting this process creates a controlled network
 stream outage without changing the detector or tracker configuration.
+
+The RTSP URI is passed to the runtime as a process argument. Do not embed
+long-lived credentials in the URI on a shared host because local process
+inspection may expose them; prefer a credential-free local relay or restrict
+host access.
 
 CSI capture and application output rates are configured independently. For the
 IMX219, the command above selects native sensor mode 4 at 1280x720/60 FPS and
