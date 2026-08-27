@@ -15,12 +15,14 @@ The complete pipeline includes capture, detection, tracking, safety rules,
 event screenshots and clips, annotated video, metrics, and device telemetry.
 All figures below were measured on a Jetson Orin Nano 8GB with locked clocks.
 
-| Configuration | FPS | Capture drop | TRT P95 | E2E P95 | Mean input power |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 720p, 25W | 30.03 | 0.00% | 3.53 ms | 9.99 ms | 8.69 W |
-| 720p, MAXN_SUPER | 30.04 | 0.00% | 3.22 ms | 8.46 ms | 9.00 W |
-| 1080p, 25W | 30.04 | 0.00% | 3.49 ms | 14.17 ms | 8.93 W |
-| 1080p, MAXN_SUPER | 29.99 | 0.00% | 3.24 ms | 12.13 ms | 9.46 W |
+| Configuration | Audit encoder | FPS | Capture drop | TRT P95 | E2E P95 | Video written | Mean input power |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 720p, 25W | MP4V | 30.03 | 0.00% | 3.53 ms | 9.99 ms | 600/600 | 8.69 W |
+| 720p, MAXN_SUPER | MP4V | 30.04 | 0.00% | 3.22 ms | 8.46 ms | 600/600 | 9.00 W |
+| 1080p, 25W | MP4V | 30.04 | 0.00% | 3.49 ms | 14.17 ms | 280/600 | 8.93 W |
+| 1080p, 25W | x264 | 30.00 | 0.00% | 3.75 ms | 13.67 ms | 600/600 | 9.35 W |
+| 1080p, MAXN_SUPER | MP4V | 29.99 | 0.00% | 3.24 ms | 12.13 ms | 379/600 | 9.46 W |
+| 1080p, MAXN_SUPER | x264 | 29.12 | 0.00% | 6.31 ms | 14.45 ms | 600/600 | 9.92 W |
 
 Additional validation:
 
@@ -36,6 +38,10 @@ See the [full pipeline matrix](docs/benchmarks/jetson_full_pipeline_matrix.md),
 [MOT17 tracking results](docs/benchmarks/mot17_tracking_results.md), and
 [service stability report](docs/operations/stability_report.md) for protocols,
 sample counts, and limitations.
+
+The 25W x264 run contained no detections or emitted events; it validates audit
+encoding continuity but not active event I/O. The MAXN_SUPER x264 run emitted
+both intrusion and dwell evidence while preserving all 600 audit frames.
 
 ## Runtime Evidence
 

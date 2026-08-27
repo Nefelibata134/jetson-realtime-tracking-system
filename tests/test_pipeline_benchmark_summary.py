@@ -85,6 +85,10 @@ runtime_exit_code=0
         self.assertEqual(row["video_encoder"], "x264")
         self.assertEqual(row["video_bitrate_kbps"], 10000)
         self.assertEqual(row["power_mean_w"], 8.0)
+        self.assertIn(
+            "| PASS | 720p | 25W (1) | x264 | 10000 |",
+            MODULE.markdown([row]),
+        )
 
     def test_latest_matrix_keeps_latest_power_resolution_combination(self) -> None:
         rows = [

@@ -15,6 +15,14 @@ All notable changes to this project are documented in this file.
 
 - Full-pipeline benchmarks default to x264 while retaining MP4V as a
   compatibility baseline.
+- Benchmark power and locked-clock validation no longer requires root after
+  the operator has selected the mode and run `jetson_clocks`.
+
+### Validated
+
+- The x264 backend wrote 600/600 annotated 1920x1080 frames with zero output
+  drops in both 25W and MAXN_SUPER locked-clock modes. The resulting files are
+  H.264 at 30 FPS and 20 seconds for the 600-frame measurement window.
 
 ## [1.0.0] - 2026-08-23
 

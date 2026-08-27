@@ -176,14 +176,16 @@ def markdown(rows: list[dict[str, object]]) -> str:
         "",
         "## Critical Path",
         "",
-        "| Status | Capture | Power | FPS | Drop % | Queue P95 | Pre P95 | TRT P95 | Post P95 | Track P95 | Event P95 | Active I/O P95 | E2E P95 |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Status | Capture | Power | Encoder | kbps | FPS | Drop % | Queue P95 | Pre P95 | TRT P95 | Post P95 | Track P95 | Event P95 | Active I/O P95 | E2E P95 |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
-            "| {status} | {resolution} | {power_mode} ({power_mode_id}) | {fps} | {drop} | {queue} | {pre} | {trt} | {post} | {track} | {event} | {event_io} | {e2e} |".format(
+            "| {status} | {resolution} | {power_mode} ({power_mode_id}) | {encoder} | {bitrate} | {fps} | {drop} | {queue} | {pre} | {trt} | {post} | {track} | {event} | {event_io} | {e2e} |".format(
                 status=row["status"], resolution=row["resolution"],
                 power_mode=row["power_mode"], power_mode_id=row["power_mode_id"],
+                encoder=row["video_encoder"],
+                bitrate=row["video_bitrate_kbps"],
                 fps=number(row["fps"]), drop=number(row["drop_rate_percent"]),
                 queue=number(row["queue_wait_p95_ms"]),
                 pre=number(row["detector_preprocess_p95_ms"]),
