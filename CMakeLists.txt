@@ -169,6 +169,8 @@ add_library(
     edge_vision_video_output
     src/frame_annotator.cpp
     src/annotated_video_writer.cpp
+    src/opencv_mp4v_video_encoder_sink.cpp
+    src/gstreamer_x264_video_encoder_sink.cpp
 )
 target_include_directories(
     edge_vision_video_output
@@ -538,6 +540,17 @@ if(EDGE_VISION_ENABLE_GSTREAMER)
         gstreamer-1.0
         gstreamer-app-1.0
         gstreamer-video-1.0
+    )
+
+    target_compile_definitions(
+        edge_vision_video_output
+        PRIVATE
+            EDGE_VISION_HAS_GSTREAMER_X264=1
+    )
+    target_link_libraries(
+        edge_vision_video_output
+        PRIVATE
+            PkgConfig::GSTREAMER
     )
 
     add_library(

@@ -8,7 +8,8 @@ Usage:
     --model nano|tiny \
     --engine models/model.plan \
     --resolution 720p|1080p \
-    [--frames 600] [--warmup-frames 30]
+    [--frames 600] [--warmup-frames 30] \
+    [--output-encoder x264|mp4v] [--output-bitrate-kbps 10000]
 
 The benchmark uses CSI input and enables tracking, event evidence, annotated
 video output, runtime metrics, and Jetson telemetry. Select the nvpmodel mode
@@ -23,6 +24,8 @@ frames=600
 warmup_frames=30
 queue_capacity=2
 output_queue_capacity=4
+output_encoder="x264"
+output_bitrate_kbps=10000
 score_threshold=0.25
 nms_threshold=0.45
 track_threshold=0.50
@@ -41,6 +44,8 @@ while [[ $# -gt 0 ]]; do
         --warmup-frames) warmup_frames="$2"; shift 2 ;;
         --queue-capacity) queue_capacity="$2"; shift 2 ;;
         --output-queue-capacity) output_queue_capacity="$2"; shift 2 ;;
+        --output-encoder) output_encoder="$2"; shift 2 ;;
+        --output-bitrate-kbps) output_bitrate_kbps="$2"; shift 2 ;;
         --score-threshold) score_threshold="$2"; shift 2 ;;
         --nms-threshold) nms_threshold="$2"; shift 2 ;;
         --output-dir) output_dir="$2"; shift 2 ;;
@@ -59,6 +64,14 @@ if [[ "${model}" != "nano" && "${model}" != "tiny" ]]; then
     echo "--model must be nano or tiny" >&2
     exit 2
 fi
+if [[ "${output_encoder}" != "x264" && "${output_encoder}" != "mp4v" ]]; then
+    echo "--output-encoder must be x264 or mp4v" >&2
+    exit 2
+fi
+if [[ ! "${output_bitrate_kbps}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "--output-bitrate-kbps must be a positive integer" >&2
+    exit 2
+fi
 if [[ ! -x "${binary}" ]]; then
     echo "Runtime binary does not exist: ${binary}" >&2
     exit 1
@@ -69,6 +82,12 @@ if [[ ! -f "${engine}" ]]; then
 fi
 if ! command -v tegrastats >/dev/null 2>&1; then
     echo "tegrastats was not found" >&2
+    exit 1
+fi
+if [[ "${output_encoder}" == "x264" ]] &&
+    { ! command -v gst-inspect-1.0 >/dev/null 2>&1 ||
+      ! gst-inspect-1.0 x264enc >/dev/null 2>&1; }; then
+    echo "x264enc is unavailable; install gstreamer1.0-tools and gstreamer1.0-plugins-ugly" >&2
     exit 1
 fi
 if systemctl is-active --quiet edge-vision.service 2>/dev/null; then
@@ -121,7 +140,7 @@ fi
 
 mkdir -p "${output_dir}" "${artifact_dir}"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-stem="${model}_${resolution}_mode-${power_mode_id}_${timestamp}"
+stem="${model}_${resolution}_${output_encoder}_mode-${power_mode_id}_${timestamp}"
 run_dir="${artifact_dir}/${stem}"
 runtime_log="${output_dir}/${stem}.runtime.txt"
 metrics_json="${output_dir}/${stem}.metrics.json"
@@ -134,6 +153,8 @@ set +e
     echo "benchmark_profile=full"
     echo "benchmark_model=${model}"
     echo "benchmark_resolution=${resolution}"
+    echo "benchmark_output_encoder=${output_encoder}"
+    echo "benchmark_output_bitrate_kbps=${output_bitrate_kbps}"
     echo "power_mode=${power_mode}"
     echo "power_mode_id=${power_mode_id}"
     echo "clocks_locked=true"
@@ -171,6 +192,8 @@ set +e
         --event-clip-pre-seconds 1 \
         --event-clip-post-seconds 1 \
         --output-video "${run_dir}/annotated.mp4" \
+        --output-encoder "${output_encoder}" \
+        --output-bitrate-kbps "${output_bitrate_kbps}" \
         --output-queue-capacity "${output_queue_capacity}" \
         --metrics-json "${metrics_json}" \
         --tegrastats-interval-ms 500 \

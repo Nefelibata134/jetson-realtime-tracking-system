@@ -97,7 +97,9 @@ FP16 TensorRT engine on the target Jetson:
 sudo apt-get update
 sudo apt-get install -y \
   git curl cmake g++ pkg-config libopencv-dev libeigen3-dev nlohmann-json3-dev \
-  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly gstreamer1.0-tools
 
 git clone https://github.com/Nefelibata134/jetson-realtime-tracking-system.git
 cd jetson-realtime-tracking-system
@@ -390,6 +392,15 @@ tracking. Enqueue latency, writer drops, queue watermark, and final flush time
 are reported separately from real-time pipeline latency. Background encoding
 total and maximum execution time are also reported; enqueue time alone does
 not represent codec or storage cost.
+
+The runtime defaults annotated output to GStreamer `x264enc` with the
+`ultrafast` and `zerolatency` profiles, a one-second GOP, no B-frames, one
+reference frame, and adaptive quantization disabled. Set the target bitrate
+with `--output-bitrate-kbps` (default `10000`). Jetson Orin Nano has no NVENC,
+so this path is deliberately tuned CPU H.264. `--output-encoder mp4v` retains
+the OpenCV compatibility backend for comparison, but measured 1080p MP4V
+throughput is below 30 FPS. The selected encoder and bitrate are recorded in
+the runtime log and metrics JSON.
 
 Measured synchronous and asynchronous output results are available in the
 [annotated video output benchmark](docs/benchmarks/annotated_video_output.md).

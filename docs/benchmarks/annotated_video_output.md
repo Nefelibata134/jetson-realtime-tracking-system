@@ -36,6 +36,32 @@ that output backpressure is isolated from analytics and exposes the expected
 memory-versus-recording-continuity tradeoff. Capacity 4 is the default for
 the measured 720p pipeline.
 
+## 1080p Encoder Baseline
+
+The OpenCV MP4V compatibility backend did not sustain the 30 FPS audit stream
+at 1920x1080. With locked clocks it wrote 280/600 frames in 25W mode and
+379/600 frames in MAXN_SUPER mode while the analytics path remained at 30 FPS.
+Those measurements motivated the GStreamer x264 backend. Orin Nano does not
+provide NVENC; the replacement therefore uses the vendor-recommended CPU H.264
+approach with `ultrafast`, `zerolatency`, a one-second GOP, no B-frames, one
+reference frame, and disabled adaptive quantization. Its target acceptance
+criterion is 600/600 written frames at 1080p30 with zero audit-output drops.
+
+Run the controlled comparison with:
+
+```bash
+bash scripts/run_pipeline_benchmark.sh \
+  --model nano \
+  --engine models/yolox_nano_fp16.plan \
+  --resolution 1080p \
+  --output-encoder x264 \
+  --output-bitrate-kbps 10000 \
+  --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
+```
+
+The x264 result is published only after target-device validation; enabling the
+backend alone is not evidence that the acceptance criterion has been met.
+
 `Capture drops` occur before inference and can hide short-lived targets or
 events. `Output drops` occur after detection and tracking, so they affect the
 saved video but not the analytics result. Both counters remain observable

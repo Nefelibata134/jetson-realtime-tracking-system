@@ -10,7 +10,8 @@ changing detector input shape or event configuration between comparison runs.
 - Input: IMX219 CSI delivered to the application at 30 FPS.
 - Event rules: full-frame ROI intrusion and two-second dwell, all classes.
 - Evidence: JSONL journal, JPEG snapshots, one-second pre/post-event clips.
-- Audit output: bounded asynchronous annotated MP4 writer.
+- Audit output: bounded asynchronous annotated MP4 writer using GStreamer
+  `x264enc`, `ultrafast`, `zerolatency`, and 10 Mbps.
 - Telemetry: internal `tegrastats` sampler at 500 ms.
 - Warmup: 30 frames excluded from steady-state statistics.
 - Measured window: 600 frames per run.
@@ -74,6 +75,11 @@ bash scripts/run_pipeline_benchmark.sh \
   --resolution 1080p \
   --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
 ```
+
+The harness defaults to `--output-encoder x264 --output-bitrate-kbps 10000`.
+Pass `--output-encoder mp4v` only to reproduce the legacy OpenCV baseline.
+Encoder and bitrate are part of the matrix key, so the two backends remain
+separate rather than overwriting one another.
 
 Repeat both runs in mode 2, then generate the matrix:
 

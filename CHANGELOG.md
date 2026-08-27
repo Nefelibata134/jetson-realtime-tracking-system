@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Selectable GStreamer x264 annotated-video output with a low-latency
+  Orin Nano CPU encoding profile and explicit bitrate control.
+- Encoder and bitrate fields in runtime metrics and full-pipeline benchmark
+  grouping.
+
+### Changed
+
+- Full-pipeline benchmarks default to x264 while retaining MP4V as a
+  compatibility baseline.
+
 ## [1.0.0] - 2026-08-23
 
 ### Added

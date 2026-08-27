@@ -129,6 +129,9 @@ nlohmann::json make_json(const RuntimeMetricsReport& report) {
              {"annotated_video",
               {
                   {"enabled", outputs.annotated_video_enabled},
+                  {"encoder", outputs.annotated_video_encoder},
+                  {"bitrate_kbps",
+                   outputs.annotated_video_bitrate_kbps},
                   {"frames_submitted",
                    outputs.video_frames_submitted},
                   {"frames_written", outputs.video_frames_written},

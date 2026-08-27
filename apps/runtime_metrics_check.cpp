@@ -39,6 +39,8 @@ int main() {
     report.outputs.event_clip_frames_encoded = 120;
     report.outputs.event_clip_encoding_total_ms = 80.0;
     report.outputs.annotated_video_enabled = true;
+    report.outputs.annotated_video_encoder = "x264";
+    report.outputs.annotated_video_bitrate_kbps = 10000;
     report.outputs.video_frames_submitted = 95;
     report.outputs.video_frames_written = 95;
     report.outputs.video_encoding_total_ms = 190.0;
@@ -78,7 +80,13 @@ int main() {
                 .at("frames_encoded") == 120 &&
         document.at("outputs")
                 .at("annotated_video")
-                .at("frames_written") == 95;
+                .at("frames_written") == 95 &&
+        document.at("outputs")
+                .at("annotated_video")
+                .at("encoder") == "x264" &&
+        document.at("outputs")
+                .at("annotated_video")
+                .at("bitrate_kbps") == 10000;
     const bool device =
         document.at("device").at("available") == true &&
         document.at("device").at("input_power_w").at("samples") == 2 &&

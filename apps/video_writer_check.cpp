@@ -1,11 +1,17 @@
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include "edge_vision/annotated_video_writer.hpp"
 
-int main() {
+int main(const int argc, char** argv) {
+    const bool use_x264 = argc == 2 && std::string(argv[1]) == "x264";
+    if (argc > 2 || (argc == 2 && !use_x264)) {
+        std::cerr << "Usage: " << argv[0] << " [x264]\n";
+        return 2;
+    }
     const std::filesystem::path output_path =
         "annotated_video_writer_check.mp4";
     std::filesystem::remove(output_path);
@@ -14,6 +20,10 @@ int main() {
     config.output_path = output_path.string();
     config.frames_per_second = 30.0;
     config.queue_capacity = 2;
+    config.encoder = use_x264
+                         ? edge_vision::AnnotatedVideoEncoder::GStreamerX264
+                         : edge_vision::AnnotatedVideoEncoder::OpenCvMp4v;
+    config.bitrate_kbps = 2000;
     config.event_regions.push_back({{
         {0.5F, 0.2F},
         {0.9F, 0.2F},
@@ -65,6 +75,9 @@ int main() {
         stats.encoding_max_ms <= stats.encoding_total_ms;
 
     std::cout << "submitted=" << stats.frames_submitted << '\n';
+    std::cout << "encoder="
+              << edge_vision::annotated_video_encoder_name(config.encoder)
+              << '\n';
     std::cout << "written=" << stats.frames_written << '\n';
     std::cout << "dropped=" << stats.frames_dropped << '\n';
     std::cout << "queue_high_watermark=" << stats.queue_high_watermark

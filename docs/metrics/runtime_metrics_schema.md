@@ -85,7 +85,9 @@ latency:
 - `event_clips` reports clip accounting, encoded frames, queue watermark,
   background encode time, and final flush time.
 - `annotated_video` reports submitted, written, and dropped frames, queue
-  watermark, background encode time, and final flush time.
+  watermark, selected encoder, configured H.264 bitrate, background encode
+  time, and final flush time. `bitrate_kbps` is `0` for the MP4V compatibility
+  backend because OpenCV does not expose a configured bitrate in this path.
 
 Encoding total divided by written frames is a workload rate, not per-frame
 request latency. `video_enqueue` measures only bounded queue submission.

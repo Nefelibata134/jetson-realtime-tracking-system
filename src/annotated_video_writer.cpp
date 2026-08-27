@@ -1,6 +1,6 @@
 #include "edge_vision/annotated_video_writer.hpp"
 
-#include <opencv2/videoio.hpp>
+#include "video_encoder_sink.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -40,6 +40,14 @@ public:
             config_.event_label_duration_seconds <= 0.0) {
             throw std::invalid_argument(
                 "event label duration must be positive");
+        }
+        if (config_.encoder == AnnotatedVideoEncoder::GStreamerX264 &&
+            config_.bitrate_kbps == 0) {
+            throw std::invalid_argument("x264 bitrate must be positive");
+        }
+        if (config_.encoder != AnnotatedVideoEncoder::OpenCvMp4v &&
+            config_.encoder != AnnotatedVideoEncoder::GStreamerX264) {
+            throw std::invalid_argument("unsupported annotated video encoder");
         }
         worker_ = std::thread(&Impl::run, this);
     }
@@ -145,8 +153,8 @@ private:
                         std::max(stats_.encoding_max_ms, encoding_ms);
                 }
             }
-            if (writer_.isOpened()) {
-                writer_.release();
+            if (encoder_) {
+                encoder_->finish();
             }
         } catch (...) {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -195,11 +203,7 @@ private:
             CV_8UC3,
             annotated.data.data());
         open_if_needed(image.size());
-        if (image.size() != frame_size_) {
-            throw std::invalid_argument(
-                "video output frame dimensions changed during the stream");
-        }
-        writer_.write(image);
+        encoder_->write(image);
     }
 
     void request_stop() noexcept {
@@ -223,7 +227,7 @@ private:
     }
 
     void open_if_needed(const cv::Size& frame_size) {
-        if (writer_.isOpened()) {
+        if (encoder_) {
             return;
         }
 
@@ -232,24 +236,32 @@ private:
             std::filesystem::create_directories(path.parent_path());
         }
 
-        const int codec = cv::VideoWriter::fourcc('m', 'p', '4', 'v');
-        if (!writer_.open(
-                config_.output_path,
-                codec,
-                config_.frames_per_second,
-                frame_size,
-                true)) {
-            throw std::runtime_error(
-                "failed to open annotated video output: " +
-                config_.output_path);
+        switch (config_.encoder) {
+            case AnnotatedVideoEncoder::OpenCvMp4v:
+                encoder_ = detail::make_opencv_mp4v_sink(
+                    config_.output_path,
+                    config_.frames_per_second,
+                    frame_size);
+                break;
+            case AnnotatedVideoEncoder::GStreamerX264:
+#if defined(EDGE_VISION_HAS_GSTREAMER_X264)
+                encoder_ = detail::make_gstreamer_x264_sink(
+                    config_.output_path,
+                    config_.frames_per_second,
+                    frame_size,
+                    config_.bitrate_kbps);
+#else
+                throw std::runtime_error(
+                    "x264 video output requires a build configured with "
+                    "EDGE_VISION_ENABLE_GSTREAMER=ON");
+#endif
+                break;
         }
-        frame_size_ = frame_size;
     }
 
     AnnotatedVideoWriterConfig config_;
     FrameAnnotationConfig annotation_config_;
-    cv::VideoWriter writer_;
-    cv::Size frame_size_;
+    std::unique_ptr<detail::VideoEncoderSink> encoder_;
     mutable std::mutex mutex_;
     std::condition_variable ready_;
     std::deque<Packet> queue_;
@@ -259,6 +271,17 @@ private:
     AnnotatedVideoWriterStats stats_;
     bool stop_requested_{false};
 };
+
+std::string_view annotated_video_encoder_name(
+    const AnnotatedVideoEncoder encoder) noexcept {
+    switch (encoder) {
+        case AnnotatedVideoEncoder::OpenCvMp4v:
+            return "mp4v";
+        case AnnotatedVideoEncoder::GStreamerX264:
+            return "x264";
+    }
+    return "unknown";
+}
 
 AnnotatedVideoWriter::AnnotatedVideoWriter(AnnotatedVideoWriterConfig config)
     : impl_(std::make_unique<Impl>(std::move(config))) {}

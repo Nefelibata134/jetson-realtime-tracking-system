@@ -80,6 +80,8 @@ struct RuntimeOutputMetrics {
     double event_clip_encoding_max_ms{0.0};
     double event_clip_flush_ms{0.0};
     bool annotated_video_enabled{false};
+    std::string annotated_video_encoder{"disabled"};
+    std::uint32_t annotated_video_bitrate_kbps{0};
     std::uint64_t video_frames_submitted{0};
     std::uint64_t video_frames_written{0};
     std::uint64_t video_frames_dropped{0};

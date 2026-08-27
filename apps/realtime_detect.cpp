@@ -57,6 +57,9 @@ struct Options {
     std::uint64_t warmup_frames{0};
     std::size_t queue_capacity{2};
     std::size_t output_queue_capacity{4};
+    edge_vision::AnnotatedVideoEncoder output_video_encoder{
+        edge_vision::AnnotatedVideoEncoder::GStreamerX264};
+    std::uint32_t output_video_bitrate_kbps{10000};
     std::uint64_t log_interval{30};
     float score_threshold{0.3F};
     float nms_threshold{0.45F};
@@ -144,6 +147,8 @@ void print_usage(const char* program) {
         << "  --event-clip-pre-seconds VALUE\n"
         << "  --event-clip-post-seconds VALUE\n"
         << "  --output-video PATH\n"
+        << "  --output-encoder mp4v|x264\n"
+        << "  --output-bitrate-kbps N\n"
         << "  --output-queue-capacity N\n"
         << "  --metrics-json PATH\n"
         << "  --tegrastats-path PATH\n"
@@ -241,6 +246,20 @@ edge_vision::CrossingDirection parse_crossing_direction(
         return edge_vision::CrossingDirection::PositiveToNegative;
     }
     throw std::invalid_argument("invalid value for " + option);
+}
+
+edge_vision::AnnotatedVideoEncoder parse_output_video_encoder(
+    const char* text,
+    const std::string& option) {
+    const std::string value{text};
+    if (value == "mp4v") {
+        return edge_vision::AnnotatedVideoEncoder::OpenCvMp4v;
+    }
+    if (value == "x264") {
+        return edge_vision::AnnotatedVideoEncoder::GStreamerX264;
+    }
+    throw std::invalid_argument(
+        option + " must be mp4v or x264");
 }
 
 void select_source(
@@ -341,6 +360,12 @@ Options parse_options(const int argc, char** argv) {
                 parse_nonnegative_float(require_value(argument), argument);
         } else if (argument == "--output-video") {
             options.output_video_path = require_value(argument);
+        } else if (argument == "--output-encoder") {
+            options.output_video_encoder =
+                parse_output_video_encoder(require_value(argument), argument);
+        } else if (argument == "--output-bitrate-kbps") {
+            options.output_video_bitrate_kbps = parse_number<std::uint32_t>(
+                require_value(argument), argument);
         } else if (argument == "--output-queue-capacity") {
             options.output_queue_capacity =
                 parse_number<std::size_t>(require_value(argument), argument);
@@ -416,6 +441,7 @@ Options parse_options(const int argc, char** argv) {
         (!options.continuous && options.frame_limit == 0) ||
         options.queue_capacity == 0 ||
         options.output_queue_capacity == 0 ||
+        options.output_video_bitrate_kbps == 0 ||
         options.tegrastats_interval_ms == 0 ||
         options.metrics_window_frames == 0 || options.log_interval == 0 ||
         options.camera.width <= 0 ||
@@ -674,6 +700,8 @@ int main(int argc, char** argv) {
             writer_config.frames_per_second =
                 options.camera.frames_per_second;
             writer_config.queue_capacity = options.output_queue_capacity;
+            writer_config.encoder = options.output_video_encoder;
+            writer_config.bitrate_kbps = options.output_video_bitrate_kbps;
             writer_config.event_regions = annotation_config.event_regions;
             writer_config.event_lines = annotation_config.event_lines;
             video_writer =
@@ -1263,6 +1291,16 @@ int main(int argc, char** argv) {
             report.outputs.event_clip_flush_ms = event_clip_flush_ms;
             report.outputs.annotated_video_enabled =
                 static_cast<bool>(video_writer);
+            report.outputs.annotated_video_encoder = video_writer
+                ? std::string(edge_vision::annotated_video_encoder_name(
+                      options.output_video_encoder))
+                : "disabled";
+            report.outputs.annotated_video_bitrate_kbps =
+                video_writer &&
+                        options.output_video_encoder ==
+                            edge_vision::AnnotatedVideoEncoder::GStreamerX264
+                    ? options.output_video_bitrate_kbps
+                    : 0;
             report.outputs.video_frames_submitted =
                 video_stats.frames_submitted;
             report.outputs.video_frames_written = video_stats.frames_written;
@@ -1380,6 +1418,16 @@ int main(int argc, char** argv) {
         }
         if (video_writer) {
             std::cout << "output_video=" << video_writer->output_path() << '\n';
+            std::cout << "output_encoder="
+                      << edge_vision::annotated_video_encoder_name(
+                             options.output_video_encoder)
+                      << '\n';
+            std::cout << "output_bitrate_kbps="
+                      << (options.output_video_encoder ==
+                                  edge_vision::AnnotatedVideoEncoder::GStreamerX264
+                              ? options.output_video_bitrate_kbps
+                              : 0)
+                      << '\n';
             std::cout << "output_frames_submitted="
                       << video_stats.frames_submitted << '\n';
             std::cout << "output_frames=" << video_stats.frames_written

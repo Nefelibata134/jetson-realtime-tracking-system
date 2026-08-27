@@ -44,6 +44,17 @@ def build_row(runtime_path: Path, metrics_path: Path) -> dict[str, object]:
     video = outputs.get("annotated_video", {})
     clips = outputs.get("event_clips", {})
     device = metrics.get("device", {})
+    video_encoder = (
+        video.get("encoder")
+        or runtime.get("output_encoder")
+        or runtime.get("benchmark_output_encoder")
+        or "mp4v"
+    )
+    video_bitrate_kbps = video.get("bitrate_kbps")
+    if video_bitrate_kbps is None:
+        video_bitrate_kbps = runtime.get(
+            "benchmark_output_bitrate_kbps", "0"
+        )
 
     passed = (
         runtime.get("runtime_exit_code") == "0"
@@ -64,6 +75,8 @@ def build_row(runtime_path: Path, metrics_path: Path) -> dict[str, object]:
         "drop_rate_percent": pipeline.get("drop_rate_percent"),
         "fps": pipeline.get("effective_fps"),
         "total_events": pipeline.get("total_events"),
+        "video_encoder": video_encoder,
+        "video_bitrate_kbps": video_bitrate_kbps,
         "snapshots_written": nested(outputs, "snapshots", "written"),
         "event_clips_completed": clips.get("completed"),
         "video_frames_written": video.get("frames_written"),
@@ -107,13 +120,15 @@ def build_row(runtime_path: Path, metrics_path: Path) -> dict[str, object]:
 
 
 def latest_matrix(rows: Iterable[dict[str, object]]) -> list[dict[str, object]]:
-    latest: dict[tuple[str, str, str, str], dict[str, object]] = {}
+    latest: dict[tuple[str, str, str, str, str, str], dict[str, object]] = {}
     for row in rows:
         key = (
             str(row["profile"]),
             str(row["model"]),
             str(row["resolution"]),
             str(row["power_mode_id"]),
+            str(row["video_encoder"]),
+            str(row["video_bitrate_kbps"]),
         )
         if key not in latest or str(row["timestamp"]) > str(latest[key]["timestamp"]):
             latest[key] = row
@@ -124,6 +139,8 @@ def latest_matrix(rows: Iterable[dict[str, object]]) -> list[dict[str, object]]:
             str(row["model"]),
             resolution_order.get(str(row["resolution"]), 99),
             str(row["power_mode_id"]),
+            str(row["video_encoder"]),
+            str(row["video_bitrate_kbps"]),
         ),
     )
 
@@ -132,6 +149,7 @@ CSV_FIELDS = [
     "status", "timestamp", "profile", "model", "resolution",
     "power_mode", "power_mode_id", "clocks_locked", "engine_sha256",
     "measured_frames", "drop_rate_percent", "fps", "total_events",
+    "video_encoder", "video_bitrate_kbps",
     "queue_wait_p95_ms", "detector_preprocess_p95_ms",
     "tensorrt_inference_p95_ms", "detector_postprocess_p95_ms",
     "detection_p95_ms", "tracking_p95_ms", "event_analysis_p95_ms",
@@ -183,14 +201,16 @@ def markdown(rows: list[dict[str, object]]) -> str:
         "",
         "## Background Output And Device",
         "",
-        "| Capture | Power | Events | Snapshots | Clips | Clip ms/frame | Video written/dropped | Video ms/frame | Flush ms | Mean W | GPU max % | GPU max C | RAM max MiB |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Capture | Power | Encoder | kbps | Events | Snapshots | Clips | Clip ms/frame | Video written/dropped | Video ms/frame | Flush ms | Mean W | GPU max % | GPU max C | RAM max MiB |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ])
     for row in rows:
         lines.append(
-            "| {resolution} | {power_mode} ({power_mode_id}) | {events} | {snapshots} | {clips} | {clip_ms} | {written}/{dropped} | {video_ms} | {flush} | {power} | {gpu} | {temp} | {ram} |".format(
+            "| {resolution} | {power_mode} ({power_mode_id}) | {encoder} | {bitrate} | {events} | {snapshots} | {clips} | {clip_ms} | {written}/{dropped} | {video_ms} | {flush} | {power} | {gpu} | {temp} | {ram} |".format(
                 resolution=row["resolution"], power_mode=row["power_mode"],
                 power_mode_id=row["power_mode_id"], events=row["total_events"],
+                encoder=row["video_encoder"],
+                bitrate=row["video_bitrate_kbps"],
                 snapshots=row["snapshots_written"], clips=row["event_clips_completed"],
                 clip_ms=number(row["event_clip_encode_ms_per_frame"]),
                 written=row["video_frames_written"], dropped=row["video_frames_dropped"],

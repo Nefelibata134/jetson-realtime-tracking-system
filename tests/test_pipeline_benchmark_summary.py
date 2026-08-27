@@ -53,6 +53,8 @@ runtime_exit_code=0
                     "flush_ms": 20.0,
                 },
                 "annotated_video": {
+                    "encoder": "x264",
+                    "bitrate_kbps": 10000,
                     "frames_written": 300,
                     "frames_dropped": 0,
                     "encoding_total_ms": 600.0,
@@ -80,16 +82,32 @@ runtime_exit_code=0
         self.assertEqual(row["tensorrt_inference_p95_ms"], 5.0)
         self.assertEqual(row["event_clip_encode_ms_per_frame"], 2.0)
         self.assertEqual(row["video_encode_ms_per_frame"], 2.0)
+        self.assertEqual(row["video_encoder"], "x264")
+        self.assertEqual(row["video_bitrate_kbps"], 10000)
         self.assertEqual(row["power_mean_w"], 8.0)
 
     def test_latest_matrix_keeps_latest_power_resolution_combination(self) -> None:
         rows = [
-            {"profile": "full", "model": "nano", "resolution": "720p", "power_mode_id": "1", "timestamp": "1"},
-            {"profile": "full", "model": "nano", "resolution": "720p", "power_mode_id": "1", "timestamp": "2"},
+            {"profile": "full", "model": "nano", "resolution": "720p", "power_mode_id": "1", "video_encoder": "mp4v", "video_bitrate_kbps": 0, "timestamp": "1"},
+            {"profile": "full", "model": "nano", "resolution": "720p", "power_mode_id": "1", "video_encoder": "mp4v", "video_bitrate_kbps": 0, "timestamp": "2"},
         ]
         latest = MODULE.latest_matrix(rows)
         self.assertEqual(len(latest), 1)
         self.assertEqual(latest[0]["timestamp"], "2")
+
+    def test_latest_matrix_keeps_encoder_profiles_separate(self) -> None:
+        common = {
+            "profile": "full",
+            "model": "nano",
+            "resolution": "1080p",
+            "power_mode_id": "2",
+            "timestamp": "1",
+        }
+        rows = [
+            {**common, "video_encoder": "mp4v", "video_bitrate_kbps": 0},
+            {**common, "video_encoder": "x264", "video_bitrate_kbps": 10000},
+        ]
+        self.assertEqual(len(MODULE.latest_matrix(rows)), 2)
 
     def test_csv_uses_lf_line_endings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

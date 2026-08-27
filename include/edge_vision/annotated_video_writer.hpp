@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "edge_vision/frame_annotator.hpp"
@@ -12,10 +13,20 @@
 
 namespace edge_vision {
 
+enum class AnnotatedVideoEncoder {
+    OpenCvMp4v,
+    GStreamerX264,
+};
+
+[[nodiscard]] std::string_view annotated_video_encoder_name(
+    AnnotatedVideoEncoder encoder) noexcept;
+
 struct AnnotatedVideoWriterConfig {
     std::string output_path;
     double frames_per_second{30.0};
     std::size_t queue_capacity{4};
+    AnnotatedVideoEncoder encoder{AnnotatedVideoEncoder::OpenCvMp4v};
+    std::uint32_t bitrate_kbps{10000};
     std::vector<PolygonRegion> event_regions;
     std::vector<NormalizedLineSegment> event_lines;
     double event_label_duration_seconds{1.5};
