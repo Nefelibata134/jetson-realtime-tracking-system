@@ -36,6 +36,26 @@ that output backpressure is isolated from analytics and exposes the expected
 memory-versus-recording-continuity tradeoff. Capacity 4 is the default for
 the measured 720p pipeline.
 
+## 720p Encoder Comparison
+
+The 600-frame full-pipeline regression was repeated at 1280x720 after adding
+the x264 backend. MP4V already preserved the complete 720p stream, while x264
+reduced background encoding work from 30.93 to 4.68 ms/frame in 25W mode and
+from 23.05 to 3.95 ms/frame in MAXN_SUPER mode.
+
+| Power mode | Encoder | Events | Pipeline FPS | E2E P95 ms | Written/submitted | Output drops | Encode ms/frame | Mean W |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 25W | MP4V | 2 | 30.03 | 9.99 | 600/600 | 0 | 30.93 | 8.69 |
+| 25W | x264 | 4 | 30.03 | 9.93 | 600/600 | 0 | 4.68 | 8.94 |
+| MAXN_SUPER | MP4V | 2 | 30.04 | 8.46 | 600/600 | 0 | 23.05 | 9.00 |
+| MAXN_SUPER | x264 | 5 | 30.04 | 8.62 | 600/600 | 0 | 3.95 | 9.36 |
+
+Both x264 runs preserved all 600 output frames while processing live event
+evidence. GStreamer inspection confirmed 1280x720 H.264 Constrained Baseline
+at 30/1 FPS and exactly 20 seconds for both files. Event counts are reported
+as workload evidence, not compared as a quality metric because the live camera
+scene differed between runs.
+
 ## 1080p Encoder Comparison
 
 The OpenCV MP4V compatibility backend did not sustain the 30 FPS audit stream
@@ -67,11 +87,14 @@ Run the controlled comparison with:
 bash scripts/run_pipeline_benchmark.sh \
   --model nano \
   --engine models/yolox_nano_fp16.plan \
-  --resolution 1080p \
+  --resolution 720p \
   --output-encoder x264 \
   --output-bitrate-kbps 10000 \
   --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
 ```
+
+Repeat with `--resolution 1080p` and under each locked power mode to reproduce
+the complete comparison.
 
 `Capture drops` occur before inference and can hide short-lived targets or
 events. `Output drops` occur after detection and tracking, so they affect the

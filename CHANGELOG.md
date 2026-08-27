@@ -20,9 +20,10 @@ All notable changes to this project are documented in this file.
 
 ### Validated
 
-- The x264 backend wrote 600/600 annotated 1920x1080 frames with zero output
-  drops in both 25W and MAXN_SUPER locked-clock modes. The resulting files are
-  H.264 at 30 FPS and 20 seconds for the 600-frame measurement window.
+- The x264 backend wrote 600/600 annotated frames with zero output drops at both
+  1280x720 and 1920x1080 in 25W and MAXN_SUPER locked-clock modes. GStreamer
+  inspection confirmed H.264 at 30 FPS and 20 seconds for every 600-frame
+  measurement file.
 
 ## [1.0.0] - 2026-08-23
 

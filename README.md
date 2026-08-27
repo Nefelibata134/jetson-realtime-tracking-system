@@ -18,7 +18,9 @@ All figures below were measured on a Jetson Orin Nano 8GB with locked clocks.
 | Configuration | Audit encoder | FPS | Capture drop | TRT P95 | E2E P95 | Video written | Mean input power |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | 720p, 25W | MP4V | 30.03 | 0.00% | 3.53 ms | 9.99 ms | 600/600 | 8.69 W |
+| 720p, 25W | x264 | 30.03 | 0.00% | 3.49 ms | 9.93 ms | 600/600 | 8.94 W |
 | 720p, MAXN_SUPER | MP4V | 30.04 | 0.00% | 3.22 ms | 8.46 ms | 600/600 | 9.00 W |
+| 720p, MAXN_SUPER | x264 | 30.04 | 0.00% | 3.25 ms | 8.62 ms | 600/600 | 9.36 W |
 | 1080p, 25W | MP4V | 30.04 | 0.00% | 3.49 ms | 14.17 ms | 280/600 | 8.93 W |
 | 1080p, 25W | x264 | 30.00 | 0.00% | 3.75 ms | 13.67 ms | 600/600 | 9.35 W |
 | 1080p, MAXN_SUPER | MP4V | 29.99 | 0.00% | 3.24 ms | 12.13 ms | 379/600 | 9.46 W |
@@ -39,9 +41,11 @@ See the [full pipeline matrix](docs/benchmarks/jetson_full_pipeline_matrix.md),
 [service stability report](docs/operations/stability_report.md) for protocols,
 sample counts, and limitations.
 
-The 25W x264 run contained no detections or emitted events; it validates audit
-encoding continuity but not active event I/O. The MAXN_SUPER x264 run emitted
-both intrusion and dwell evidence while preserving all 600 audit frames.
+The 1080p 25W x264 run contained no detections or emitted events; it validates
+audit encoding continuity but not active event I/O. The 1080p MAXN_SUPER x264
+run emitted intrusion and dwell evidence while preserving all 600 audit frames.
+Both 720p x264 runs also emitted event evidence and preserved all 600 audit
+frames.
 
 ## Runtime Evidence
 
