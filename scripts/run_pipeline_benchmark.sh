@@ -120,7 +120,7 @@ case "${resolution}" in
         ;;
 esac
 
-power_query="$(sudo nvpmodel -q)"
+power_query="$(nvpmodel -q)"
 power_mode="$(printf '%s\n' "${power_query}" | awk -F': ' '/NV Power Mode/{print $2; exit}')"
 power_mode_id="$(printf '%s\n' "${power_query}" | awk '/^[[:space:]]*[0-9]+[[:space:]]*$/{gsub(/[[:space:]]/, ""); print; exit}')"
 if [[ -z "${power_mode}" || -z "${power_mode_id}" ]]; then
@@ -129,10 +129,17 @@ if [[ -z "${power_mode}" || -z "${power_mode_id}" ]]; then
     exit 1
 fi
 
-clock_state="$(sudo jetson_clocks --show)"
-gpu_line="$(printf '%s\n' "${clock_state}" | awk '/^GPU MinFreq=/{print; exit}')"
-gpu_min="$(printf '%s\n' "${gpu_line}" | sed -n 's/.*MinFreq=\([0-9]*\).*/\1/p')"
-gpu_max="$(printf '%s\n' "${gpu_line}" | sed -n 's/.*MaxFreq=\([0-9]*\).*/\1/p')"
+gpu_min=""
+gpu_max=""
+for gpu_devfreq in \
+    /sys/class/devfreq/*gpu* \
+    /sys/devices/platform/*.gpu/devfreq/*; do
+    if [[ -r "${gpu_devfreq}/min_freq" && -r "${gpu_devfreq}/max_freq" ]]; then
+        gpu_min="$(<"${gpu_devfreq}/min_freq")"
+        gpu_max="$(<"${gpu_devfreq}/max_freq")"
+        break
+    fi
+done
 if [[ -z "${gpu_min}" || -z "${gpu_max}" || "${gpu_min}" != "${gpu_max}" ]]; then
     echo "Jetson clocks are not locked; run sudo jetson_clocks first" >&2
     exit 1
