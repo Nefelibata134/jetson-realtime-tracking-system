@@ -1,74 +1,58 @@
-# Changelog
+# 变更记录
 
-All notable changes to this project are documented in this file.
+本文件记录项目的重要变更。
 
-## [Unreleased]
+## [未发布]
 
-### Added
+### 新增
 
-- Selectable GStreamer x264 annotated-video output with a low-latency
-  Orin Nano CPU encoding profile and explicit bitrate control.
-- Encoder and bitrate fields in runtime metrics and full-pipeline benchmark
-  grouping.
+- 可选择的 GStreamer x264 标注视频输出，使用适合 Orin Nano CPU 的低延迟编码配置，
+  并支持显式码率控制。
+- 在运行指标和完整流水线基准分组中加入编码器与码率字段。
 
-### Changed
+### 变更
 
-- Full-pipeline benchmarks default to x264 while retaining MP4V as a
-  compatibility baseline.
-- Benchmark power and locked-clock validation no longer requires root after
-  the operator has selected the mode and run `jetson_clocks`.
+- 完整流水线基准默认使用 x264，同时保留 MP4V 作为兼容性基线。
+- 操作者选择功率模式并执行 `jetson_clocks` 后，基准的功率模式和锁频校验不再要求
+  root 权限。
+- README、工程文档与自动生成报告统一使用中文说明，同时保留命令、指标字段和运行契约。
 
-### Validated
+### 验证
 
-- The x264 backend wrote 600/600 annotated frames with zero output drops at both
-  1280x720 and 1920x1080 in 25W and MAXN_SUPER locked-clock modes. GStreamer
-  inspection confirmed H.264 at 30 FPS and 20 seconds for every 600-frame
-  measurement file.
+- 在 25W 与 MAXN_SUPER 锁频模式下，x264 后端均能以 1280x720 和 1920x1080 写入
+  600/600 个标注帧，输出零丢帧。GStreamer 检查确认每个 600 帧测量文件均为
+  30 FPS、20 秒的 H.264 视频。
 
 ## [1.0.0] - 2026-08-23
 
-### Added
+### 新增
 
-- File, IMX219 CSI, and H.264 RTSP ingestion through GStreamer.
-- Bounded drop-oldest capture queue with no-frame detection and finite source
-  recovery.
-- YOLOX-Nano and YOLOX-Tiny preprocessing, TensorRT execution, decoding, and
-  NMS.
-- Class-aware ByteTrack with Kalman prediction, two-stage association, lost
-  track aging, and stream reset semantics.
-- ROI intrusion, finite directional crossing, and timestamp-based dwell
-  events.
-- Versioned JSONL event journal, atomic snapshots, and bounded pre/post-event
-  clips.
-- Asynchronous annotated-video output with explicit backpressure metrics.
-- Versioned atomic runtime metrics and background Jetson telemetry.
-- systemd readiness, real-frame watchdog, graceful shutdown, retention, and
-  log rotation.
-- Reproducible Jetson pipeline benchmarks, MOT17 evaluation, one-hour service
-  soak, and process/source fault injection.
+- 通过 GStreamer 接入文件、IMX219 CSI 和 H.264 RTSP。
+- 有界丢弃最旧帧采集队列，支持无帧检测和有限次数输入源恢复。
+- YOLOX-Nano 与 YOLOX-Tiny 预处理、TensorRT 执行、解码和 NMS。
+- 按类别关联的 ByteTrack，包含 Kalman 预测、两阶段关联、丢失轨迹老化和流重置语义。
+- ROI 入侵、有限线段定向穿越和基于时间戳的停留事件。
+- 版本化 JSONL 事件日志、原子截图和有界事件前后片段。
+- 带显式背压指标的异步标注视频输出。
+- 版本化原子运行指标与后台 Jetson 遥测。
+- systemd readiness、真实帧 watchdog、有序停止、保留策略和日志轮转。
+- 可复现的 Jetson 流水线基准、MOT17 评估、1 小时服务持续运行及进程/输入源故障注入。
 
-### Validated
+### 验证
 
-- 720p and 1080p complete-pipeline runs under 25W and MAXN_SUPER locked-clock
-  configurations.
-- A fixed MOT17 public-training holdout using pinned TrackEval.
-- A 60-minute CSI service soak plus controlled main-process and RTSP outages.
+- 在 25W 与 MAXN_SUPER 锁频配置下完成 720p 和 1080p 完整流水线测试。
+- 使用固定 TrackEval 的 MOT17 公开训练序列留出划分。
+- 60 分钟 CSI 服务持续运行，以及受控主进程和 RTSP 中断。
 
-### Known Limitations
+### 已知限制
 
-- TensorRT plan files are not portable across Jetson models or TensorRT/CUDA
-  software stacks and are therefore generated on the target device.
-- The supplied COCO-pretrained YOLOX models are not fine-tuned for a specific
-  deployment scene.
-- OpenCV MP4V software encoding cannot preserve every 1080p/30 annotated frame
-  on the measured device; the bounded output queue protects the analytics
-  path by dropping stale output frames.
-- Snapshot and JSONL publication remain synchronous to preserve evidence
-  ordering, so slow storage can increase latency on event frames. Clip and
-  annotated-video encoding use bounded background workers.
-- RTSP URIs are process arguments; credentials embedded in a URI can be
-  visible to local process inspection tools.
-- Event evidence is persisted locally. Remote upload, authentication, and
-  fleet management are outside this release.
+- TensorRT plan 不能跨 Jetson 型号或 TensorRT/CUDA 软件栈移植，因此必须在目标设备生成。
+- 随项目提供的 COCO 预训练 YOLOX 模型没有针对特定部署场景微调。
+- 在实测设备上，OpenCV MP4V 软件编码无法保存全部 1080p/30 标注帧；有界输出队列通过
+  丢弃过时输出帧保护分析主链路。
+- 为保持证据顺序，截图和 JSONL 发布仍为同步操作，慢存储会提高事件帧延迟。片段和标注
+  视频编码使用有界后台工作线程。
+- RTSP URI 作为进程参数传入；本地进程查看工具可能看到 URI 中嵌入的凭据。
+- 事件证据保存在本地，本版本不包含远程上传、认证和设备集群管理。
 
 [1.0.0]: https://github.com/Nefelibata134/jetson-realtime-tracking-system/releases/tag/v1.0.0

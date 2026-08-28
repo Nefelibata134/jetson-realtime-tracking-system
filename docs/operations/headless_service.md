@@ -1,37 +1,31 @@
-# Headless Service Operations
+# 无头服务运维
 
-The runtime can be installed as a systemd service for unattended Jetson
-operation. The service uses the same TensorRT, GStreamer, ByteTrack, event, and
-telemetry code paths as the command-line runtime.
+运行时可以安装为 systemd 服务，在 Jetson 上无人值守运行。服务与命令行程序使用相同的
+TensorRT、GStreamer、ByteTrack、事件和遥测代码路径。
 
-The main service deliberately does not enable systemd `PrivateTmp`. NVIDIA
-Argus camera capture communicates through a host-managed endpoint under
-`/tmp`, so an isolated temporary directory would prevent `nvarguscamerasrc`
-from reaching the camera daemon. The spool-pruning service does not use the
-camera and keeps its temporary-directory isolation.
+主服务有意不启用 systemd `PrivateTmp`。NVIDIA Argus 摄像头采集通过 `/tmp` 下由
+宿主管理的端点通信；隔离临时目录会导致 `nvarguscamerasrc` 无法连接摄像头守护进程。
+清理 spool 的服务不使用摄像头，因此仍保留临时目录隔离。
 
-## Lifecycle
+## 生命周期
 
 ```text
-systemd start
-  -> launcher creates a persistent session directory
-  -> runtime opens the source and reports READY=1
-  -> each received frame refreshes watchdog progress
-  -> no frame progress causes watchdog expiry and restart
-  -> SIGTERM requests orderly shutdown
-  -> capture, evidence, video, telemetry, and metrics finish
-  -> runtime reports STOPPING=1 and exits successfully
+systemd 启动
+  -> 启动器创建持久化会话目录
+  -> 运行时打开输入源并报告 READY=1
+  -> 每次收到真实帧都刷新 watchdog 进度
+  -> 帧进度停止导致 watchdog 超时并重启
+  -> SIGTERM 请求有序停止
+  -> 采集、证据、视频、遥测和指标完成收尾
+  -> 运行时报告 STOPPING=1 并正常退出
 ```
 
-The signal handler only records the signal number. The main thread wakes from
-its timed queue wait, observes the request, and performs resource cleanup in
-normal C++ control flow. This avoids calling locks, allocators, GStreamer, or
-file I/O from asynchronous signal context.
+信号处理器只记录信号编号。主线程从定时队列等待中醒来，观察停止请求，并在正常 C++ 控制
+流中清理资源，从而避免在异步信号上下文中调用锁、内存分配器、GStreamer 或文件 I/O。
 
-## Install
+## 安装
 
-Build the Jetson runtime first, then install the binary and the device-built
-TensorRT engine:
+先构建 Jetson 运行时，再安装可执行文件和在目标设备构建的 TensorRT engine：
 
 ```bash
 sudo apt-get update
@@ -48,12 +42,10 @@ sudo bash scripts/install_systemd_service.sh \
   --engine models/yolox_nano_fp16.plan
 ```
 
-The installer creates the unprivileged `edge-vision` account, installs files
-under `/opt/edge-vision`, copies the engine into persistent state, and enables
-the service and retention timer. It does not start the video pipeline before
-the configuration is reviewed.
+安装器会创建非特权 `edge-vision` 账号，把文件安装到 `/opt/edge-vision`，将 engine
+复制到持久化状态目录，并启用服务与保留策略定时器。在审查配置前，它不会启动视频流水线。
 
-Edit `/etc/edge-vision/edge-vision.env`, then start the service:
+编辑 `/etc/edge-vision/edge-vision.env`，然后启动服务：
 
 ```bash
 sudo systemctl start edge-vision.service
@@ -61,12 +53,11 @@ sudo systemctl status edge-vision.service --no-pager
 sudo systemctl enable --now edge-vision-prune.timer
 ```
 
-The default configuration selects IMX219 sensor mode 4 at 1280x720/60 FPS and
-delivers 30 FPS to the application. RTSP and file sources use the same launcher
-with `EDGE_VISION_SOURCE=rtsp` or `EDGE_VISION_SOURCE=file` and their required
-path variables.
+默认配置选择 IMX219 传感器模式 4，以 1280x720/60 FPS 采集，并向应用交付 30 FPS。
+RTSP 与文件输入使用同一启动器，分别设置 `EDGE_VISION_SOURCE=rtsp` 或
+`EDGE_VISION_SOURCE=file` 及其必需路径变量。
 
-## Persistent State
+## 持久化状态
 
 ```text
 /var/lib/edge-vision/
@@ -79,25 +70,21 @@ path variables.
     clips/
 ```
 
-Each process generation writes a separate session. Network availability is not
-required for journal or evidence publication. Restarting the service creates a
-new session without overwriting earlier evidence.
+每个进程代次写入独立会话。发布日志或证据不依赖网络；重启服务会创建新会话，不覆盖早期
+证据。
 
-`edge-vision-prune.timer` removes the oldest completed sessions when they are
-older than `EDGE_VISION_SPOOL_MAX_AGE_DAYS` or total retained data exceeds
-`EDGE_VISION_SPOOL_MAX_BYTES`. The current session and newest completed session
-are protected. The service has a 24-hour maximum generation, which periodically
-closes the active journal and allows complete-session retention to remain
-bounded.
+`edge-vision-prune.timer` 会在会话早于 `EDGE_VISION_SPOOL_MAX_AGE_DAYS`，或总保留
+数据超过 `EDGE_VISION_SPOOL_MAX_BYTES` 时删除最旧的已完成会话。当前会话和最新一个
+已完成会话受保护。服务单代最长运行 24 小时，定期关闭活跃日志，让完整会话的保留空间
+始终有界。
 
-## Watchdog And Shutdown
+## Watchdog 与停止
 
-The unit uses `Type=notify` and `WatchdogSec=30`. A heartbeat is sent only when
-a real frame arrived within half of the watchdog interval. A connected RTSP
-socket that produces no decodable frames therefore cannot keep the service
-healthy indefinitely.
+unit 使用 `Type=notify` 和 `WatchdogSec=30`。只有在 watchdog 间隔一半以内收到过
+真实帧，才发送心跳。因此，一个已连接但不产生可解码帧的 RTSP socket 无法无限期维持
+健康状态。
 
-Verify a graceful stop:
+验证有序停止：
 
 ```bash
 sudo systemctl stop edge-vision.service
@@ -106,34 +93,30 @@ sudo systemctl show edge-vision.service \
 cat /var/lib/edge-vision/metrics/latest.json
 ```
 
-The expected result is `Result=success`, `ExecMainStatus=0`, and a metrics
-status with `shutdown_requested: true` and `shutdown_signal: 15`.
+预期结果是 `Result=success`、`ExecMainStatus=0`，并且指标状态包含
+`shutdown_requested: true` 与 `shutdown_signal: 15`。
 
-Verify restart behavior by stopping frame progress long enough to exceed the
-watchdog interval, then inspect:
+让帧进度停止到超过 watchdog 间隔，然后检查以下字段以验证重启：
 
 ```bash
 systemctl show edge-vision.service \
   -p NRestarts -p Result -p WatchdogTimestampMonotonic
 ```
 
-## Logs
+## 日志
 
-Runtime output is written to `/var/log/edge-vision/runtime.log`. The installed
-logrotate policy rotates daily or at 20 MiB, retains seven compressed
-generations, and uses `copytruncate` because stdout remains open for the life
-of the process. systemd opens the append target as root before launching the
-unprivileged service, so logrotate retains root privileges for this file. The
-launcher line-buffers stdout and stderr so operational records become visible
-without waiting for a full userspace output buffer.
+运行输出写入 `/var/log/edge-vision/runtime.log`。安装的 logrotate 策略每天或文件达到
+20 MiB 时轮转，保留 7 个压缩代次。由于进程整个生命周期内都保持 stdout 打开，策略
+使用 `copytruncate`。systemd 在启动非特权服务前以 root 身份打开追加目标，因此
+logrotate 对该文件保持 root 权限。启动器对 stdout 和 stderr 使用行缓冲，使运维记录
+无需等待用户态输出缓冲区填满即可见。
 
 ```bash
 sudo logrotate -d /etc/logrotate.d/edge-vision
 tail -n 100 /var/log/edge-vision/runtime.log
 ```
 
-systemd start, stop, watchdog, and exit-state messages remain available through
-the journal:
+systemd 的启动、停止、watchdog 和退出状态消息仍可通过 journal 查看：
 
 ```bash
 journalctl -u edge-vision.service --since today --no-pager

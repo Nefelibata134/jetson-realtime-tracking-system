@@ -39,10 +39,11 @@ class Mot17SummaryTest(unittest.TestCase):
         markdown = MODULE.render_markdown(
             {"HOTA": 41.25, "IDF1": 44.50, "MOTA": 35.75, "IDSW": 27},
             Path("reports/pedestrian_summary.txt"),
-            "MOT17 Calibration Baseline",
+            "MOT17 校准基线",
         )
 
-        self.assertTrue(markdown.startswith("# MOT17 Calibration Baseline\n"))
+        self.assertTrue(markdown.startswith("# MOT17 校准基线\n"))
+        self.assertIn("指标由固定版本的官方 TrackEval 计算", markdown)
 
 
 if __name__ == "__main__":

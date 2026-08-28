@@ -194,7 +194,7 @@ CSV_FIELDS = [
 
 def format_value(value: object, digits: int = 2) -> str:
     if value is None or value == "":
-        return "n/a"
+        return "不适用"
     if isinstance(value, float):
         return f"{value:.{digits}f}"
     return str(value)
@@ -210,13 +210,13 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 def write_markdown(path: Path, rows: list[dict[str, object]]) -> None:
     lines = [
-        "# Jetson Detection Performance Matrix",
+        "# Jetson 检测性能矩阵",
         "",
-        "Each row uses the latest run for a model, capture resolution, and power mode.",
-        "The first three and final telemetry samples are excluded from power and temperature summaries.",
-        "Model input remains fixed at 416x416; resolution refers to the CSI capture stream.",
+        "每行使用对应模型、采集分辨率和功率模式的最新一次运行。",
+        "功率和温度汇总会排除最前 3 个及最后 1 个遥测样本。",
+        "模型输入固定为 416x416；分辨率指 CSI 采集视频流。",
         "",
-        "| Status | Model | Capture | Power mode | FPS | P95 infer ms | P95 e2e ms | Drop % | Mean W | FPS/W | Max GPU C |",
+        "| 状态 | 模型 | 采集 | 功率模式 | FPS | 推理 P95 ms | 端到端 P95 ms | 丢帧率 % | 平均功率 W | FPS/W | GPU 最高温度 C |",
         "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
@@ -256,14 +256,14 @@ def main() -> int:
             runtime_path.name.replace(".runtime.txt", ".tegrastats.txt")
         )
         if not telemetry_path.exists():
-            print(f"Skipping {runtime_path}: matching tegrastats log is missing")
+            print(f"跳过 {runtime_path}：缺少配套 tegrastats 日志")
             continue
         rows.append(
             build_row(runtime_path, telemetry_path, args.trim_start, args.trim_end)
         )
 
     if not rows:
-        raise SystemExit(f"No complete benchmark log pairs found in {args.input_dir}")
+        raise SystemExit(f"在 {args.input_dir} 中没有找到完整的基准日志对")
     if not args.all_runs:
         rows = latest_matrix(rows)
 

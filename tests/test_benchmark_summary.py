@@ -51,6 +51,9 @@ runtime_exit_code=0
             runtime_path.write_text(runtime_text)
             telemetry_path.write_text(telemetry_text)
             row = MODULE.build_row(runtime_path, telemetry_path, 0, 0)
+            markdown_path = root / "matrix.md"
+            MODULE.write_markdown(markdown_path, [row])
+            markdown = markdown_path.read_text(encoding="utf-8")
 
         self.assertEqual(row["status"], "PASS")
         self.assertEqual(row["measured_frames"], 600)
@@ -58,6 +61,7 @@ runtime_exit_code=0
         self.assertAlmostEqual(row["power_mean_w"], 9.0)
         self.assertAlmostEqual(row["fps_per_watt"], 29.5 / 9.0)
         self.assertEqual(row["gpu_temp_max_c"], 52.0)
+        self.assertTrue(markdown.startswith("# Jetson 检测性能矩阵\n"))
 
     def test_latest_matrix_keeps_latest_combination(self) -> None:
         rows = [

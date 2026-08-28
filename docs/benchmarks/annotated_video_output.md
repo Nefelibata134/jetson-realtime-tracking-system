@@ -1,87 +1,75 @@
-# Annotated Video Output Benchmark
+# 标注视频输出基准测试
 
-This benchmark measures whether annotated MP4 encoding interferes with the
-real-time detection and tracking path. The asynchronous writer uses a bounded
-queue and drops the oldest pending output frame when encoding falls behind.
-Capture, detection, tracking, and event processing continue independently.
+该基准用于确认标注 MP4 编码是否会干扰实时检测与跟踪主链路。异步写入器使用有界队列；
+当编码速度落后时，它会丢弃最旧的待写输出帧，采集、检测、跟踪和事件处理仍可独立继续。
 
-## Configuration
+## 测试配置
 
-- Device: Jetson Orin Nano 8GB
-- Camera: IMX219 CSI, 1280x720 capture
-- Detector: YOLOX-Nano FP16 TensorRT, 416x416 model input
-- Tracker: ByteTrack
-- Target rate: 30 FPS
-- Warmup: 30 frames
-- Measurement: 300 frames
-- Capture queue capacity: 2
+- 设备：Jetson Orin Nano 8GB
+- 摄像头：IMX219 CSI，1280x720 采集
+- 检测器：YOLOX-Nano FP16 TensorRT，模型输入 416x416
+- 跟踪器：ByteTrack
+- 目标速率：30 FPS
+- 预热：30 帧
+- 测量：300 帧
+- 采集队列容量：2
 
-## Results
+## 测试结果
 
-| Output mode | Output queue | Pipeline FPS | Capture drops | Capture queue P95 ms | Main-thread video P95 ms | Submitted | Written | Output drops |
+| 输出模式 | 输出队列 | 流水线 FPS | 采集丢帧 | 采集队列 P95 ms | 主线程视频 P95 ms | 提交帧 | 写入帧 | 输出丢帧 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Synchronous | n/a | 21.59 | 115 | 65.47 | 56.14 | 300 | 300 | 0 |
-| Asynchronous | 4 | 30.04 | 0 | 0.70 | 1.30 | 300 | 298 | 2 |
-| Asynchronous | 1 | 30.03 | 0 | 0.70 | 1.20 | 300 | 282 | 18 |
+| 同步 | 不适用 | 21.59 | 115 | 65.47 | 56.14 | 300 | 300 | 0 |
+| 异步 | 4 | 30.04 | 0 | 0.70 | 1.30 | 300 | 298 | 2 |
+| 异步 | 1 | 30.03 | 0 | 0.70 | 1.20 | 300 | 282 | 18 |
 
-The asynchronous writer with capacity 4 increased pipeline throughput by
-39.1% and eliminated capture-side drops. Main-thread video work fell from a
-56.14 ms P95 synchronous encode to a 1.30 ms P95 enqueue operation. The
-writer dropped 2 of 300 output frames while preserving all 300 frames for
-detection and tracking.
+容量为 4 的异步写入器让流水线吞吐提升 39.1%，并消除了采集端丢帧。主线程视频工作从
+同步编码的 P95 56.14 ms 降为异步入队的 P95 1.30 ms。写入器丢弃了 300 个输出帧中的
+2 个，但检测和跟踪仍处理了全部 300 帧。
 
-Reducing the output queue from 4 to 1 kept the analytics path at 30 FPS with
-zero capture drops, but increased output drops from 2 to 18. This confirms
-that output backpressure is isolated from analytics and exposes the expected
-memory-versus-recording-continuity tradeoff. Capacity 4 is the default for
-the measured 720p pipeline.
+将输出队列从 4 缩小到 1 后，分析主链路仍保持 30 FPS 且采集零丢帧，但输出丢帧从 2
+增加到 18。这证明输出背压已与分析链路隔离，同时也体现了内存占用和录像连续性之间的
+预期取舍。容量 4 是实测 720p 流水线的默认值。
 
-## 720p Encoder Comparison
+## 720p 编码器对比
 
-The 600-frame full-pipeline regression was repeated at 1280x720 after adding
-the x264 backend. MP4V already preserved the complete 720p stream, while x264
-reduced background encoding work from 30.93 to 4.68 ms/frame in 25W mode and
-from 23.05 to 3.95 ms/frame in MAXN_SUPER mode.
+加入 x264 后，在 1280x720 下重新执行 600 帧完整流水线回归。MP4V 原本已能保存完整的
+720p 视频流；x264 在 25W 模式下把后台编码工作从 30.93 降至 4.68 ms/frame，在
+MAXN_SUPER 模式下从 23.05 降至 3.95 ms/frame。
 
-| Power mode | Encoder | Events | Pipeline FPS | E2E P95 ms | Written/submitted | Output drops | Encode ms/frame | Mean W |
+| 功率模式 | 编码器 | 事件数 | 流水线 FPS | 端到端 P95 ms | 写入/提交 | 输出丢帧 | 编码 ms/frame | 平均功率 W |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 25W | MP4V | 2 | 30.03 | 9.99 | 600/600 | 0 | 30.93 | 8.69 |
 | 25W | x264 | 4 | 30.03 | 9.93 | 600/600 | 0 | 4.68 | 8.94 |
 | MAXN_SUPER | MP4V | 2 | 30.04 | 8.46 | 600/600 | 0 | 23.05 | 9.00 |
 | MAXN_SUPER | x264 | 5 | 30.04 | 8.62 | 600/600 | 0 | 3.95 | 9.36 |
 
-Both x264 runs preserved all 600 output frames while processing live event
-evidence. GStreamer inspection confirmed 1280x720 H.264 Constrained Baseline
-at 30/1 FPS and exactly 20 seconds for both files. Event counts are reported
-as workload evidence, not compared as a quality metric because the live camera
-scene differed between runs.
+两次 x264 测试都在处理实时事件证据的同时保存了全部 600 个输出帧。GStreamer 检查确认
+两个文件均为 1280x720、30/1 FPS、时长正好 20 秒的 H.264 Constrained Baseline
+视频。事件数量只用于证明测试中存在事件负载，不能作为质量对比指标，因为各次测试的
+实时摄像头场景并不相同。
 
-## 1080p Encoder Comparison
+## 1080p 编码器对比
 
-The OpenCV MP4V compatibility backend did not sustain the 30 FPS audit stream
-at 1920x1080. With locked clocks it wrote 280/600 frames in 25W mode and
-379/600 frames in MAXN_SUPER mode while the analytics path remained at 30 FPS.
-Those measurements motivated the GStreamer x264 backend. Orin Nano does not
-provide NVENC; the replacement therefore uses the vendor-recommended CPU H.264
-approach with `ultrafast`, `zerolatency`, a one-second GOP, no B-frames, one
-reference frame, and disabled adaptive quantization.
+OpenCV MP4V 兼容后端无法在 1920x1080 下持续保存 30 FPS 审计视频。锁频后，它在 25W
+模式写入 280/600 帧，在 MAXN_SUPER 模式写入 379/600 帧，而分析主链路仍保持 30 FPS。
+这些结果促成了 GStreamer x264 后端。Orin Nano 不提供 NVENC，因此替代方案采用厂商
+建议的 CPU H.264 路径，使用 `ultrafast`、`zerolatency`、一秒 GOP、无 B 帧、
+单参考帧，并关闭自适应量化。
 
-| Power mode | Encoder | Events | Pipeline FPS | E2E P95 ms | Written/submitted | Output drops | Encode ms/frame | Mean W |
+| 功率模式 | 编码器 | 事件数 | 流水线 FPS | 端到端 P95 ms | 写入/提交 | 输出丢帧 | 编码 ms/frame | 平均功率 W |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 25W | MP4V | 2 | 30.04 | 14.17 | 280/600 | 320 | 72.30 | 8.93 |
 | 25W | x264 | 0 | 30.00 | 13.67 | 600/600 | 0 | 6.66 | 9.35 |
 | MAXN_SUPER | MP4V | 2 | 29.99 | 12.13 | 379/600 | 221 | 53.26 | 9.46 |
 | MAXN_SUPER | x264 | 2 | 29.12 | 14.45 | 600/600 | 0 | 7.45 | 9.92 |
 
-Both x264 runs met the acceptance criterion: 600/600 written frames at
-1080p30 with zero audit-output drops. GStreamer inspection confirmed a
-1920x1080 H.264 Constrained Baseline stream at 30/1 FPS and exactly 20 seconds
-for each 600-frame file. The 25W result sustained 29.996 pipeline FPS. Its
-camera scene produced no detections, so that row validates encoding continuity
-but not active event I/O. The MAXN_SUPER run emitted intrusion and dwell events
-and still preserved every audit frame.
+两次 x264 测试都满足验收标准：1080p30 下写入 600/600 帧，审计输出零丢帧。
+GStreamer 检查确认每个 600 帧文件均为 1920x1080、30/1 FPS、时长正好 20 秒的
+H.264 Constrained Baseline 视频。25W 结果保持 29.996 流水线 FPS，但当时画面中没有
+检测目标，因此该行只验证编码连续性，不验证活跃事件 I/O。MAXN_SUPER 测试触发了入侵
+和停留事件，同时仍保存了全部审计帧。
 
-Run the controlled comparison with:
+使用以下命令运行受控对比：
 
 ```bash
 bash scripts/run_pipeline_benchmark.sh \
@@ -93,10 +81,8 @@ bash scripts/run_pipeline_benchmark.sh \
   --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
 ```
 
-Repeat with `--resolution 1080p` and under each locked power mode to reproduce
-the complete comparison.
+将分辨率改为 `--resolution 1080p`，并在两个锁频功率模式下分别执行，即可复现完整对比。
 
-`Capture drops` occur before inference and can hide short-lived targets or
-events. `Output drops` occur after detection and tracking, so they affect the
-saved video but not the analytics result. Both counters remain observable
-because recording continuity may still be required by downstream systems.
+`采集丢帧`发生在推理之前，可能使短暂目标或事件完全不可见；`输出丢帧`发生在检测和
+跟踪之后，只影响保存的视频，不改变分析结果。两项计数都保留可观测性，因为下游系统
+仍可能要求录像连续。

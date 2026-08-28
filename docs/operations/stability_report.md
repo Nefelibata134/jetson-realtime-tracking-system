@@ -1,82 +1,70 @@
-# Jetson Service Stability Validation
+# Jetson 服务稳定性验证报告
 
-This report validates the supervised 720p CSI configuration with an IMX219,
-YOLOX-Nano FP16 TensorRT detection, ByteTrack association, safety events,
-local evidence persistence, telemetry, and systemd watchdog supervision.
+本报告验证受监管的 720p CSI 配置：IMX219、YOLOX-Nano FP16 TensorRT 检测、
+ByteTrack 关联、安全事件、本地证据持久化、遥测和 systemd watchdog。
 
-## Acceptance Result
+## 验收结果
 
-| Check | Result |
+| 检查项 | 结果 |
 | --- | --- |
-| 60-minute baseline soak | PASS |
-| Main-process SIGKILL recovery | PASS |
-| Controlled RTSP source outage | PASS |
-| C++ regression suite | 15/15 passed |
-| Python operations tests | 23/23 passed |
+| 60 分钟基线持续运行 | PASS |
+| 主进程 SIGKILL 恢复 | PASS |
+| 受控 RTSP 输入中断 | PASS |
+| C++ 回归套件 | 15/15 通过 |
+| Python 运维测试 | 23/23 通过 |
 
-Raw logs, event evidence, and captured video remain in ignored runtime
-directories and are not part of the repository.
+原始日志、事件证据和采集视频保存在 Git 忽略的运行目录，不属于仓库内容。
 
-## Baseline Soak
+## 基线持续运行
 
-The external collector sampled systemd state, watchdog progress, line-buffered
-frame records, process resources, persistent spool size, disk capacity, and
-Jetson telemetry every 30 seconds.
+外部采集器每 30 秒采样 systemd 状态、watchdog 进度、行缓冲帧记录、进程资源、持久化
+spool 大小、磁盘容量和 Jetson 遥测。
 
-| Duration | Samples | Active | PID changes | Restarts | Watchdog stalls | Frame stalls |
+| 时长 | 样本数 | 活跃率 | PID 变化 | 重启 | Watchdog 停滞 | 帧停滞 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 60.00 min | 121 | 100.00% | 0 | 0 | 0 | 0 |
 
-| RAM start | RAM max | RAM end | Steady growth | Slope | Spool growth | Min free disk | Mean power | Max GPU/TJ C |
+| RAM 起始 | RAM 峰值 | RAM 结束 | 稳态增长 | 斜率 | Spool 增长 | 最小可用磁盘 | 平均功率 | GPU/TJ 最高温度 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 299.56 MiB | 735.94 MiB | 352.84 MiB | 52.72 MiB | 1.121 MiB/min | 9.47 MiB | 198.07 GiB | 7.32 W | 59.03 C |
 
-The memory peak was transient and returned close to its baseline. Its size and
-the simultaneous persistent-spool growth are consistent with bounded raw-frame
-buffers being active while pre/post-event clips were assembled. The one-hour
-run stayed below the 256 MiB steady-growth and 2 MiB/min slope gates; a longer
-run is still required before claiming absence of every slow leak.
+内存峰值是暂时的，随后回落到接近基线。峰值大小与同时发生的持久化 spool 增长，符合事件
+前后片段组装时启用有界原始帧缓冲的行为。1 小时运行低于 256 MiB 稳态增长门限和
+2 MiB/min 斜率门限；要声明不存在所有慢速泄漏，仍需要更长时间的运行。
 
-The process was finalized after the exact collector window had ended. Its
-final runtime aggregate therefore covered an estimated 154.5-minute service
-generation rather than only the sampled hour:
+采集器的精确窗口结束后才对进程执行收尾，因此最终运行时聚合覆盖的是估算 154.5 分钟的
+服务代次，而不只是在外部采样的 1 小时：
 
-| Measured frames | FPS | Capture drop | TRT P95 | E2E P95 |
+| 测量帧数 | FPS | 采集丢帧 | TRT P95 | 端到端 P95 |
 | ---: | ---: | ---: | ---: | ---: |
 | 278,089 | 30.00 | 0.00% | 8.36 ms | 16.30 ms |
 
-The longer aggregate remains useful for throughput and latency evidence, but
-the 121 external samples are the authoritative one-hour stability window.
+更长的聚合仍可作为吞吐和延迟证据，但 121 个外部样本才是权威的一小时稳定性窗口。
 
-## Process Crash Recovery
+## 进程崩溃恢复
 
-The main process received SIGKILL while systemd remained responsible for the
-unit:
+在 systemd 继续管理 unit 的情况下，向主进程发送 SIGKILL：
 
-| Old PID | New PID | Restart delta | New session | Ready | Frame watchdog |
+| 旧 PID | 新 PID | 重启增量 | 新会话 | Ready | 帧 Watchdog |
 | ---: | ---: | ---: | --- | --- | --- |
-| 4054 | 4288 | +1 | yes | yes | advanced |
+| 4054 | 4288 | +1 | 是 | 是 | 已推进 |
 
-Recovery was accepted only after a new process and session reported ready and
-advanced the watchdog timestamp from subsequent real frames.
+只有新进程和新会话报告 ready，并且后续真实帧推动 watchdog 时间戳后，才接受恢复成功。
 
-## RTSP Source Recovery
+## RTSP 输入恢复
 
-A local H.264 RTSP replay server was stopped for two seconds during inference
-and then restarted:
+推理期间停止本地 H.264 RTSP 回放服务 2 秒，然后重新启动：
 
-| Target | Attempts | Real-frame successes | Stream generation | Tracker resets | Recovery exhausted |
+| 目标 | 尝试次数 | 真实帧恢复成功数 | 流代次 | 跟踪器重置 | 恢复耗尽 |
 | ---: | ---: | ---: | ---: | ---: | --- |
-| 180 frames | 4 | 1 | 1 | 1 | no |
+| 180 帧 | 4 | 1 | 1 | 1 | 否 |
 
-The runtime reached the requested target after recovery. Overall effective
-throughput was 21.08 FPS because wall time included the intentional outage and
-retry delay; TensorRT P95 remained 8.28 ms and end-to-end P95 was 19.02 ms.
-Empty socket reopens were not counted as successful recovery.
+恢复后运行时达到目标帧数。总体有效吞吐为 21.08 FPS，因为墙钟时间包含故意制造的中断
+和重试延迟；TensorRT P95 仍为 8.28 ms，端到端 P95 为 19.02 ms。空 socket 重新打开
+不会计为成功恢复。
 
-## Evidence Boundary
+## 证据边界
 
-The result covers one Jetson, one IMX219, one model and service configuration,
-one hour of baseline operation, a main-process crash, and a local RTSP outage.
-It does not replace multi-day endurance testing, physical camera disconnect
-testing, storage-exhaustion testing, or recovery over a lossy remote network.
+该结果覆盖一台 Jetson、一个 IMX219、一组模型与服务配置、1 小时基线运行、一次主进程
+崩溃和一次本地 RTSP 中断。它不能替代多日耐久测试、物理摄像头断开测试、存储耗尽测试，
+也不能替代有损远程网络上的恢复测试。

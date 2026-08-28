@@ -1,40 +1,34 @@
-# Runtime Telemetry Overhead
+# 运行时遥测开销
 
-This benchmark checks whether background Jetson telemetry collection changes
-the latency or throughput of the CSI detection and tracking pipeline.
+该基准用于检查后台 Jetson 遥测采集是否会改变 CSI 检测与跟踪流水线的延迟或吞吐。
 
-## Configuration
+## 测试配置
 
-- Device: NVIDIA Jetson Orin Nano 8GB
-- Input: IMX219 CSI, native 1280x720 at 60 FPS, delivered at 30 FPS
-- Detector: YOLOX-Nano TensorRT FP16, fixed 416x416 model input
-- Tracker: ByteTrack
-- Queue capacity: 2 frames with drop-oldest backpressure
-- Warmup: 30 frames
-- Measured window: 300 frames
-- Device source: `tegrastats`
+- 设备：NVIDIA Jetson Orin Nano 8GB
+- 输入：IMX219 CSI，原生 1280x720、60 FPS，向应用交付 30 FPS
+- 检测器：YOLOX-Nano TensorRT FP16，固定模型输入 416x416
+- 跟踪器：ByteTrack
+- 队列容量：2 帧，采用丢弃最旧帧的背压策略
+- 预热：30 帧
+- 测量窗口：300 帧
+- 设备数据源：`tegrastats`
 
-## Results
+## 测试结果
 
-| Sampling interval | Device samples | Inference P95 ms | End-to-end P95 ms | Effective FPS | Steady-state drop rate |
+| 采样间隔 | 设备样本 | 推理 P95 ms | 端到端 P95 ms | 有效 FPS | 稳态丢帧率 |
 | ---: | ---: | ---: | ---: | ---: | ---: |
 | 500 ms | 22 | 12.830 | 13.342 | 30.037 | 0.00% |
 | 1000 ms | 11 | 12.821 | 13.389 | 30.093 | 0.00% |
 
-The 500 ms run observed 7.164 W mean input power, 7.315 W maximum input
-power, 43% maximum GPU utilization, 52.187 C maximum GPU temperature, and
-2166 MiB maximum RAM use. The 1000 ms run observed 7.230 W mean input power.
+500 ms 测试的平均输入功率为 7.164 W、最大输入功率为 7.315 W、GPU 最大利用率为
+43%、GPU 最高温度为 52.187 C、最大 RAM 占用为 2166 MiB。1000 ms 测试的平均输入
+功率为 7.230 W。
 
-## Interpretation
+## 结果解释
 
-Doubling the interval halved the number of device samples as expected. The
-inference P95 difference was 0.009 ms, the end-to-end P95 difference was
-0.047 ms, and both runs sustained the requested 30 FPS without steady-state
-drops. These differences are below ordinary run-to-run variation, supporting
-the design choice to execute `tegrastats` parsing on a background thread
-instead of the capture or inference thread.
+采样间隔加倍后，设备样本数按预期减半。两组测试的推理 P95 相差 0.009 ms，端到端
+P95 相差 0.047 ms，并且都保持目标 30 FPS、稳态零丢帧。这些差值低于普通的运行间
+波动，支持把 `tegrastats` 解析放在后台线程而不是采集或推理线程的设计。
 
-The 500 ms interval is the default because it provides faster visibility into
-short power, utilization, or thermal changes while remaining negligible for
-this workload. A 1000 ms interval is suitable when coarser device telemetry is
-acceptable.
+默认间隔设为 500 ms，因为它能更快观察短时功率、利用率或温度变化，对该负载的影响
+仍可忽略。如果允许更粗粒度的设备遥测，可以使用 1000 ms。

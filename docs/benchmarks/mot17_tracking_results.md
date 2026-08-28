@@ -1,62 +1,54 @@
-# MOT17 Tracking Evaluation Results
+# MOT17 跟踪评估结果
 
-## System Under Test
+## 被测系统
 
-- Platform: NVIDIA Jetson Orin Nano 8GB
-- Detector input: `1x3x416x416`
-- Runtime: TensorRT FP16 with the C++ inference pipeline
-- Tracker: ByteTrack with class-aware association
-- Evaluator: TrackEval commit `12c8791b303e0a0b50f753af204249e622d0281a`
-- Frame policy: sequential processing without frame dropping
+- 平台：NVIDIA Jetson Orin Nano 8GB
+- 检测器输入：`1x3x416x416`
+- 运行时：TensorRT FP16 与 C++ 推理流水线
+- 跟踪器：按类别关联的 ByteTrack
+- 评估器：TrackEval 提交 `12c8791b303e0a0b50f753af204249e622d0281a`
+- 帧策略：顺序处理，不丢帧
 
-MOT17 training sequences are partitioned before parameter selection. Sequences
-02, 04, 05, and 10 form the calibration partition. Sequences 09, 11, and 13
-form the holdout partition, which is evaluated once after configuration
-selection. Only the FRCNN-named copy of each physical video is used.
+参数选择前先划分 MOT17 训练序列。02、04、05、10 构成校准划分；09、11、13 构成
+留出划分，后者在配置选定后只评估一次。每段物理视频仅使用 FRCNN 命名副本。
 
-## Configuration Selection
+## 配置选择
 
-YOLOX-Nano and YOLOX-Tiny use the same postprocessing and ByteTrack settings:
+YOLOX-Nano 与 YOLOX-Tiny 使用相同后处理和 ByteTrack 设置：
 
-| Parameter | Value |
+| 参数 | 数值 |
 | --- | ---: |
-| Detector score threshold | 0.10 |
-| NMS threshold | 0.45 |
-| Track threshold | 0.30 |
-| New-track threshold | 0.40 |
-| Match threshold | 0.80 |
-| Track buffer | 30 frames |
+| 检测分数阈值 | 0.10 |
+| NMS 阈值 | 0.45 |
+| 轨迹阈值 | 0.30 |
+| 新轨迹阈值 | 0.40 |
+| 匹配阈值 | 0.80 |
+| 轨迹缓冲 | 30 帧 |
 
-| Model | HOTA | IDF1 | MOTA | ID switches |
+| 模型 | HOTA | IDF1 | MOTA | ID switches |
 | --- | ---: | ---: | ---: | ---: |
 | YOLOX-Nano FP16 | 29.19 | 34.50 | 24.38 | 227 |
 | YOLOX-Tiny FP16 | **33.31** | **39.80** | **29.65** | 232 |
 
-YOLOX-Tiny is selected because it improves HOTA by 4.12 points, IDF1 by 5.30
-points, and MOTA by 5.27 points while retaining real-time target-device
-throughput. The five additional identity switches do not offset the broader
-detection and association improvement.
+选择 YOLOX-Tiny，是因为它在保持目标设备实时吞吐的同时，让 HOTA 提升 4.12 点、
+IDF1 提升 5.30 点、MOTA 提升 5.27 点。多出的 5 次身份切换不足以抵消更全面的检测
+与关联提升。
 
-## Final Holdout Result
+## 最终留出结果
 
 | HOTA | DetA | AssA | IDF1 | MOTA | Recall | Precision | ID switches |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | **38.89** | 35.26 | 43.36 | **46.75** | **39.19** | 46.00 | 87.93 | 132 |
 
-| True positives | False negatives | False positives | GT detections | Output detections |
+| 真阳性 | 假阴性 | 假阳性 | 真值检测数 | 输出检测数 |
 | ---: | ---: | ---: | ---: | ---: |
 | 12,146 | 14,257 | 1,667 | 26,403 | 13,813 |
 
-All 2,175 holdout frames were processed. Sequence-level TensorRT inference
-P95 ranged from 13.98 to 14.07 ms, ByteTrack P95 ranged from 0.28 to 0.32 ms,
-and effective throughput ranged from 30.54 to 33.00 FPS.
+全部 2,175 个留出帧都完成处理。各序列 TensorRT 推理 P95 为 13.98 至 14.07 ms，
+ByteTrack P95 为 0.28 至 0.32 ms，有效吞吐为 30.54 至 33.00 FPS。
 
-The holdout partition has higher detection recall than the calibration
-partition, so its aggregate tracking metrics are also higher. This difference
-reflects sequence difficulty rather than post-holdout tuning. Precision remains
-high, while missed detections and identity switches remain the principal
-accuracy limitations.
+留出划分的检测召回高于校准划分，因此聚合跟踪指标也更高。这种差异来自序列难度，而不
+是查看留出结果后继续调参。精确率保持较高，漏检和身份切换仍是主要精度限制。
 
-Reproduction commands and the fixed data split are defined in the
-[evaluation protocol](mot17_evaluation_protocol.md). Compact source values are
-also available in [`mot17_tracking_results.csv`](mot17_tracking_results.csv).
+复现命令和固定数据划分见[评估协议](mot17_evaluation_protocol.md)，精简源数据也保存在
+[`mot17_tracking_results.csv`](mot17_tracking_results.csv)。

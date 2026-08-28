@@ -20,14 +20,14 @@ REQUIRED_FILES = {
     "docs/releases/v1.0.0.md",
 }
 REQUIRED_README_HEADINGS = {
-    "Measured On Jetson",
-    "Runtime Evidence",
-    "Runtime Architecture",
-    "Quick Start On Jetson",
-    "Components",
-    "Target Platform",
-    "Model Artifacts",
-    "License",
+    "Jetson 实机实测",
+    "运行证据",
+    "运行时架构",
+    "Jetson 快速开始",
+    "组件",
+    "目标平台",
+    "模型资产",
+    "许可证",
 }
 FORBIDDEN_TEXT = re.compile(
     "Day\\s*\\d+|\\u5b66\\u4e60|\\u6559\\u7a0b|\\u6253\\u5361|"
@@ -69,20 +69,20 @@ def validate(root: Path) -> list[str]:
 
     missing_required = sorted(REQUIRED_FILES - tracked)
     if missing_required:
-        failures.append("missing required tracked files: " + ", ".join(missing_required))
+        failures.append("缺少必须纳入版本控制的文件：" + ", ".join(missing_required))
 
     cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
     version_match = re.search(
         r"project\(jetson_realtime_tracking_system\s+VERSION\s+([0-9.]+)", cmake
     )
     if version_match is None or version_match.group(1) != EXPECTED_VERSION:
-        failures.append(f"CMake project version is not {EXPECTED_VERSION}")
+        failures.append(f"CMake 项目版本不是 {EXPECTED_VERSION}")
 
     readme = (root / "README.md").read_text(encoding="utf-8")
     headings = set(re.findall(r"^##\s+(.+?)\s*$", readme, re.MULTILINE))
     missing_headings = sorted(REQUIRED_README_HEADINGS - headings)
     if missing_headings:
-        failures.append("README is missing headings: " + ", ".join(missing_headings))
+        failures.append("README 缺少章节：" + ", ".join(missing_headings))
 
     forbidden_artifacts = sorted(
         path
@@ -91,7 +91,7 @@ def validate(root: Path) -> list[str]:
         or Path(path).suffix.lower() in FORBIDDEN_SUFFIXES
     )
     if forbidden_artifacts:
-        failures.append("tracked runtime artifacts: " + ", ".join(forbidden_artifacts))
+        failures.append("运行产物被纳入版本控制：" + ", ".join(forbidden_artifacts))
 
     scan_suffixes = {".cpp", ".hpp", ".md", ".py", ".sh", ".txt", ".yml", ".yaml"}
     for relative in files:
@@ -100,14 +100,14 @@ def validate(root: Path) -> list[str]:
             continue
         match = FORBIDDEN_TEXT.search(path.read_text(encoding="utf-8"))
         if match:
-            failures.append(f"forbidden repository text in {relative}: {match.group(0)}")
+            failures.append(f"{relative} 包含仓库禁用文本：{match.group(0)}")
 
     for relative in files:
         path = root / relative
         if path.suffix.lower() != ".md":
             continue
         for missing in local_markdown_links(path):
-            failures.append(f"broken local Markdown link in {relative}: {missing}")
+            failures.append(f"{relative} 包含失效的本地 Markdown 链接：{missing}")
 
     return failures
 
@@ -117,7 +117,7 @@ def main() -> int:
     try:
         failures = validate(root)
     except (OSError, subprocess.CalledProcessError, UnicodeError) as error:
-        print(f"FAIL release validation could not inspect the repository: {error}")
+        print(f"FAIL 无法检查仓库：{error}")
         return 1
     if failures:
         for failure in failures:

@@ -164,19 +164,19 @@ CSV_FIELDS = [
 
 
 def number(value: object, digits: int = 2) -> str:
-    return "n/a" if value is None else f"{float(value):.{digits}f}"
+    return "不适用" if value is None else f"{float(value):.{digits}f}"
 
 
 def markdown(rows: list[dict[str, object]]) -> str:
     lines = [
-        "# Jetson Full Pipeline Performance Matrix",
+        "# Jetson 完整流水线性能矩阵",
         "",
-        "All runs use locked clocks and the complete detection, tracking, event evidence, and annotated video pipeline.",
-        "Capture resolution changes while the YOLOX model input remains 416x416.",
+        "所有运行都使用锁定时钟，并启用检测、跟踪、事件证据与标注视频的完整流水线。",
+        "采集分辨率会变化，YOLOX 模型输入始终保持 416x416。",
         "",
-        "## Critical Path",
+        "## 关键路径",
         "",
-        "| Status | Capture | Power | Encoder | kbps | FPS | Drop % | Queue P95 | Pre P95 | TRT P95 | Post P95 | Track P95 | Event P95 | Active I/O P95 | E2E P95 |",
+        "| 状态 | 采集 | 功率 | 编码器 | kbps | FPS | 丢帧率 % | 队列 P95 | 预处理 P95 | TRT P95 | 后处理 P95 | 跟踪 P95 | 事件 P95 | 活跃 I/O P95 | 端到端 P95 |",
         "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
@@ -199,11 +199,11 @@ def markdown(rows: list[dict[str, object]]) -> str:
         )
     lines.extend([
         "",
-        "Latencies are milliseconds. Active I/O includes only frames that emitted a new event; inspect its sample count in the CSV.",
+        "延迟单位均为毫秒。活跃 I/O 只统计触发新事件的帧；样本数请查看 CSV。",
         "",
-        "## Background Output And Device",
+        "## 后台输出与设备",
         "",
-        "| Capture | Power | Encoder | kbps | Events | Snapshots | Clips | Clip ms/frame | Video written/dropped | Video ms/frame | Flush ms | Mean W | GPU max % | GPU max C | RAM max MiB |",
+        "| 采集 | 功率 | 编码器 | kbps | 事件 | 截图 | 片段 | 片段 ms/frame | 视频写入/丢弃 | 视频 ms/frame | 刷新 ms | 平均功率 W | GPU 最大 % | GPU 最高温度 C | RAM 峰值 MiB |",
         "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ])
     for row in rows:
@@ -224,7 +224,7 @@ def markdown(rows: list[dict[str, object]]) -> str:
         )
     lines.extend([
         "",
-        "Background encode time is worker execution time divided by frames actually written; it is workload, not main-thread latency.",
+        "后台编码时间是工作线程总执行时间除以实际写入帧数，表示工作量，不是主线程延迟。",
         "",
     ])
     return "\n".join(lines)
@@ -260,7 +260,7 @@ def main() -> None:
     if not args.all_runs:
         rows = latest_matrix(rows)
     if not rows:
-        raise SystemExit(f"no complete benchmark pairs found in {args.input_dir}")
+        raise SystemExit(f"在 {args.input_dir} 中没有找到完整的基准文件对")
 
     args.csv.parent.mkdir(parents=True, exist_ok=True)
     args.markdown.parent.mkdir(parents=True, exist_ok=True)

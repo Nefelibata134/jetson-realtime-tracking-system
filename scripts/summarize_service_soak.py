@@ -197,21 +197,21 @@ def build_summary(
 
     failures: list[str] = []
     if len(samples) < 2:
-        failures.append("fewer than two service samples")
+        failures.append("服务样本少于 2 个")
     if metadata.get("completed") is not True:
-        failures.append("collector did not complete normally")
+        failures.append("采集器未正常完成")
     if coverage < min_coverage:
-        failures.append(f"duration coverage {coverage:.3f} is below {min_coverage:.3f}")
+        failures.append(f"时长覆盖率 {coverage:.3f} 低于 {min_coverage:.3f}")
     if active_ratio < 1.0:
-        failures.append(f"service active ratio {active_ratio:.3f} is below 1.000")
+        failures.append(f"服务活跃率 {active_ratio:.3f} 低于 1.000")
     if unique_changes(pids) != 0:
-        failures.append("main process changed during the baseline soak")
+        failures.append("基线持续运行期间主进程发生变化")
     if restart_delta not in (0, None):
-        failures.append(f"automatic restart count increased by {restart_delta}")
+        failures.append(f"自动重启计数增加了 {restart_delta}")
     if watchdog_stalls:
-        failures.append(f"watchdog progress stalled in {watchdog_stalls} sample windows")
+        failures.append(f"watchdog 进度在 {watchdog_stalls} 个采样窗口中停滞")
     if frame_stalls:
-        failures.append(f"runtime frame records stalled in {frame_stalls} sample windows")
+        failures.append(f"运行帧记录在 {frame_stalls} 个采样窗口中停滞")
     maximum_temperature = max(
         value
         for value in (
@@ -227,43 +227,43 @@ def build_summary(
         )
     ) else None
     if maximum_temperature is None:
-        failures.append("tegrastats temperature samples are unavailable")
+        failures.append("tegrastats 温度样本不可用")
     elif maximum_temperature > max_temperature_c:
         failures.append(
-            f"maximum temperature {maximum_temperature:.2f} C exceeds {max_temperature_c:.2f} C"
+            f"最高温度 {maximum_temperature:.2f} C 超过 {max_temperature_c:.2f} C"
         )
     if not disk_values:
-        failures.append("disk free-space samples are unavailable")
+        failures.append("可用磁盘空间样本不可用")
     elif min(disk_values) < min_disk_free_bytes:
-        failures.append("minimum disk free space is below the configured threshold")
+        failures.append("最小可用磁盘空间低于配置门限")
     if memory_growth is None or memory_slope is None:
-        failures.append("insufficient service memory samples")
+        failures.append("服务内存样本不足")
     else:
         if memory_growth > max_memory_growth_mib:
             failures.append(
-                f"steady memory grew {memory_growth:.2f} MiB, above {max_memory_growth_mib:.2f} MiB"
+                f"稳态内存增长 {memory_growth:.2f} MiB，超过 {max_memory_growth_mib:.2f} MiB"
             )
         if memory_slope > max_memory_slope_mib_per_minute:
             failures.append(
-                f"memory slope {memory_slope:.3f} MiB/min exceeds {max_memory_slope_mib_per_minute:.3f}"
+                f"内存斜率 {memory_slope:.3f} MiB/min 超过 {max_memory_slope_mib_per_minute:.3f}"
             )
     if final_metrics is None:
-        failures.append("final runtime metrics are missing")
+        failures.append("缺少最终运行指标")
     else:
         if nested(final_metrics, "status", "shutdown_requested") is not True:
-            failures.append("runtime did not record a graceful shutdown request")
+            failures.append("运行时没有记录有序停止请求")
         if nested(final_metrics, "status", "shutdown_signal") != 15:
-            failures.append("runtime shutdown signal is not SIGTERM (15)")
+            failures.append("运行时停止信号不是 SIGTERM (15)")
         if nested(final_metrics, "status", "invalid_frames") != 0:
-            failures.append("runtime reported invalid frames")
+            failures.append("运行时报告了无效帧")
         if nested(final_metrics, "status", "recovery_exhausted") is not False:
-            failures.append("runtime exhausted source recovery")
+            failures.append("运行时耗尽输入源恢复次数")
         fps = nested(final_metrics, "pipeline", "effective_fps")
         drop_rate = nested(final_metrics, "pipeline", "drop_rate_percent")
         if not isinstance(fps, (int, float)) or fps < min_fps:
-            failures.append(f"effective FPS is below {min_fps:.2f}")
+            failures.append(f"有效 FPS 低于 {min_fps:.2f}")
         if not isinstance(drop_rate, (int, float)) or drop_rate > max_drop_rate_percent:
-            failures.append(f"drop rate exceeds {max_drop_rate_percent:.2f}%")
+            failures.append(f"丢帧率超过 {max_drop_rate_percent:.2f}%")
 
     final_fps = nested(final_metrics, "pipeline", "effective_fps")
     final_frames = nested(final_metrics, "pipeline", "measured_frames")
@@ -282,9 +282,8 @@ def build_summary(
     notes = []
     if generation_to_soak_ratio is not None and not 0.9 <= generation_to_soak_ratio <= 1.1:
         notes.append(
-            "final runtime metrics cover a different generation window than "
-            "the sampled soak; restart immediately before collection and "
-            "finalize promptly for aligned windows"
+            "最终运行指标与持续运行采样覆盖不同的进程代次窗口；若需对齐窗口，"
+            "应在采集前立即重启，并在采集结束后尽快完成收尾"
         )
 
     return {
@@ -355,7 +354,7 @@ def build_summary(
 
 
 def number(value: Any, digits: int = 2, suffix: str = "") -> str:
-    return "n/a" if value is None else f"{float(value):.{digits}f}{suffix}"
+    return "不适用" if value is None else f"{float(value):.{digits}f}{suffix}"
 
 
 def markdown(summary: dict[str, Any]) -> str:
@@ -365,13 +364,13 @@ def markdown(summary: dict[str, Any]) -> str:
     telemetry = summary["tegrastats"]
     final = summary["final_runtime_metrics"]
     lines = [
-        "# Service Stability And Recovery Report",
+        "# 服务稳定性与恢复报告",
         "",
-        f"**Status: {summary['status']}**",
+        f"**状态：{summary['status']}**",
         "",
-        "## Soak Result",
+        "## 持续运行结果",
         "",
-        "| Observed | Coverage | Samples | Active | PID changes | Restarts | Watchdog stalls | Frame stalls |",
+        "| 观测时长 | 覆盖率 | 样本数 | 活跃率 | PID 变化 | 重启 | Watchdog 停滞 | 帧停滞 |",
         "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         "| {observed} min | {coverage}% | {samples} | {active}% | {pid_changes} | {restarts} | {watchdog} | {frames} |".format(
             observed=number(duration["observed_seconds"] / 60.0),
@@ -384,9 +383,9 @@ def markdown(summary: dict[str, Any]) -> str:
             frames=service["frame_stall_windows"],
         ),
         "",
-        "## Resource Trend",
+        "## 资源趋势",
         "",
-        "| RAM start | RAM max | RAM end | Steady growth | Slope | Spool growth | Min free disk | Mean power | Max GPU/TJ C |",
+        "| RAM 起始 | RAM 峰值 | RAM 结束 | 稳态增长 | 斜率 | Spool 增长 | 最小可用磁盘 | 平均功率 | GPU/TJ 最高温度 |",
         "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         "| {start} | {maximum} | {end} | {growth} | {slope} | {spool} | {disk} | {power} | {temperature} |".format(
             start=number(resources["memory_start_mib"], suffix=" MiB"),
@@ -420,30 +419,31 @@ def markdown(summary: dict[str, Any]) -> str:
             ),
         ),
         "",
-        "## Final Runtime Metrics",
+        "## 最终运行指标",
         "",
-        "| Frames | Estimated generation | FPS | Drop % | TRT P95 | E2E P95 |",
+        "| 帧数 | 估算代次时长 | FPS | 丢帧率 % | TRT P95 | 端到端 P95 |",
         "| ---: | ---: | ---: | ---: | ---: | ---: |",
         "| {frames} | {generation} min | {fps} | {drop} | {trt} ms | {e2e} ms |".format(
             frames=final["measured_frames"],
             generation=number(final["estimated_generation_seconds"] / 60.0)
             if final["estimated_generation_seconds"] is not None
-            else "n/a",
+            else "不适用",
             fps=number(final["effective_fps"]),
             drop=number(final["drop_rate_percent"]),
             trt=number(final["inference_p95_ms"]),
             e2e=number(final["end_to_end_p95_ms"]),
         ),
         "",
-        "The final metrics are emitted by the runtime after a graceful SIGTERM. Live samples use systemd state, watchdog progress, and line-buffered frame records.",
+        "最终指标由运行时在 SIGTERM 有序停止后生成。实时样本使用 systemd 状态、"
+        "watchdog 进度和行缓冲帧记录。",
         "",
     ]
     if summary["notes"]:
-        lines.extend(["## Notes", ""])
+        lines.extend(["## 说明", ""])
         lines.extend(f"- {note}" for note in summary["notes"])
         lines.append("")
     if summary["failures"]:
-        lines.extend(["## Failed Checks", ""])
+        lines.extend(["## 未通过检查", ""])
         lines.extend(f"- {failure}" for failure in summary["failures"])
         lines.append("")
     return "\n".join(lines)

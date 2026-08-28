@@ -115,6 +115,9 @@ class ServiceStabilityTest(unittest.TestCase):
         self.assertEqual(summary["final_runtime_metrics"]["effective_fps"], 30.0)
         self.assertEqual(summary["final_runtime_metrics"]["estimated_generation_seconds"], 60.0)
         self.assertEqual(summary["notes"], [])
+        self.assertTrue(
+            SUMMARY.markdown(summary).startswith("# 服务稳定性与恢复报告\n")
+        )
 
     def test_soak_summary_discloses_misaligned_final_metrics_window(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

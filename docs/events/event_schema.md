@@ -1,9 +1,8 @@
-# Safety Event Record Schema
+# 安全事件记录 Schema
 
-Safety events are persisted as JSON Lines. Each non-empty line is one complete
-event record and can be parsed independently.
+安全事件以 JSON Lines 格式持久化。每个非空行都是一条完整事件记录，可以独立解析。
 
-## Version 1.0
+## 版本 1.0
 
 ```json
 {
@@ -28,61 +27,55 @@ event record and can be parsed independently.
 }
 ```
 
-| Field | Meaning |
+| 字段 | 含义 |
 | --- | --- |
-| `schema_version` | Consumer compatibility contract. |
-| `event_id` | Stable ID derived from the event identity within one session. |
-| `session_id` | Unique runtime invocation ID. |
-| `source_id` | Input source, such as `csi:0` or `file:input.mp4`. |
-| `stream_generation` | Increments after a successful source restart. |
-| `recorded_at_utc` | Wall-clock time when the record was created. |
-| `event_type` | `roi_intrusion`, `line_crossing`, or `dwell`. |
-| `rule_id` | Stable rule configuration identifier. |
-| `track_id` / `class_id` | ByteTrack identity and detector class. |
-| `frame_sequence` | Capture sequence that triggered the event. |
-| `pts_ns` | Source presentation timestamp in nanoseconds. |
-| `anchor` | Normalized bottom-center track position. |
-| `direction` | Crossing direction, or `none` for non-crossing events. |
-| `evidence` | Verified artifact paths; absent artifacts are JSON `null`. |
+| `schema_version` | 消费端兼容性契约。 |
+| `event_id` | 从同一会话内的事件身份字段确定性生成的稳定 ID。 |
+| `session_id` | 每次运行调用的唯一 ID。 |
+| `source_id` | 输入源，例如 `csi:0` 或 `file:input.mp4`。 |
+| `stream_generation` | 输入源成功重启后递增。 |
+| `recorded_at_utc` | 创建记录时的 UTC 墙钟时间。 |
+| `event_type` | `roi_intrusion`、`line_crossing` 或 `dwell`。 |
+| `rule_id` | 稳定的规则配置标识。 |
+| `track_id` / `class_id` | ByteTrack 身份与检测类别。 |
+| `frame_sequence` | 触发事件的采集帧序号。 |
+| `pts_ns` | 输入源显示时间戳，单位为纳秒。 |
+| `anchor` | 归一化后的轨迹框底边中心位置。 |
+| `direction` | 穿线方向；非穿线事件为 `none`。 |
+| `evidence` | 已验证的证据文件路径；缺失文件使用 JSON `null`。 |
 
-## Identity And Deduplication
+## 身份与去重
 
-`event_id` is a deterministic FNV-1a digest of `session_id`, source ID,
-`stream_generation`, event type, rule ID, track ID, class ID, and trigger frame.
-The journal loads existing IDs before opening the file for append, so duplicate
-submissions are rejected both within the current process and after the journal
-is reopened. A new process receives a new `session_id`; reused tracker IDs from
-a later invocation therefore cannot collide with earlier events.
+`event_id` 是以下字段的确定性 FNV-1a 摘要：`session_id`、输入源 ID、
+`stream_generation`、事件类型、规则 ID、轨迹 ID、类别 ID 和触发帧。日志以追加模式
+打开前会加载已有 ID，因此既能拒绝当前进程内的重复提交，也能在重新打开同一日志后继续
+去重。新进程会获得新的 `session_id`，后续调用即使复用了跟踪 ID，也不会与早期事件冲突。
 
-## Evidence Commit Order
+## 证据提交顺序
 
-Artifacts are committed in this order:
+证据按以下顺序提交：
 
-1. Render the annotated trigger frame.
-2. Write a temporary JPEG or MP4.
-3. Close, verify, and atomically rename the artifact.
-4. Append the record containing the verified path to the JSONL journal.
-5. Flush the journal stream.
+1. 渲染带标注的触发帧。
+2. 写入临时 JPEG 或 MP4。
+3. 关闭并验证文件，然后原子重命名。
+4. 向 JSONL 日志追加包含已验证路径的事件记录。
+5. 刷新日志流。
 
-This ordering prevents records from advertising artifact paths that were never
-created. A process interruption can leave an unreferenced artifact, but it
-cannot create a successfully appended record with a fabricated path.
+该顺序可以防止记录声明一个从未创建的证据路径。进程中断可能留下未被引用的文件，但不会
+生成一条已经成功追加、路径却是伪造的记录。
 
-## Event Clips
+## 事件片段
 
-Event clips are optional. The recorder keeps a bounded raw-frame ring buffer
-for the configured pre-event duration and finalizes each clip after the
-configured post-event duration. JSONL publication is delayed until the clip is
-closed and verified. Pending clips are finalized early during shutdown or a
-stream-generation reset, preventing frames from two source generations from
-being mixed.
+事件片段为可选功能。记录器为配置的事件前时长维护有界原始帧环形缓冲，并在事件后时长
+结束时完成片段。只有片段关闭且验证通过后才发布 JSONL。关机或流代次重置时，待完成片段
+会提前收尾，从而避免混入两个输入流代次的帧。
 
-The raw prebuffer upper bound is:
+原始预缓冲理论上限为：
 
 ```text
 width * height * 3 bytes * application FPS * pre-event seconds
 ```
 
-At 1280x720, 30 FPS, and two pre-event seconds, the bound is 165,888,000 bytes
-(about 158 MiB). At 1920x1080 with the same settings it is about 356 MiB.
-`event_clip_prebuffer_peak_bytes` reports the observed high-water mark.
+在 1280x720、30 FPS、事件前 2 秒的配置下，上限为 165,888,000 字节，约 158 MiB。
+相同设置下的 1920x1080 约为 356 MiB。`event_clip_prebuffer_peak_bytes` 报告实际
+观测到的高水位。

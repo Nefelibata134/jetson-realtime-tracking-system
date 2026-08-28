@@ -1,10 +1,10 @@
-# Jetson Detection Performance Matrix
+# Jetson 检测性能矩阵
 
-Each row uses the latest run for a model, capture resolution, and power mode.
-The first three and final telemetry samples are excluded from power and temperature summaries.
-Model input remains fixed at 416x416; resolution refers to the CSI capture stream.
+每行使用对应模型、采集分辨率和功率模式的最新一次运行。
+功率和温度汇总会排除最前 3 个及最后 1 个遥测样本。
+模型输入固定为 416x416；分辨率指 CSI 采集视频流。
 
-| Status | Model | Capture | Power mode | FPS | P95 infer ms | P95 e2e ms | Drop % | Mean W | FPS/W | Max GPU C |
+| 状态 | 模型 | 采集 | 功率模式 | FPS | 推理 P95 ms | 端到端 P95 ms | 丢帧率 % | 平均功率 W | FPS/W | GPU 最高温度 C |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | PASS | nano | 720p | 25W (1) | 30.05 | 6.34 | 6.77 | 0.00 | 7.94 | 3.78 | 54.62 |
 | PASS | nano | 720p | MAXN_SUPER (2) | 30.05 | 5.47 | 5.90 | 0.00 | 8.23 | 3.65 | 54.53 |

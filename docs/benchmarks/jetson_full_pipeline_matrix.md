@@ -1,11 +1,11 @@
-# Jetson Full Pipeline Performance Matrix
+# Jetson 完整流水线性能矩阵
 
-All runs use locked clocks and the complete detection, tracking, event evidence, and annotated video pipeline.
-Capture resolution changes while the YOLOX model input remains 416x416.
+所有运行都使用锁定时钟，并启用检测、跟踪、事件证据与标注视频的完整流水线。
+采集分辨率会变化，YOLOX 模型输入始终保持 416x416。
 
-## Critical Path
+## 关键路径
 
-| Status | Capture | Power | Encoder | kbps | FPS | Drop % | Queue P95 | Pre P95 | TRT P95 | Post P95 | Track P95 | Event P95 | Active I/O P95 | E2E P95 |
+| 状态 | 采集 | 功率 | 编码器 | kbps | FPS | 丢帧率 % | 队列 P95 | 预处理 P95 | TRT P95 | 后处理 P95 | 跟踪 P95 | 事件 P95 | 活跃 I/O P95 | 端到端 P95 |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | PASS | 720p | 25W (1) | mp4v | 0 | 30.03 | 0.00 | 0.47 | 2.44 | 3.53 | 0.39 | 0.06 | 0.01 | 15.98 | 9.99 |
 | PASS | 720p | 25W (1) | x264 | 10000 | 30.03 | 0.00 | 0.48 | 2.44 | 3.49 | 0.42 | 0.06 | 0.01 | 14.98 | 9.93 |
@@ -16,19 +16,19 @@ Capture resolution changes while the YOLOX model input remains 416x416.
 | PASS | 1080p | MAXN_SUPER (2) | mp4v | 0 | 29.99 | 0.00 | 1.00 | 2.12 | 3.24 | 0.30 | 0.05 | 0.01 | 29.58 | 12.13 |
 | PASS | 1080p | MAXN_SUPER (2) | x264 | 10000 | 29.12 | 0.00 | 1.20 | 2.48 | 6.31 | 0.32 | 0.06 | 0.01 | 30.18 | 14.45 |
 
-Latencies are milliseconds. Active I/O includes only frames that emitted a new event; inspect its sample count in the CSV.
+延迟单位均为毫秒。活跃 I/O 只统计触发新事件的帧；样本数请查看 CSV。
 
-## Background Output And Device
+## 后台输出与设备
 
-| Capture | Power | Encoder | kbps | Events | Snapshots | Clips | Clip ms/frame | Video written/dropped | Video ms/frame | Flush ms | Mean W | GPU max % | GPU max C | RAM max MiB |
+| 采集 | 功率 | 编码器 | kbps | 事件 | 截图 | 片段 | 片段 ms/frame | 视频写入/丢弃 | 视频 ms/frame | 刷新 ms | 平均功率 W | GPU 最大 % | GPU 最高温度 C | RAM 峰值 MiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 720p | 25W (1) | mp4v | 0 | 2 | 2 | 2 | 31.21 | 600/0 | 30.93 | 1.60 | 8.69 | 33.00 | 57.31 | 2981.00 |
 | 720p | 25W (1) | x264 | 10000 | 4 | 4 | 4 | 28.71 | 600/0 | 4.68 | 2.26 | 8.94 | 16.00 | 60.94 | 2839.00 |
 | 720p | MAXN_SUPER (2) | mp4v | 0 | 2 | 2 | 2 | 25.14 | 600/0 | 23.05 | 1.56 | 9.00 | 14.00 | 56.66 | 3027.00 |
 | 720p | MAXN_SUPER (2) | x264 | 10000 | 5 | 5 | 5 | 25.86 | 600/0 | 3.95 | 1.86 | 9.36 | 14.00 | 60.62 | 2819.00 |
 | 1080p | 25W (1) | mp4v | 0 | 2 | 2 | 2 | 69.93 | 280/320 | 72.30 | 184.99 | 8.93 | 15.00 | 56.78 | 3453.00 |
-| 1080p | 25W (1) | x264 | 10000 | 0 | 0 | 0 | n/a | 600/0 | 6.66 | 2.18 | 9.35 | 17.00 | 58.59 | 2684.00 |
+| 1080p | 25W (1) | x264 | 10000 | 0 | 0 | 0 | 不适用 | 600/0 | 6.66 | 2.18 | 9.35 | 17.00 | 58.59 | 2684.00 |
 | 1080p | MAXN_SUPER (2) | mp4v | 0 | 2 | 2 | 2 | 51.50 | 379/221 | 53.26 | 73.72 | 9.46 | 14.00 | 56.88 | 3400.00 |
 | 1080p | MAXN_SUPER (2) | x264 | 10000 | 2 | 2 | 2 | 47.06 | 600/0 | 7.45 | 1.93 | 9.92 | 16.00 | 58.66 | 3038.00 |
 
-Background encode time is worker execution time divided by frames actually written; it is workload, not main-thread latency.
+后台编码时间是工作线程总执行时间除以实际写入帧数，表示工作量，不是主线程延迟。
