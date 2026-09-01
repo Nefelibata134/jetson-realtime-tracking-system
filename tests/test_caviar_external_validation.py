@@ -73,6 +73,18 @@ class CaviarExternalValidationTest(unittest.TestCase):
         positive_dwell = protocol.sequence_by_id(self.dataset, "Browse2")
         self.assertTrue(protocol.allows_empty_ground_truth(negative_control))
         self.assertFalse(protocol.allows_empty_ground_truth(positive_dwell))
+        self.assertEqual(
+            self.dataset["selection_policy"]["semantic_audit"]["Browse2"], "pass"
+        )
+        self.assertEqual(
+            self.dataset["selection_policy"]["runtime_semantics"][
+                "roi_startup_occupancy"
+            ],
+            "emit_after_two_confirmed_inside_frames",
+        )
+        for sequence in self.dataset["sequences"]:
+            protocol.require_holdout_semantic_audit(self.dataset, sequence)
+            protocol.require_holdout_truth_audit(self.dataset, sequence)
         self.assertTrue(
             all(
                 protocol.SHA256_PATTERN.fullmatch(sequence[asset]["sha256"])
@@ -95,6 +107,24 @@ class CaviarExternalValidationTest(unittest.TestCase):
             protocol.validate_rules_config(
                 self.review, self.dataset, require_frozen=True
             )
+
+    def test_pending_holdout_semantic_audit_is_rejected(self) -> None:
+        dataset = copy.deepcopy(self.dataset)
+        dataset["selection_policy"]["semantic_audit"]["Browse2"] = (
+            "pending_human_review"
+        )
+        sequence = protocol.sequence_by_id(dataset, "Browse2")
+
+        with self.assertRaisesRegex(ValueError, "not approved"):
+            protocol.require_holdout_semantic_audit(dataset, sequence)
+
+    def test_pending_holdout_truth_audit_is_rejected(self) -> None:
+        dataset = copy.deepcopy(self.dataset)
+        dataset["selection_policy"]["truth_audit"]["Walk2"] = "pending_human_review"
+        sequence = protocol.sequence_by_id(dataset, "Walk2")
+
+        with self.assertRaisesRegex(ValueError, "truth audit is not approved"):
+            protocol.require_holdout_truth_audit(dataset, sequence)
 
     def test_parser_uses_bounding_box_bottom_center(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -128,6 +158,19 @@ class CaviarExternalValidationTest(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["frame_sequence"], 2)
+
+    def test_roi_truth_reports_occupant_present_at_startup(self) -> None:
+        sequence = protocol.sequence_by_id(self.dataset, "EnterExitCrossingPaths1front")
+        rule = protocol.rules_by_pair(self.frozen_rules())["lisbon_front_roi"]
+        frames = [
+            protocol.GroundTruthFrame(0, (protocol.GroundTruthTrack(1, 0.5, 0.5),)),
+            protocol.GroundTruthFrame(1, (protocol.GroundTruthTrack(1, 0.5, 0.5),)),
+        ]
+
+        events = protocol.generate_events(sequence, rule, frames, frames_per_second=25)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["frame_sequence"], 1)
 
     def test_line_truth_preserves_crossing_direction(self) -> None:
         sequence = protocol.sequence_by_id(self.dataset, "Walk1")

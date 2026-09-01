@@ -14,6 +14,7 @@ from typing import Any, Iterable
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 SUPPORTED_EVENTS = {"roi_intrusion", "line_crossing", "dwell"}
 SUPPORTED_VALIDATION_ROLES = {"positive_evaluation", "negative_control"}
+APPROVED_AUDIT_STATUSES = {"pass", "pass_negative_control"}
 RULE_IDS = {
     "roi_intrusion": "restricted-area-entry",
     "line_crossing": "directional-crossing",
@@ -166,6 +167,52 @@ def validate_dataset_config(config: dict[str, Any]) -> None:
 
 def allows_empty_ground_truth(sequence: dict[str, Any]) -> bool:
     return sequence.get("validation_role", "positive_evaluation") == "negative_control"
+
+
+def _require_holdout_audit(
+    dataset_config: dict[str, Any],
+    sequence: dict[str, Any],
+    *,
+    audit_name: str,
+    audit_label: str,
+) -> None:
+    if sequence.get("split") != "holdout":
+        return
+    selection_policy = dataset_config.get("selection_policy")
+    audit = (
+        selection_policy.get(audit_name) if isinstance(selection_policy, dict) else None
+    )
+    status = audit.get(sequence.get("sequence_id")) if isinstance(audit, dict) else None
+    expected = (
+        "pass_negative_control" if allows_empty_ground_truth(sequence) else "pass"
+    )
+    if status not in APPROVED_AUDIT_STATUSES or status != expected:
+        raise ValueError(
+            f"holdout {audit_label} is not approved for "
+            f"{sequence.get('sequence_id')}: {status}"
+        )
+
+
+def require_holdout_semantic_audit(
+    dataset_config: dict[str, Any], sequence: dict[str, Any]
+) -> None:
+    _require_holdout_audit(
+        dataset_config,
+        sequence,
+        audit_name="semantic_audit",
+        audit_label="semantic audit",
+    )
+
+
+def require_holdout_truth_audit(
+    dataset_config: dict[str, Any], sequence: dict[str, Any]
+) -> None:
+    _require_holdout_audit(
+        dataset_config,
+        sequence,
+        audit_name="truth_audit",
+        audit_label="truth audit",
+    )
 
 
 def _normalized(value: Any) -> bool:

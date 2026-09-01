@@ -8,6 +8,7 @@ from caviar_protocol import (
     generate_events,
     load_json,
     read_ground_truth_frames,
+    require_holdout_semantic_audit,
     rules_by_pair,
     sequence_by_id,
     validate_dataset_config,
@@ -73,6 +74,7 @@ def main() -> int:
         rules_config = load_json(args.rules)
         validate_rules_config(rules_config, dataset_config, require_frozen=True)
         sequence = sequence_by_id(dataset_config, args.sequence)
+        require_holdout_semantic_audit(dataset_config, sequence)
         rule = rules_by_pair(rules_config)[sequence["pair_id"]]
         dataset = dataset_config["dataset"]
         xml_path = args.dataset_root / sequence["annotation"]["relative_path"]

@@ -14,6 +14,8 @@ from caviar_protocol import (
     allows_empty_ground_truth,
     load_json,
     read_ground_truth_frames,
+    require_holdout_semantic_audit,
+    require_holdout_truth_audit,
     rules_by_pair,
     runtime_rule_arguments,
     sequence_by_id,
@@ -96,6 +98,8 @@ def main() -> int:
         rules_config = load_json(args.rules)
         validate_rules_config(rules_config, dataset_config, require_frozen=True)
         sequence = sequence_by_id(dataset_config, args.sequence)
+        require_holdout_semantic_audit(dataset_config, sequence)
+        require_holdout_truth_audit(dataset_config, sequence)
         if sequence["split"] == "holdout" and not args.allow_holdout:
             raise ValueError(
                 "holdout execution requires the explicit --allow-holdout flag"

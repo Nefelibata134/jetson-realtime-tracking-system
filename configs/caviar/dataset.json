@@ -18,10 +18,21 @@
     "amendment_reason": "人工语义审计确认 Browse_WhileWaiting2 的冻结停留 ROI 位置正确但全程无人进入，因此保留为零事件负样本；同时按官方场景说明预先加入尚未观看结果的 Browse2 作为正样本留出片段。规则和阈值保持不变。",
     "semantic_audit": {
       "reviewed_at_utc": "2026-09-01T10:02:47.704Z",
+      "completed_at_utc": "2026-09-01T10:19:54.101Z",
       "Walk2": "pass",
       "Browse_WhileWaiting2": "pass_negative_control",
       "EnterExitCrossingPaths2front": "pass",
-      "Browse2": "pending_human_review"
+      "Browse2": "pass"
+    },
+    "truth_audit": {
+      "updated_at_utc": "2026-09-01T14:07:13.666Z",
+      "Walk2": "pass",
+      "Browse_WhileWaiting2": "pass_negative_control",
+      "EnterExitCrossingPaths2front": "pass",
+      "Browse2": "pass"
+    },
+    "runtime_semantics": {
+      "roi_startup_occupancy": "emit_after_two_confirmed_inside_frames"
     }
   },
   "sequences": [
