@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "frozen",
+  "reviewer": "Nefelibata134",
+  "reviewed_at_utc": "2026-09-01T09:21:35.954Z",
+  "frozen_at_utc": "2026-09-01T09:21:35.954Z",
+  "runtime_policy": {
+    "event_class_id": 0,
+    "score_threshold": 0.3,
+    "nms_threshold": 0.45,
+    "track_threshold": 0.5,
+    "new_track_threshold": 0.6,
+    "track_buffer": 30
+  },
+  "matching_policy": {
+    "frame_tolerance": 50,
+    "anchor_distance_tolerance": 0.2,
+    "minimum_holdout_precision": 0.8,
+    "minimum_holdout_recall": 0.8,
+    "require_complete_evidence": true
+  },
+  "rules": [
+    {
+      "pair_id": "inria_line",
+      "event_type": "line_crossing",
+      "line": [
+        0.0,
+        0.646662,
+        1.0,
+        0.670402
+      ],
+      "direction": "any",
+      "human_notes": "Walk1 开发视频人工复核：有限直线，双向越线均计事件。"
+    },
+    {
+      "pair_id": "inria_dwell",
+      "event_type": "dwell",
+      "roi": [
+        0.702063,
+        0.223301,
+        0.871723,
+        0.449515
+      ],
+      "dwell_seconds": 3.0,
+      "human_notes": "Browse1 开发视频人工复核：右侧展台前站立区域，脚底中心连续停留 3 秒。"
+    },
+    {
+      "pair_id": "lisbon_front_roi",
+      "event_type": "roi_intrusion",
+      "roi": [
+        0.547872,
+        0.215667,
+        0.948985,
+        0.559961
+      ],
+      "human_notes": "EnterExitCrossingPaths1front 开发视频人工复核：开放商店入口及门槛内侧。"
+    }
+  ]
+}

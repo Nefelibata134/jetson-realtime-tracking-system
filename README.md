@@ -494,6 +494,11 @@ bash scripts/run_trackeval_mot17.sh \
 并确认预期事件，不需要重新逐帧画框。规则在任何留出推理前冻结，留出运行还要求显式
 `--allow-holdout`，防止查看结果后继续调参。
 
+当前人工复核后的规则已保存为
+[`configs/caviar/rules.frozen.json`](configs/caviar/rules.frozen.json)：穿线采用双向有限线段，
+停留采用右侧展台区域和 `3.0` 秒阈值，ROI 入侵采用开放商店入口区域。三段开发视频生成的
+`5/2/2` 个预期事件已逐项人工确认；留出结果将在同一冻结配置下独立报告。
+
 ```bash
 python3 scripts/fetch_caviar.py
 python3 scripts/prepare_caviar_media.py
