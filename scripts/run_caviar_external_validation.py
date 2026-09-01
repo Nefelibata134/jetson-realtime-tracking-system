@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from caviar_protocol import (
+    allows_empty_ground_truth,
     load_json,
     read_ground_truth_frames,
     rules_by_pair,
@@ -151,7 +152,9 @@ def main() -> int:
             str(expected_markdown),
         ]
         subprocess.run(generator, check=True)
-        if expected_path.stat().st_size == 0:
+        if expected_path.stat().st_size == 0 and not allows_empty_ground_truth(
+            sequence
+        ):
             raise ValueError("the frozen rule produced no positive ground-truth events")
 
         rule = rules_by_pair(rules_config)[sequence["pair_id"]]

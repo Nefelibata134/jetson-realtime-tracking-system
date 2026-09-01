@@ -16,16 +16,20 @@ project/IST 2001 37540 提供，页面标注为 CC BY-SA；仓库只保存 URL�
 
 ## 固定数据划分
 
-六段视频在任何系统推理前固定。每个事件使用相同机位的一段开发视频确定规则，再用另一段
-留出视频做一次正式评估。
+七段视频在任何系统推理前固定。每个事件使用一段开发视频确定规则，再用相同机位的留出
+视频做正式评估；停留事件额外保留一段零事件负样本，用于独立检查误报。
 
-| 规则对 | 开发片段 | 留出片段 | 事件 | 时长 |
+| 规则对 | 片段 | 划分/角色 | 事件 | 时长 |
 | --- | --- | --- | --- | ---: |
-| `inria_line` | `Walk1` | `Walk2` | `line_crossing` | 24.44 / 42.20 s |
-| `inria_dwell` | `Browse1` | `Browse2` | `dwell` | 41.72 / 35.00 s |
-| `lisbon_front_roi` | `EnterExitCrossingPaths1front` | `EnterExitCrossingPaths2front` | `roi_intrusion` | 15.32 / 19.40 s |
+| `inria_line` | `Walk1` | 开发 | `line_crossing` | 24.44 s |
+| `inria_line` | `Walk2` | 正样本留出 | `line_crossing` | 42.20 s |
+| `inria_dwell` | `Browse1` | 开发 | `dwell` | 41.72 s |
+| `inria_dwell` | `Browse_WhileWaiting2` | 零事件负样本留出 | `dwell` | 75.80 s |
+| `inria_dwell` | `Browse2` | 正样本留出 | `dwell` | 35.00 s |
+| `lisbon_front_roi` | `EnterExitCrossingPaths1front` | 开发 | `roi_intrusion` | 15.32 s |
+| `lisbon_front_roi` | `EnterExitCrossingPaths2front` | 正样本留出 | `roi_intrusion` | 19.40 s |
 
-总视频时长约 2 分 58 秒。固定 URL 与 SHA-256 位于
+总视频时长约 4 分 14 秒。固定 URL 与 SHA-256 位于
 [`configs/caviar/dataset.json`](../../configs/caviar/dataset.json)。
 
 ## 防止测试泄漏
@@ -62,7 +66,7 @@ CAVIAR 标注 ID 相同。
 
 ## 下载与介质准备
 
-在 Windows 或 Jetson 下载并校验六段原视频和 XML：
+在 Windows 或 Jetson 下载并校验七段原视频和 XML：
 
 ```bash
 python3 scripts/fetch_caviar.py --root data/caviar
@@ -131,15 +135,16 @@ python3 scripts/prepare_caviar_media.py --root data/caviar
 
 ### 留出语义审计修订
 
-规则冻结后、任何系统推理前的人工语义审计确认 `Walk2` 的双向警戒线与
-`EnterExitCrossingPaths2front` 的入口 ROI 语义成立，但
-`Browse_WhileWaiting2` 中冻结的右侧展台 ROI 不构成合理停留区域。该片段因此被记录为
-数据语义不匹配，不用于正式评分。
+规则冻结后、任何系统推理前的人工语义审计确认 `Walk2` 的双向警戒线、
+`EnterExitCrossingPaths2front` 的入口 ROI，以及 `Browse_WhileWaiting2` 的右侧展台 ROI
+位置均符合原业务语义。整段均匀抽帧进一步确认 `Browse_WhileWaiting2` 中没有人员进入该
+ROI，因此它不是语义失配，而是零事件负样本：只用于检查系统是否产生停留误报，不单独
+证明停留 Recall。
 
-`2026-09-01T09:51:18.954Z` 预先改选尚未观看的 `Browse2` 作为停留留出片段。选择依据仅为
-CAVIAR 官方的“浏览并阅读一段时间”场景说明以及相同固定机位，不涉及系统预测或留出真值
-事件数量。冻结 ROI、`3.0` 秒阈值、运行策略和匹配标准均未修改；`Browse2` 仍须先通过
-同一项人工语义审计，才能执行一次正式留出评估。
+`2026-09-01T10:02:47.704Z` 保留 `Browse_WhileWaiting2`，并按 CAVIAR 官方的“浏览并阅读一段
+时间”场景说明预先加入尚未查看结果的 `Browse2` 作为正样本留出片段。该选择不涉及系统
+预测或留出真值事件数量。冻结 ROI、`3.0` 秒阈值、运行策略和匹配标准均未修改；
+`Browse2` 仍须先通过同一项人工语义审计，才能执行一次正式留出评估。
 
 ## 真值生成与受控运行
 
@@ -199,3 +204,7 @@ python3 scripts/run_caviar_external_validation.py \
 每次运行目录包含原始日志、命令、真值 JSONL、人工确认表、实际事件、截图、片段、标注
 视频、运行时指标以及 JSON/Markdown 评估报告。开发和留出结果不得与 MOT17 指标合并成
 一个分数。
+
+`Browse_WhileWaiting2` 的冻结真值允许为空。若系统也输出零个停留事件，则该负样本通过；
+若输出任意停留事件，均记为 False Positive，并因 Precision 低于门限而失败。该结果只
+证明无占用时的误报控制，停留 Recall 必须由 `Browse2` 正样本留出结果提供。

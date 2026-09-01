@@ -12,13 +12,16 @@
   },
   "selection_policy": {
     "selected_at_utc": "2026-09-01T04:00:17Z",
-    "amended_at_utc": "2026-09-01T09:51:18.954Z",
+    "amended_at_utc": "2026-09-01T10:02:47.704Z",
     "holdout_rule": "开发片段用于确定几何规则；留出片段在规则冻结后才能运行系统推理。",
     "separate_from_mot17": true,
-    "amendment_reason": "任何系统推理前的人工语义审计发现 Browse_WhileWaiting2 与冻结停留 ROI 不匹配，改用官方描述为浏览并阅读一段时间且尚未观看的 Browse2；规则和阈值保持不变。",
-    "rejected_holdout": {
-      "sequence_id": "Browse_WhileWaiting2",
-      "reason": "冻结的右侧展台 ROI 在该片段中不构成合理停留区域。"
+    "amendment_reason": "人工语义审计确认 Browse_WhileWaiting2 的冻结停留 ROI 位置正确但全程无人进入，因此保留为零事件负样本；同时按官方场景说明预先加入尚未观看结果的 Browse2 作为正样本留出片段。规则和阈值保持不变。",
+    "semantic_audit": {
+      "reviewed_at_utc": "2026-09-01T10:02:47.704Z",
+      "Walk2": "pass",
+      "Browse_WhileWaiting2": "pass_negative_control",
+      "EnterExitCrossingPaths2front": "pass",
+      "Browse2": "pending_human_review"
     }
   },
   "sequences": [
@@ -71,9 +74,27 @@
       }
     },
     {
+      "sequence_id": "Browse_WhileWaiting2",
+      "pair_id": "inria_dwell",
+      "split": "holdout",
+      "validation_role": "negative_control",
+      "evaluation_event": "dwell",
+      "video": {
+        "relative_path": "raw/videos/Browse_WhileWaiting2.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse_WhileWaiting2/Browse_WhileWaiting2.mpg",
+        "sha256": "975324fe121725a0cf74e47acf111ec6d403e46107d5d2742df126a1f3567bd8"
+      },
+      "annotation": {
+        "relative_path": "annotations/bww2gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse_WhileWaiting2/bww2gt.xml",
+        "sha256": "13d80d8cba1f2ede1d3ab5f5803bde078d1ee03d1c2831f348d4b85d52082fd8"
+      }
+    },
+    {
       "sequence_id": "Browse2",
       "pair_id": "inria_dwell",
       "split": "holdout",
+      "validation_role": "positive_evaluation",
       "evaluation_event": "dwell",
       "video": {
         "relative_path": "raw/videos/Browse2.mpg",

@@ -47,7 +47,7 @@ class CaviarExternalValidationTest(unittest.TestCase):
         rules["lisbon_front_roi"]["roi"] = [0.2, 0.2, 0.8, 0.9]
         return config
 
-    def test_repository_selection_has_one_development_and_holdout_per_pair(
+    def test_repository_selection_has_required_splits_and_roles(
         self,
     ) -> None:
         protocol.validate_dataset_config(self.dataset)
@@ -56,7 +56,7 @@ class CaviarExternalValidationTest(unittest.TestCase):
         for sequence in self.dataset["sequences"]:
             pairs.setdefault(sequence["pair_id"], set()).add(sequence["split"])
 
-        self.assertEqual(len(self.dataset["sequences"]), 6)
+        self.assertEqual(len(self.dataset["sequences"]), 7)
         self.assertEqual(
             {sequence["sequence_id"] for sequence in self.dataset["sequences"]},
             {
@@ -64,14 +64,15 @@ class CaviarExternalValidationTest(unittest.TestCase):
                 "Walk2",
                 "Browse1",
                 "Browse2",
+                "Browse_WhileWaiting2",
                 "EnterExitCrossingPaths1front",
                 "EnterExitCrossingPaths2front",
             },
         )
-        self.assertEqual(
-            self.dataset["selection_policy"]["rejected_holdout"]["sequence_id"],
-            "Browse_WhileWaiting2",
-        )
+        negative_control = protocol.sequence_by_id(self.dataset, "Browse_WhileWaiting2")
+        positive_dwell = protocol.sequence_by_id(self.dataset, "Browse2")
+        self.assertTrue(protocol.allows_empty_ground_truth(negative_control))
+        self.assertFalse(protocol.allows_empty_ground_truth(positive_dwell))
         self.assertTrue(
             all(
                 protocol.SHA256_PATTERN.fullmatch(sequence[asset]["sha256"])

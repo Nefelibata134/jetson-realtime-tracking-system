@@ -147,11 +147,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"**状态：{report['status']}**",
         "",
-        "| 序列 | 划分 | 事件 | TP | FP | FN | Precision | Recall | F1 |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| 序列 | 划分 | 角色 | 事件 | TP | FP | FN | Precision | Recall | F1 |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         (
             f"| {report['sequence_id']} | {report['split']} | "
-            f"{report['event_type']} | {metrics['true_positives']} | "
+            f"{report['validation_role']} | {report['event_type']} | "
+            f"{metrics['true_positives']} | "
             f"{metrics['false_positives']} | {metrics['false_negatives']} | "
             f"{metrics['precision']:.3f} | {metrics['recall']:.3f} | "
             f"{metrics['f1']:.3f} |"
@@ -249,6 +250,7 @@ def main() -> int:
             "gate_failures": gate_failures,
             "sequence_id": sequence["sequence_id"],
             "split": sequence["split"],
+            "validation_role": sequence.get("validation_role", "positive_evaluation"),
             "event_type": sequence["evaluation_event"],
             "matching_policy": matching,
             "metrics": {

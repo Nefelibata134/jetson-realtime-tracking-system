@@ -13,6 +13,7 @@ from typing import Any, Iterable
 
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 SUPPORTED_EVENTS = {"roi_intrusion", "line_crossing", "dwell"}
+SUPPORTED_VALIDATION_ROLES = {"positive_evaluation", "negative_control"}
 RULE_IDS = {
     "roi_intrusion": "restricted-area-entry",
     "line_crossing": "directional-crossing",
@@ -106,6 +107,7 @@ def validate_dataset_config(config: dict[str, Any]) -> None:
         sequence_id = sequence.get("sequence_id")
         pair_id = sequence.get("pair_id")
         split = sequence.get("split")
+        validation_role = sequence.get("validation_role", "positive_evaluation")
         event_type = sequence.get("evaluation_event")
         if not isinstance(sequence_id, str) or not sequence_id:
             raise ValueError("sequence_id must be a non-empty string")
@@ -116,6 +118,14 @@ def validate_dataset_config(config: dict[str, Any]) -> None:
             raise ValueError(f"invalid pair_id for {sequence_id}")
         if split not in {"development", "holdout"}:
             raise ValueError(f"invalid split for {sequence_id}: {split}")
+        if validation_role not in SUPPORTED_VALIDATION_ROLES:
+            raise ValueError(
+                f"invalid validation role for {sequence_id}: {validation_role}"
+            )
+        if split != "holdout" and validation_role == "negative_control":
+            raise ValueError(
+                f"negative control must be a holdout sequence: {sequence_id}"
+            )
         if event_type not in SUPPORTED_EVENTS:
             raise ValueError(
                 f"unsupported evaluation event for {sequence_id}: {event_type}"
@@ -152,6 +162,10 @@ def validate_dataset_config(config: dict[str, Any]) -> None:
             )
         if len(pair_events[pair_id]) != 1:
             raise ValueError(f"pair {pair_id} mixes multiple event types")
+
+
+def allows_empty_ground_truth(sequence: dict[str, Any]) -> bool:
+    return sequence.get("validation_role", "positive_evaluation") == "negative_control"
 
 
 def _normalized(value: Any) -> bool:
