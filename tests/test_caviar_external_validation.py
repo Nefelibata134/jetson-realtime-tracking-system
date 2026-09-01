@@ -28,6 +28,14 @@ PREPARER = importlib.util.module_from_spec(PREPARER_SPEC)
 assert PREPARER_SPEC.loader is not None
 PREPARER_SPEC.loader.exec_module(PREPARER)
 
+RUNNER_SPEC = importlib.util.spec_from_file_location(
+    "run_caviar_external_validation",
+    ROOT / "scripts" / "run_caviar_external_validation.py",
+)
+RUNNER = importlib.util.module_from_spec(RUNNER_SPEC)
+assert RUNNER_SPEC.loader is not None
+RUNNER_SPEC.loader.exec_module(RUNNER)
+
 
 class CaviarExternalValidationTest(unittest.TestCase):
     @classmethod
@@ -162,6 +170,9 @@ class CaviarExternalValidationTest(unittest.TestCase):
 
         self.assertIn("videorate", command)
         self.assertIn("video/x-raw,format=I420,framerate=25/1", command)
+
+    def test_external_runner_buffers_the_cold_start_without_frame_loss(self) -> None:
+        self.assertEqual(RUNNER.INPUT_QUEUE_CAPACITY, 8)
 
     def test_roi_truth_requires_two_confirmed_inside_frames(self) -> None:
         sequence = protocol.sequence_by_id(self.dataset, "EnterExitCrossingPaths1front")

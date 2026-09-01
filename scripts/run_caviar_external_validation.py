@@ -25,6 +25,7 @@ from caviar_protocol import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+INPUT_QUEUE_CAPACITY = 8
 
 
 def parse_args() -> argparse.Namespace:
@@ -209,7 +210,7 @@ def main() -> int:
             "--frames",
             str(len(frames)),
             "--queue-capacity",
-            "2",
+            str(INPUT_QUEUE_CAPACITY),
             "--score-threshold",
             str(runtime["score_threshold"]),
             "--nms-threshold",
