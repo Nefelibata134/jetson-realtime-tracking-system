@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "dataset": {
+    "name": "CAVIAR Test Case Scenarios",
+    "source_page": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/",
+    "license": "CC BY-SA",
+    "attribution": "EC Funded CAVIAR project/IST 2001 37540",
+    "frame_width": 384,
+    "frame_height": 288,
+    "frames_per_second": 25,
+    "ground_truth_anchor": "bounding_box_bottom_center"
+  },
+  "selection_policy": {
+    "selected_at_utc": "2026-09-01T04:00:17Z",
+    "holdout_rule": "开发片段用于确定几何规则；留出片段在规则冻结后才能运行系统推理。",
+    "separate_from_mot17": true
+  },
+  "sequences": [
+    {
+      "sequence_id": "Walk1",
+      "pair_id": "inria_line",
+      "split": "development",
+      "evaluation_event": "line_crossing",
+      "video": {
+        "relative_path": "raw/videos/Walk1.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Walk1/Walk1.mpg",
+        "sha256": "a5d6dc7d7def01c1bdaeea8ff620195c148b366e1a52589bf4e46f15b6daa0c2"
+      },
+      "annotation": {
+        "relative_path": "annotations/wk1gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Walk1/wk1gt.xml",
+        "sha256": "dfcb8135fe46e7fbbcb7616d93f4f16aee040570185227ecd8c81aaa87de06cd"
+      }
+    },
+    {
+      "sequence_id": "Walk2",
+      "pair_id": "inria_line",
+      "split": "holdout",
+      "evaluation_event": "line_crossing",
+      "video": {
+        "relative_path": "raw/videos/Walk2.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Walk2/Walk2.mpg",
+        "sha256": "b0096abea4a99c67b78d46e37fc5abae7f510b81ff3712911c3295656d3aa8b8"
+      },
+      "annotation": {
+        "relative_path": "annotations/wk2gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Walk2/wk2gt.xml",
+        "sha256": "56392c137a48482d25a4bbe144aa8297547367b03c5afc0bedc73c9d1bbe9326"
+      }
+    },
+    {
+      "sequence_id": "Browse1",
+      "pair_id": "inria_dwell",
+      "split": "development",
+      "evaluation_event": "dwell",
+      "video": {
+        "relative_path": "raw/videos/Browse1.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse1/Browse1.mpg",
+        "sha256": "fafff382d83c7f091dc47396dee82159fb88c0d951b649b6f17afc2b0a914380"
+      },
+      "annotation": {
+        "relative_path": "annotations/br1gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse1/br1gt.xml",
+        "sha256": "4970dc26d3302f12d673c6df33d0dc92760016175f8bb4294fc219b0fe62f753"
+      }
+    },
+    {
+      "sequence_id": "Browse_WhileWaiting2",
+      "pair_id": "inria_dwell",
+      "split": "holdout",
+      "evaluation_event": "dwell",
+      "video": {
+        "relative_path": "raw/videos/Browse_WhileWaiting2.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse_WhileWaiting2/Browse_WhileWaiting2.mpg",
+        "sha256": "975324fe121725a0cf74e47acf111ec6d403e46107d5d2742df126a1f3567bd8"
+      },
+      "annotation": {
+        "relative_path": "annotations/bww2gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse_WhileWaiting2/bww2gt.xml",
+        "sha256": "13d80d8cba1f2ede1d3ab5f5803bde078d1ee03d1c2831f348d4b85d52082fd8"
+      }
+    },
+    {
+      "sequence_id": "EnterExitCrossingPaths1front",
+      "pair_id": "lisbon_front_roi",
+      "split": "development",
+      "evaluation_event": "roi_intrusion",
+      "video": {
+        "relative_path": "raw/videos/EnterExitCrossingPaths1front.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA2/EnterExitCrossingPaths1front/EnterExitCrossingPaths1front.mpg",
+        "sha256": "4ad6b51f756cf5c05df6017137bdb11a31bc320dd53de75aaa06a9dccf8ea7c9"
+      },
+      "annotation": {
+        "relative_path": "annotations/feecp1gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA2/EnterExitCrossingPaths1front/feecp1gt.xml",
+        "sha256": "33677afddc823d8b47eb0fa20d59553b8edc6ed041310b071ae6746a86837494"
+      }
+    },
+    {
+      "sequence_id": "EnterExitCrossingPaths2front",
+      "pair_id": "lisbon_front_roi",
+      "split": "holdout",
+      "evaluation_event": "roi_intrusion",
+      "video": {
+        "relative_path": "raw/videos/EnterExitCrossingPaths2front.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA2/EnterExitCrossingPaths2front/EnterExitCrossingPaths2front.mpg",
+        "sha256": "0040be1d2e36f29b2c2286c0ed9d62d70d997a16f7edd39e12bd35b6804fe311"
+      },
+      "annotation": {
+        "relative_path": "annotations/feecp2gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA2/EnterExitCrossingPaths2front/feecp2gt.xml",
+        "sha256": "af474c91b39d9700b3f33d550836c72dc09f246017bcab7bc61e849c91ceeacd"
+      }
+    }
+  ]
+}

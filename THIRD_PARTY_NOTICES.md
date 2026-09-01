@@ -15,9 +15,14 @@ licenses.
 | NVIDIA TensorRT | https://developer.nvidia.com/tensorrt | NVIDIA SDK terms |
 | TrackEval | https://github.com/JonathonLuiten/TrackEval | MIT |
 | JSON for Modern C++ | https://github.com/nlohmann/json | MIT |
+| CAVIAR Test Case Scenarios | https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/ | CC BY-SA |
 
 No third-party model weights or generated TensorRT engines are stored in this
 repository.
+
+CAVIAR videos and hand-labelled XML are downloaded into the ignored `data/`
+directory and are not redistributed by this repository. Results acknowledge the
+EC Funded CAVIAR project/IST 2001 37540 as requested by the dataset provider.
 
 The ByteTrack C++ runtime is adapted from upstream commit
 `d1bf0191adff59bc8fcfeaa0b33d3d1642552a99`. Its license is preserved at

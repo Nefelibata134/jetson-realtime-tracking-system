@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "pending_human_review",
+  "reviewer": null,
+  "reviewed_at_utc": null,
+  "frozen_at_utc": null,
+  "runtime_policy": {
+    "event_class_id": 0,
+    "score_threshold": 0.3,
+    "nms_threshold": 0.45,
+    "track_threshold": 0.5,
+    "new_track_threshold": 0.6,
+    "track_buffer": 30
+  },
+  "matching_policy": {
+    "frame_tolerance": 50,
+    "anchor_distance_tolerance": 0.2,
+    "minimum_holdout_precision": 0.8,
+    "minimum_holdout_recall": 0.8,
+    "require_complete_evidence": true
+  },
+  "rules": [
+    {
+      "pair_id": "inria_line",
+      "event_type": "line_crossing",
+      "line": null,
+      "direction": "any",
+      "human_notes": null
+    },
+    {
+      "pair_id": "inria_dwell",
+      "event_type": "dwell",
+      "roi": null,
+      "dwell_seconds": null,
+      "human_notes": null
+    },
+    {
+      "pair_id": "lisbon_front_roi",
+      "event_type": "roi_intrusion",
+      "roi": null,
+      "human_notes": null
+    }
+  ]
+}

@@ -487,6 +487,22 @@ bash scripts/run_trackeval_mot17.sh \
 [MOT17 评估协议](docs/benchmarks/mot17_evaluation_protocol.md)，检测器对比与最终留出
 指标见[MOT17 跟踪结果](docs/benchmarks/mot17_tracking_results.md)。
 
+## CAVIAR 外部事件验证
+
+项目另选六段 CAVIAR 固定机位公开视频，分别为穿线、停留和 ROI 入侵建立一段开发片段
+与一段留出片段。CAVIAR 已有的人工边界框用于生成独立事件真值；人工观看只确定业务区域
+并确认预期事件，不需要重新逐帧画框。规则在任何留出推理前冻结，留出运行还要求显式
+`--allow-holdout`，防止查看结果后继续调参。
+
+```bash
+python3 scripts/fetch_caviar.py
+python3 scripts/prepare_caviar_media.py
+```
+
+数据选择、人工复核步骤、MPEG2 到 H.264 MP4 转换、RTSP 实时回放、事件匹配标准和
+完整运行命令见
+[CAVIAR 公开场景外部事件验证协议](docs/benchmarks/caviar_external_validation_protocol.md)。
+
 ## 目标平台
 
 - NVIDIA Jetson Orin Nano 8GB
