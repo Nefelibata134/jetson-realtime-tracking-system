@@ -80,9 +80,12 @@ python3 scripts/fetch_caviar.py --root data/caviar
 python3 scripts/prepare_caviar_media.py --root data/caviar
 ```
 
-脚本要求 `nvvidconv`、`x264enc`、`h264parse` 和 `mp4mux`，并在发布 MP4 前重新解析
-容器与 H.264 码流。原文件和转码文件分别记录在 `download-lock.json` 与
-`prepared-lock.json`；二者均位于 Git 忽略的 `data/caviar/`。
+脚本要求 `nvvidconv`、`videorate`、`x264enc`、`h264parse` 和 `mp4mux`。部分原始 MPEG
+文件缺少可供 MP4 封装使用的 PTS，因此转码时按数据集固定的 `25 FPS` 重建时间基，并在
+发布 MP4 前重新解析容器与 H.264 码流。个别 MPEG 解码器会输出少量未标注尾帧；运行器始终
+以 XML 帧数作为 `--frames` 上限，这些尾帧不会进入评估。原文件和转码文件分别记录在
+`download-lock.json` 与 `prepared-lock.json`；后者同时记录实际评估帧数，二者均位于 Git
+忽略的 `data/caviar/`。
 
 ## 冻结规则格式
 

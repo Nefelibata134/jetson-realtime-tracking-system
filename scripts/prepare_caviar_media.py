@@ -9,6 +9,7 @@ from pathlib import Path
 
 from caviar_protocol import (
     load_json,
+    read_ground_truth_frames,
     sequence_by_id,
     sha256_file,
     validate_dataset_config,
@@ -28,11 +29,13 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def convert(source: Path, destination: Path, bitrate_kbps: int) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(destination.name + ".part.mp4")
-    temporary.unlink(missing_ok=True)
-    command = [
+def build_conversion_command(
+    source: Path,
+    destination: Path,
+    bitrate_kbps: int,
+    frames_per_second: int,
+) -> list[str]:
+    return [
         "gst-launch-1.0",
         "-q",
         "-e",
@@ -45,6 +48,10 @@ def convert(source: Path, destination: Path, bitrate_kbps: int) -> None:
         "!",
         "video/x-raw,format=I420",
         "!",
+        "videorate",
+        "!",
+        f"video/x-raw,format=I420,framerate={frames_per_second}/1",
+        "!",
         "x264enc",
         "tune=zerolatency",
         "speed-preset=ultrafast",
@@ -56,8 +63,25 @@ def convert(source: Path, destination: Path, bitrate_kbps: int) -> None:
         "mp4mux",
         "!",
         "filesink",
-        f"location={temporary}",
+        f"location={destination}",
     ]
+
+
+def convert(
+    source: Path,
+    destination: Path,
+    bitrate_kbps: int,
+    frames_per_second: int,
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".part.mp4")
+    temporary.unlink(missing_ok=True)
+    command = build_conversion_command(
+        source,
+        temporary,
+        bitrate_kbps,
+        frames_per_second,
+    )
     print("command=" + " ".join(str(item) for item in command))
     subprocess.run(command, check=True)
     if not temporary.is_file() or temporary.stat().st_size == 0:
@@ -92,7 +116,7 @@ def main() -> int:
             raise ValueError("gst-launch-1.0 was not found")
         if shutil.which("gst-inspect-1.0") is None:
             raise ValueError("gst-inspect-1.0 was not found")
-        for plugin in ("nvvidconv", "x264enc", "h264parse", "mp4mux"):
+        for plugin in ("nvvidconv", "videorate", "x264enc", "h264parse", "mp4mux"):
             subprocess.run(
                 ["gst-inspect-1.0", plugin],
                 stdout=subprocess.DEVNULL,
@@ -102,6 +126,8 @@ def main() -> int:
 
         config = load_json(args.config)
         validate_dataset_config(config)
+        dataset = config["dataset"]
+        frames_per_second = dataset["frames_per_second"]
         if args.sequence:
             sequences = [sequence_by_id(config, item) for item in args.sequence]
         else:
@@ -115,8 +141,23 @@ def main() -> int:
             destination = (
                 args.root / "prepared" / "videos" / f"{sequence['sequence_id']}.mp4"
             )
+            annotation = args.root / sequence["annotation"]["relative_path"]
+            xml_name, evaluation_frames = read_ground_truth_frames(
+                annotation,
+                frame_width=dataset["frame_width"],
+                frame_height=dataset["frame_height"],
+            )
+            if xml_name != sequence["sequence_id"]:
+                raise ValueError(
+                    f"annotation sequence name does not match {sequence['sequence_id']}"
+                )
             if not destination.is_file():
-                convert(source, destination, args.bitrate_kbps)
+                convert(
+                    source,
+                    destination,
+                    args.bitrate_kbps,
+                    frames_per_second,
+                )
             validate_prepared_video(destination)
             checksum = sha256_file(destination)
             print(
@@ -133,6 +174,8 @@ def main() -> int:
                     "codec": "H.264",
                     "container": "MP4",
                     "bitrate_kbps": args.bitrate_kbps,
+                    "frames_per_second": frames_per_second,
+                    "evaluation_frames": len(evaluation_frames),
                 }
             )
 

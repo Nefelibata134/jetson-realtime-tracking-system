@@ -21,6 +21,13 @@ EVALUATOR = importlib.util.module_from_spec(EVALUATOR_SPEC)
 assert EVALUATOR_SPEC.loader is not None
 EVALUATOR_SPEC.loader.exec_module(EVALUATOR)
 
+PREPARER_SPEC = importlib.util.spec_from_file_location(
+    "prepare_caviar_media", ROOT / "scripts" / "prepare_caviar_media.py"
+)
+PREPARER = importlib.util.module_from_spec(PREPARER_SPEC)
+assert PREPARER_SPEC.loader is not None
+PREPARER_SPEC.loader.exec_module(PREPARER)
+
 
 class CaviarExternalValidationTest(unittest.TestCase):
     @classmethod
@@ -144,6 +151,17 @@ class CaviarExternalValidationTest(unittest.TestCase):
         self.assertEqual(frames[0].tracks[0].track_id, 7)
         self.assertAlmostEqual(frames[0].tracks[0].anchor_x, 0.25)
         self.assertAlmostEqual(frames[0].tracks[0].anchor_y, 120 / 288)
+
+    def test_media_conversion_rebuilds_the_fixed_frame_timeline(self) -> None:
+        command = PREPARER.build_conversion_command(
+            Path("source.mpg"),
+            Path("destination.mp4"),
+            bitrate_kbps=2500,
+            frames_per_second=25,
+        )
+
+        self.assertIn("videorate", command)
+        self.assertIn("video/x-raw,format=I420,framerate=25/1", command)
 
     def test_roi_truth_requires_two_confirmed_inside_frames(self) -> None:
         sequence = protocol.sequence_by_id(self.dataset, "EnterExitCrossingPaths1front")
