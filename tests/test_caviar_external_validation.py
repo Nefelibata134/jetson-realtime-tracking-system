@@ -57,6 +57,21 @@ class CaviarExternalValidationTest(unittest.TestCase):
             pairs.setdefault(sequence["pair_id"], set()).add(sequence["split"])
 
         self.assertEqual(len(self.dataset["sequences"]), 6)
+        self.assertEqual(
+            {sequence["sequence_id"] for sequence in self.dataset["sequences"]},
+            {
+                "Walk1",
+                "Walk2",
+                "Browse1",
+                "Browse2",
+                "EnterExitCrossingPaths1front",
+                "EnterExitCrossingPaths2front",
+            },
+        )
+        self.assertEqual(
+            self.dataset["selection_policy"]["rejected_holdout"]["sequence_id"],
+            "Browse_WhileWaiting2",
+        )
         self.assertTrue(
             all(
                 protocol.SHA256_PATTERN.fullmatch(sequence[asset]["sha256"])

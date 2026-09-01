@@ -12,8 +12,14 @@
   },
   "selection_policy": {
     "selected_at_utc": "2026-09-01T04:00:17Z",
+    "amended_at_utc": "2026-09-01T09:51:18.954Z",
     "holdout_rule": "开发片段用于确定几何规则；留出片段在规则冻结后才能运行系统推理。",
-    "separate_from_mot17": true
+    "separate_from_mot17": true,
+    "amendment_reason": "任何系统推理前的人工语义审计发现 Browse_WhileWaiting2 与冻结停留 ROI 不匹配，改用官方描述为浏览并阅读一段时间且尚未观看的 Browse2；规则和阈值保持不变。",
+    "rejected_holdout": {
+      "sequence_id": "Browse_WhileWaiting2",
+      "reason": "冻结的右侧展台 ROI 在该片段中不构成合理停留区域。"
+    }
   },
   "sequences": [
     {
@@ -65,19 +71,19 @@
       }
     },
     {
-      "sequence_id": "Browse_WhileWaiting2",
+      "sequence_id": "Browse2",
       "pair_id": "inria_dwell",
       "split": "holdout",
       "evaluation_event": "dwell",
       "video": {
-        "relative_path": "raw/videos/Browse_WhileWaiting2.mpg",
-        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse_WhileWaiting2/Browse_WhileWaiting2.mpg",
-        "sha256": "975324fe121725a0cf74e47acf111ec6d403e46107d5d2742df126a1f3567bd8"
+        "relative_path": "raw/videos/Browse2.mpg",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse2/Browse2.mpg",
+        "sha256": "c1decc9a72a48133674227cf64ad79adbde5dbd9239c45f1e868056ada9a0851"
       },
       "annotation": {
-        "relative_path": "annotations/bww2gt.xml",
-        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse_WhileWaiting2/bww2gt.xml",
-        "sha256": "13d80d8cba1f2ede1d3ab5f5803bde078d1ee03d1c2831f348d4b85d52082fd8"
+        "relative_path": "annotations/br2gt.xml",
+        "url": "https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/Browse2/br2gt.xml",
+        "sha256": "c5755b19aef64f35a08b79f6effb83c1bdcadf446f4a82344296cb201c7d9939"
       }
     },
     {

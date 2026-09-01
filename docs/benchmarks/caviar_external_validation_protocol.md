@@ -22,10 +22,10 @@ project/IST 2001 37540 提供，页面标注为 CC BY-SA；仓库只保存 URL�
 | 规则对 | 开发片段 | 留出片段 | 事件 | 时长 |
 | --- | --- | --- | --- | ---: |
 | `inria_line` | `Walk1` | `Walk2` | `line_crossing` | 24.44 / 42.20 s |
-| `inria_dwell` | `Browse1` | `Browse_WhileWaiting2` | `dwell` | 41.72 / 75.80 s |
+| `inria_dwell` | `Browse1` | `Browse2` | `dwell` | 41.72 / 35.00 s |
 | `lisbon_front_roi` | `EnterExitCrossingPaths1front` | `EnterExitCrossingPaths2front` | `roi_intrusion` | 15.32 / 19.40 s |
 
-总视频时长约 3 分 39 秒。固定 URL 与 SHA-256 位于
+总视频时长约 2 分 58 秒。固定 URL 与 SHA-256 位于
 [`configs/caviar/dataset.json`](../../configs/caviar/dataset.json)。
 
 ## 防止测试泄漏
@@ -128,6 +128,18 @@ python3 scripts/prepare_caviar_media.py --root data/caviar
 开发集事件由 CAVIAR 人工框轨迹按上述规则生成，随后对照带几何叠加的视频逐项确认，共
 确认 9 个事件。冻结时尚未执行留出推理；后续留出结果不得反向修改本表中的规则、运行时
 策略或匹配标准。
+
+### 留出语义审计修订
+
+规则冻结后、任何系统推理前的人工语义审计确认 `Walk2` 的双向警戒线与
+`EnterExitCrossingPaths2front` 的入口 ROI 语义成立，但
+`Browse_WhileWaiting2` 中冻结的右侧展台 ROI 不构成合理停留区域。该片段因此被记录为
+数据语义不匹配，不用于正式评分。
+
+`2026-09-01T09:51:18.954Z` 预先改选尚未观看的 `Browse2` 作为停留留出片段。选择依据仅为
+CAVIAR 官方的“浏览并阅读一段时间”场景说明以及相同固定机位，不涉及系统预测或留出真值
+事件数量。冻结 ROI、`3.0` 秒阈值、运行策略和匹配标准均未修改；`Browse2` 仍须先通过
+同一项人工语义审计，才能执行一次正式留出评估。
 
 ## 真值生成与受控运行
 
