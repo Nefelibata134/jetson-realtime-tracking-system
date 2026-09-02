@@ -240,3 +240,10 @@ python3 scripts/run_caviar_external_validation.py \
 `Browse_WhileWaiting2` 的冻结真值允许为空。若系统也输出零个停留事件，则该负样本通过；
 若输出任意停留事件，均记为 False Positive，并因 Precision 低于门限而失败。该结果只
 证明无占用时的误报控制，停留 Recall 必须由 `Browse2` 正样本留出结果提供。
+
+## 正式结果
+
+修复测量工具后的四段有效留出运行均达到目标帧数，且没有输入丢帧或帧序缺口。零事件
+负样本通过，三个正样本均未达到事件精度门限。逐段指标、聚合结论、运行时数据和代表性
+事件截图见
+[`CAVIAR 公开场景外部事件验证结果`](caviar_external_validation_results.md)。

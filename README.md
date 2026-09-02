@@ -497,7 +497,13 @@ bash scripts/run_trackeval_mot17.sh \
 当前人工复核后的规则已保存为
 [`configs/caviar/rules.frozen.json`](configs/caviar/rules.frozen.json)：穿线采用双向有限线段，
 停留采用右侧展台区域和 `3.0` 秒阈值，ROI 入侵采用开放商店入口区域。三段开发视频生成的
-`5/2/2` 个预期事件已逐项人工确认；留出结果将在同一冻结配置下独立报告。
+`5/2/2` 个预期事件已逐项人工确认。
+
+Jetson 25W 锁定时钟下的正式留出轮次完成了 `4,310/4,310` 帧，输入丢帧和帧序缺口均为
+`0`。零事件负样本通过，但三个正样本序列均未达到冻结门限；合计 TP/FP/FN 为
+`2/1/5`，聚合 Precision 为 `66.67%`、Recall 为 `28.57%`、F1 为 `40.00%`。当前
+YOLOX-Nano 配置的主要限制是低分辨率远景人物无法稳定转化为连续轨迹，不是 TensorRT
+吞吐。
 
 ```bash
 python3 scripts/fetch_caviar.py
@@ -506,7 +512,9 @@ python3 scripts/prepare_caviar_media.py
 
 数据选择、人工复核步骤、MPEG2 到 H.264 MP4 转换、RTSP 实时回放、事件匹配标准和
 完整运行命令见
-[CAVIAR 公开场景外部事件验证协议](docs/benchmarks/caviar_external_validation_protocol.md)。
+[CAVIAR 公开场景外部事件验证协议](docs/benchmarks/caviar_external_validation_protocol.md)，
+逐段指标与事件截图见
+[CAVIAR 外部事件验证结果](docs/benchmarks/caviar_external_validation_results.md)。
 
 ## 目标平台
 
