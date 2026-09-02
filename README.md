@@ -28,6 +28,11 @@
 服务默认模型后续依据 CAVIAR 开发集 A/B 切换为 YOLOX-Tiny；两种模型的结果必须按各自
 报告解释，不能把 Nano 性能表直接标成 Tiny。
 
+YOLOX-S 以官方 `640x640` 输入完成了单独的可行性验证：720p 完整流水线在 25W 与
+MAXN_SUPER 下均为 `30.03 FPS`、测量丢帧为 `0`、x264 写入 `600/600`；E2E P95
+分别为 `13.02 ms` 和 `11.65 ms`。但 S 在冻结 CAVIAR 开发规则上的 F1 为
+`50.00%`，低于 Tiny 的 `53.33%`，所以 Tiny 仍是默认模型。
+
 补充验证：
 
 - 60 分钟 CSI 服务持续运行实现 100% 活跃覆盖，进程零重启、watchdog 零停滞、
@@ -39,7 +44,8 @@
 
 详细协议、样本数和限制见[完整流水线矩阵](docs/benchmarks/jetson_full_pipeline_matrix.md)、
 [MOT17 跟踪结果](docs/benchmarks/mot17_tracking_results.md)和
-[服务稳定性报告](docs/operations/stability_report.md)。
+[服务稳定性报告](docs/operations/stability_report.md)。S 的独立结果见
+[YOLOX-S Jetson 可行性验证](docs/benchmarks/yolox_s_feasibility.md)。
 
 1080p 25W x264 测试中没有检测结果，也没有触发事件；它能验证审计编码连续性，但不能
 验证活跃事件 I/O。1080p MAXN_SUPER x264 测试触发了入侵和停留证据，同时保存全部
@@ -509,10 +515,10 @@ Jetson 25W 锁定时钟下的正式留出轮次完成了 `4,310/4,310` 帧，输
 YOLOX-Nano 配置的主要限制是低分辨率远景人物无法稳定转化为连续轨迹，不是 TensorRT
 吞吐。
 
-在相同三段开发视频、相同冻结规则与阈值下，YOLOX-Tiny 相比 Nano 将聚合 Precision
-从 `50.00%` 提升到 `66.67%`，F1 从 `47.06%` 提升到 `53.33%`，Recall 均为
-`44.44%`。Tiny 提升停留召回并减少入口误报，但穿线 Recall 从 `40.00%` 降至
-`20.00%`，因此它被选为服务默认候选，不代表事件精度已经合格。完整开发集对比见
+在相同三段开发视频、相同冻结规则与阈值下，Nano、Tiny 与 S 的聚合 F1 分别为
+`47.06%`、`53.33%` 和 `50.00%`。S 使用官方 `640x640` 输入并消除了入口误报，
+但没有检出停留事件；更多检测框没有转化为更高的整体事件 F1。因此 Tiny 仍是服务默认
+候选，这不代表事件精度已经合格。完整开发集对比见
 [CAVIAR 检测器开发集对比](docs/benchmarks/caviar_detector_development_comparison.md)。
 
 ```bash
@@ -541,16 +547,18 @@ python3 scripts/prepare_caviar_media.py
 模型资产和 TensorRT engine 在仓库外生成。TensorRT engine 与目标 GPU、TensorRT
 版本和优化 profile 耦合，必须在目标 Jetson 上构建。
 
-检测器对比使用官方 YOLOX-Nano 与 YOLOX-Tiny ONNX 导出，固定输入
-`1x3x416x416`。使用以下脚本下载并校验：
+检测器对比使用官方 YOLOX-Nano、YOLOX-Tiny 与 YOLOX-S ONNX 导出。Nano/Tiny
+输入为 `1x3x416x416`，S 输入为 `1x3x640x640`；运行时从 TensorRT engine 契约
+读取尺寸。使用以下脚本下载并校验：
 
 ```bash
 bash scripts/fetch_yolox_nano.sh
 bash scripts/fetch_yolox_tiny.sh
+bash scripts/fetch_yolox_s.sh
 ```
 
-源 URL、校验和、许可证和张量契约记录在 `models/yolox_nano.json` 与
-`models/yolox_tiny.json`。
+源 URL、校验和、许可证和张量契约记录在 `models/yolox_nano.json`、
+`models/yolox_tiny.json` 与 `models/yolox_s.json`。
 
 ## 许可证
 
