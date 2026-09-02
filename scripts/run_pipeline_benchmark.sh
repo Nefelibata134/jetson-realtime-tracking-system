@@ -5,7 +5,7 @@ usage() {
     cat <<'EOF'
 Usage:
   scripts/run_pipeline_benchmark.sh \
-    --model nano|tiny \
+    --model nano|tiny|s \
     --engine models/model.plan \
     --resolution 720p|1080p \
     [--frames 600] [--warmup-frames 30] \
@@ -60,8 +60,8 @@ if [[ -z "${model}" || -z "${engine}" || -z "${resolution}" ]]; then
     usage >&2
     exit 2
 fi
-if [[ "${model}" != "nano" && "${model}" != "tiny" ]]; then
-    echo "--model must be nano or tiny" >&2
+if [[ "${model}" != "nano" && "${model}" != "tiny" && "${model}" != "s" ]]; then
+    echo "--model must be nano, tiny, or s" >&2
     exit 2
 fi
 if [[ "${output_encoder}" != "x264" && "${output_encoder}" != "mp4v" ]]; then

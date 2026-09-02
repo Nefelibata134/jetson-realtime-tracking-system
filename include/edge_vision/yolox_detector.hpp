@@ -11,8 +11,9 @@
 namespace edge_vision {
 
 struct YoloXDetectorConfig {
-    int input_width{416};
-    int input_height{416};
+    // Zero dimensions are resolved from the static TensorRT engine contract.
+    int input_width{0};
+    int input_height{0};
     int class_count{80};
     float score_threshold{0.3F};
     float nms_threshold{0.45F};

@@ -1,12 +1,56 @@
 #include "edge_vision/yolox_detector.hpp"
 
 #include <chrono>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
 
 namespace edge_vision {
 namespace {
+
+std::string shape_string(const TensorContract& contract) {
+    std::ostringstream output;
+    for (std::size_t index = 0; index < contract.shape.size(); ++index) {
+        if (index != 0) {
+            output << 'x';
+        }
+        output << contract.shape[index];
+    }
+    return output.str();
+}
+
+YoloXDetectorConfig resolve_input_dimensions(
+    const TensorContract& input,
+    YoloXDetectorConfig config) {
+    if (input.shape.size() != 4U || input.shape[0] != 1 ||
+        input.shape[1] != 3) {
+        throw std::runtime_error(
+            "YOLOX engine input contract must be static NCHW 1x3xHxW, "
+            "received " +
+            shape_string(input));
+    }
+
+    const auto maximum =
+        static_cast<std::int64_t>(std::numeric_limits<int>::max());
+    if (input.shape[2] > maximum || input.shape[3] > maximum) {
+        throw std::runtime_error(
+            "YOLOX engine input dimensions exceed the supported integer range");
+    }
+
+    const bool infer_width = config.input_width == 0;
+    const bool infer_height = config.input_height == 0;
+    if (infer_width != infer_height || config.input_width < 0 ||
+        config.input_height < 0) {
+        throw std::invalid_argument(
+            "YOLOX input width and height must both be zero or both be positive");
+    }
+    if (infer_width) {
+        config.input_height = static_cast<int>(input.shape[2]);
+        config.input_width = static_cast<int>(input.shape[3]);
+    }
+    return config;
+}
 
 YoloXPostprocessConfig make_postprocess_config(
     const YoloXDetectorConfig& config) {
@@ -20,24 +64,13 @@ YoloXPostprocessConfig make_postprocess_config(
     };
 }
 
-std::string shape_string(const TensorContract& contract) {
-    std::ostringstream output;
-    for (std::size_t index = 0; index < contract.shape.size(); ++index) {
-        if (index != 0) {
-            output << 'x';
-        }
-        output << contract.shape[index];
-    }
-    return output.str();
-}
-
 }  // namespace
 
 YoloXDetector::YoloXDetector(
     const std::string& engine_path,
     YoloXDetectorConfig config)
     : engine_(engine_path),
-      config_(std::move(config)),
+      config_(resolve_input_dimensions(engine_.input(), std::move(config))),
       preprocessor_(config_.input_width, config_.input_height),
       postprocessor_(make_postprocess_config(config_)) {
     validate_contracts();
