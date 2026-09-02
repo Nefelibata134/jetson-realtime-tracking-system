@@ -24,6 +24,10 @@
 | 1080p, MAXN_SUPER | MP4V | 29.99 | 0.00% | 3.24 ms | 12.13 ms | 379/600 | 9.46 W |
 | 1080p, MAXN_SUPER | x264 | 29.12 | 0.00% | 6.31 ms | 14.45 ms | 600/600 | 9.92 W |
 
+上述完整流水线矩阵和 60 分钟稳定性记录使用 YOLOX-Nano，是不可改写的历史基线。
+服务默认模型后续依据 CAVIAR 开发集 A/B 切换为 YOLOX-Tiny；两种模型的结果必须按各自
+报告解释，不能把 Nano 性能表直接标成 Tiny。
+
 补充验证：
 
 - 60 分钟 CSI 服务持续运行实现 100% 活跃覆盖，进程零重启、watchdog 零停滞、
@@ -100,9 +104,9 @@ sudo apt-get install -y \
 git clone https://github.com/Nefelibata134/jetson-realtime-tracking-system.git
 cd jetson-realtime-tracking-system
 
-bash scripts/fetch_yolox_nano.sh
+bash scripts/fetch_yolox_tiny.sh
 bash scripts/build_tensorrt_engine.sh \
-  models/yolox_nano.onnx models/yolox_nano_fp16.plan
+  models/yolox_tiny.onnx models/yolox_tiny_fp16.plan
 
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
@@ -116,7 +120,7 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 ./build/edge_vision_realtime_detect \
-  --engine models/yolox_nano_fp16.plan \
+  --engine models/yolox_tiny_fp16.plan \
   --csi --sensor-id 0 --sensor-mode 4 \
   --capture-width 1280 --capture-height 720 --capture-fps 60 \
   --width 1280 --height 720 --fps 30 \
@@ -504,6 +508,12 @@ Jetson 25W 锁定时钟下的正式留出轮次完成了 `4,310/4,310` 帧，输
 `2/1/5`，聚合 Precision 为 `66.67%`、Recall 为 `28.57%`、F1 为 `40.00%`。当前
 YOLOX-Nano 配置的主要限制是低分辨率远景人物无法稳定转化为连续轨迹，不是 TensorRT
 吞吐。
+
+在相同三段开发视频、相同冻结规则与阈值下，YOLOX-Tiny 相比 Nano 将聚合 Precision
+从 `50.00%` 提升到 `66.67%`，F1 从 `47.06%` 提升到 `53.33%`，Recall 均为
+`44.44%`。Tiny 提升停留召回并减少入口误报，但穿线 Recall 从 `40.00%` 降至
+`20.00%`，因此它被选为服务默认候选，不代表事件精度已经合格。完整开发集对比见
+[CAVIAR 检测器开发集对比](docs/benchmarks/caviar_detector_development_comparison.md)。
 
 ```bash
 python3 scripts/fetch_caviar.py

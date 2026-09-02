@@ -39,11 +39,13 @@ cmake --build build-service -j"$(nproc)"
 
 sudo bash scripts/install_systemd_service.sh \
   --binary build-service/edge_vision_realtime_detect \
-  --engine models/yolox_nano_fp16.plan
+  --engine models/yolox_tiny_fp16.plan
 ```
 
 安装器会创建非特权 `edge-vision` 账号，把文件安装到 `/opt/edge-vision`，将 engine
-复制到持久化状态目录，并启用服务与保留策略定时器。在审查配置前，它不会启动视频流水线。
+按原文件名复制到持久化状态目录，并把 `EDGE_VISION_ENGINE` 更新为本次显式传入的
+engine。其他环境配置保持不变；重新传入 Nano engine 即可回退。在审查配置前，安装器
+不会启动视频流水线。
 
 编辑 `/etc/edge-vision/edge-vision.env`，然后启动服务：
 
@@ -61,7 +63,7 @@ RTSP 与文件输入使用同一启动器，分别设置 `EDGE_VISION_SOURCE=rts
 
 ```text
 /var/lib/edge-vision/
-  models/yolox_nano_fp16.plan
+  models/yolox_tiny_fp16.plan
   metrics/latest.json
   current -> spool/<session-id>
   spool/<session-id>/

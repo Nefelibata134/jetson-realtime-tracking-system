@@ -2,7 +2,7 @@
 set -euo pipefail
 
 binary="${EDGE_VISION_BINARY:-/opt/edge-vision/bin/edge_vision_realtime_detect}"
-engine="${EDGE_VISION_ENGINE:-/var/lib/edge-vision/models/yolox_nano_fp16.plan}"
+engine="${EDGE_VISION_ENGINE:-/var/lib/edge-vision/models/yolox_tiny_fp16.plan}"
 state_directory="${STATE_DIRECTORY:-/var/lib/edge-vision}"
 source_type="${EDGE_VISION_SOURCE:-csi}"
 

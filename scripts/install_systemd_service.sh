@@ -30,14 +30,14 @@ done
 }
 
 missing_commands=()
-for command in systemctl python3 logrotate stdbuf; do
+for command in systemctl python3 logrotate stdbuf grep sed; do
   if ! command -v "$command" >/dev/null 2>&1; then
     missing_commands+=("$command")
   fi
 done
 if [[ ${#missing_commands[@]} -ne 0 ]]; then
   echo "missing required commands: ${missing_commands[*]}" >&2
-  echo "Ubuntu: apt-get install -y python3 logrotate coreutils" >&2
+  echo "Ubuntu: apt-get install -y python3 logrotate coreutils grep sed" >&2
   exit 1
 fi
 
@@ -47,6 +47,12 @@ fi
 }
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+engine_filename="$(basename -- "$engine")"
+if [[ ! $engine_filename =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "engine filename contains unsupported characters: $engine_filename" >&2
+  exit 2
+fi
+installed_engine="/var/lib/edge-vision/models/$engine_filename"
 
 if ! getent group edge-vision >/dev/null; then
   groupadd --system edge-vision
@@ -80,12 +86,20 @@ install -m 0755 "$project_root/scripts/run_edge_vision_service.sh" \
 install -m 0755 "$project_root/scripts/prune_event_spool.py" \
   /opt/edge-vision/bin/prune-event-spool
 install -o edge-vision -g edge-vision -m 0640 "$engine" \
-  /var/lib/edge-vision/models/yolox_nano_fp16.plan
+  "$installed_engine"
 
-if [[ ! -f /etc/edge-vision/edge-vision.env ]]; then
+env_path="/etc/edge-vision/edge-vision.env"
+if [[ ! -f $env_path ]]; then
   install -m 0640 \
     "$project_root/deploy/systemd/edge-vision.env.example" \
-    /etc/edge-vision/edge-vision.env
+    "$env_path"
+fi
+if grep -q '^EDGE_VISION_ENGINE=' "$env_path"; then
+  sed -i \
+    "s|^EDGE_VISION_ENGINE=.*$|EDGE_VISION_ENGINE=$installed_engine|" \
+    "$env_path"
+else
+  printf '\nEDGE_VISION_ENGINE=%s\n' "$installed_engine" >>"$env_path"
 fi
 install -m 0644 "$project_root/deploy/systemd/edge-vision.service" \
   /etc/systemd/system/edge-vision.service
@@ -101,4 +115,5 @@ systemctl enable edge-vision.service edge-vision-prune.timer
 
 echo "installed edge-vision service"
 echo "configuration: /etc/edge-vision/edge-vision.env"
+echo "engine: $installed_engine"
 echo "start: systemctl start edge-vision.service"
