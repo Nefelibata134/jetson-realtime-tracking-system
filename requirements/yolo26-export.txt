@@ -1,0 +1,4 @@
+# Export tool versions that determine the YOLO26 ONNX graph contract.
+# PyTorch wheels remain platform-specific; record `pip freeze` with each export.
+ultralytics==8.4.138
+onnx==1.20.0

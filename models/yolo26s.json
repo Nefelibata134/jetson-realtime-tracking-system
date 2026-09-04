@@ -1,0 +1,52 @@
+{
+  "name": "YOLO26s",
+  "role": "evaluation_candidate",
+  "upstream": {
+    "project": "Ultralytics YOLO26",
+    "weight_asset_release": "v8.4.0",
+    "source_code_tag": "v8.4.138",
+    "source_code_commit": "dad7bb4534c95021bc14969ab25d77b77c4efdc3",
+    "license": "AGPL-3.0"
+  },
+  "weight": {
+    "filename": "yolo26s.pt",
+    "source": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26s.pt",
+    "sha256": "646f8bc3fe0a656803d95c294f7852321748cb29d13466a1af8862e2db384a1b",
+    "tracked": false
+  },
+  "export": {
+    "tool": "ultralytics",
+    "version": "8.4.138",
+    "format": "onnx",
+    "opset": 17,
+    "image_size": 640,
+    "batch": 1,
+    "dynamic": false,
+    "simplify": false,
+    "end2end": false
+  },
+  "input": {
+    "shape": [1, 3, 640, 640],
+    "dtype": "float32"
+  },
+  "output": {
+    "expected_shape": [1, 84, 8400],
+    "layout": "batch,xywh_plus_80_class_scores,candidates",
+    "box_encoding": "cxcywh",
+    "contains_objectness": false,
+    "requires_nms": true,
+    "dtype": "float32"
+  },
+  "host_export_verification": {
+    "date": "2026-09-04",
+    "platform": "Windows AMD64",
+    "python": "3.13.9",
+    "torch": "2.11.0+cpu",
+    "ultralytics": "8.4.138",
+    "onnx": "1.20.0",
+    "sha256": "82f82fb5249d2da8806ae50c4ab69761d9f447d5aaa1462535dfdca3eef83a16",
+    "repeat_exports": 2,
+    "repeat_hash_equal": true,
+    "jetson_engine_validated": false
+  }
+}

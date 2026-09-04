@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -14,11 +15,16 @@ REQUIRED_FILES = {
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "docs/licensing.md",
+    "docs/models/yolo26s.md",
     "docs/benchmarks/jetson_full_pipeline_matrix.md",
     "docs/benchmarks/mot17_tracking_results.md",
     "docs/operations/headless_service.md",
     "docs/operations/stability_report.md",
     "docs/releases/v1.0.0.md",
+    "models/yolo26s.json",
+    "requirements/yolo26-export.txt",
+    "scripts/export_yolo26s_onnx.py",
+    "scripts/fetch_yolo26s.sh",
 }
 REQUIRED_README_HEADINGS = {
     "Jetson 实机实测",
@@ -41,9 +47,42 @@ FORBIDDEN_TEXT = re.compile(
     "\\u4e0b\\u4e00\\u6b21\\u5bf9\\u8bdd",
     re.IGNORECASE,
 )
-FORBIDDEN_SUFFIXES = {".avi", ".engine", ".log", ".mp4", ".onnx", ".plan", ".pth"}
-FORBIDDEN_PREFIXES = ("build/", "data/", "external/", "outputs/", "reports/")
+FORBIDDEN_SUFFIXES = {
+    ".avi",
+    ".engine",
+    ".log",
+    ".mp4",
+    ".onnx",
+    ".plan",
+    ".pt",
+    ".pth",
+    ".weights",
+}
+FORBIDDEN_PREFIXES = (
+    ".cache/",
+    ".venv-yolo26-export/",
+    "build/",
+    "credentials/",
+    "data/",
+    "external/",
+    "outputs/",
+    "reports/",
+)
+YOLO26_WEIGHT_SHA256 = (
+    "646f8bc3fe0a656803d95c294f7852321748cb29d13466a1af8862e2db384a1b"
+)
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+
+
+def is_forbidden_artifact(path: str) -> bool:
+    name = Path(path).name.lower()
+    return (
+        path.startswith(FORBIDDEN_PREFIXES)
+        or Path(path).suffix.lower() in FORBIDDEN_SUFFIXES
+        or name.endswith(".onnx.data")
+        or name == ".env"
+        or name.startswith(".env.")
+    )
 
 
 def tracked_files(root: Path) -> list[str]:
@@ -101,8 +140,7 @@ def validate(root: Path) -> list[str]:
     forbidden_artifacts = sorted(
         path
         for path in files
-        if path.startswith(FORBIDDEN_PREFIXES)
-        or Path(path).suffix.lower() in FORBIDDEN_SUFFIXES
+        if is_forbidden_artifact(path)
     )
     if forbidden_artifacts:
         failures.append("运行产物被纳入版本控制：" + ", ".join(forbidden_artifacts))
@@ -122,6 +160,35 @@ def validate(root: Path) -> list[str]:
             continue
         for missing in local_markdown_links(path):
             failures.append(f"{relative} 包含失效的本地 Markdown 链接：{missing}")
+
+    metadata = json.loads((root / "models/yolo26s.json").read_text(encoding="utf-8"))
+    if (
+        metadata.get("upstream", {}).get("weight_asset_release") != "v8.4.0"
+        or metadata.get("upstream", {}).get("source_code_tag") != "v8.4.138"
+        or metadata.get("upstream", {}).get("source_code_commit")
+        != "dad7bb4534c95021bc14969ab25d77b77c4efdc3"
+        or metadata.get("upstream", {}).get("license") != "AGPL-3.0"
+        or metadata.get("weight", {}).get("sha256") != YOLO26_WEIGHT_SHA256
+        or metadata.get("weight", {}).get("tracked") is not False
+        or metadata.get("export", {}).get("version") != "8.4.138"
+        or metadata.get("export", {}).get("end2end") is not False
+        or metadata.get("host_export_verification", {}).get("repeat_hash_equal")
+        is not True
+        or metadata.get("host_export_verification", {}).get(
+            "jetson_engine_validated"
+        )
+        is not False
+    ):
+        failures.append("YOLO26s 来源、许可证、哈希或导出契约不符合固定元数据")
+
+    for relative in (
+        "THIRD_PARTY_NOTICES.md",
+        "docs/models/yolo26s.md",
+        "scripts/export_yolo26s_onnx.py",
+        "scripts/fetch_yolo26s.sh",
+    ):
+        if YOLO26_WEIGHT_SHA256 not in (root / relative).read_text(encoding="utf-8"):
+            failures.append(f"{relative} 未包含固定的 YOLO26s 权重哈希")
 
     return failures
 

@@ -562,6 +562,11 @@ bash scripts/fetch_yolox_s.sh
 源 URL、校验和、许可证和张量契约记录在 `models/yolox_nano.json`、
 `models/yolox_tiny.json` 与 `models/yolox_s.json`。
 
+YOLO26s 当前仅作为 A/B 评估候选，不改变 YOLOX-Tiny 默认配置。官方权重、固定哈希、
+one-to-many ONNX 导出契约和目标 Jetson 上的 FP16 engine 构建步骤见
+[YOLO26s 资产与导出契约](docs/models/yolo26s.md)。权重、ONNX 和 TensorRT engine
+均在仓库外生成，不纳入版本控制。
+
 ## 许可证
 
 从许可证迁移提交开始，项目自有源码及包含兼容第三方组件的整体项目分发按
