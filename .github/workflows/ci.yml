@@ -36,6 +36,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Configure
         run: >-
           cmake -S . -B build
@@ -57,6 +60,4 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Validate release contract
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          python3 scripts/validate_release.py
+        run: python3 scripts/validate_release.py
