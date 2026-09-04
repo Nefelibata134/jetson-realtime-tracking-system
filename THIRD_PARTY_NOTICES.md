@@ -6,7 +6,7 @@
 
 | 组件 | 用途与分发方式 | 上游版本或固定点 | 许可证 |
 | --- | --- | --- | --- |
-| Ultralytics YOLO26 / YOLO26s | 评估候选；仅在仓库外获取权重并导出 ONNX | Ultralytics `8.4.138`；Assets `v8.4.0` | AGPL-3.0 或另行取得的 Enterprise License；本项目选择 AGPL-3.0 路线 |
+| Ultralytics YOLO26n / YOLO26s | 评估候选；仅在仓库外获取权重并导出 ONNX | Ultralytics `8.4.138`；Assets `v8.4.0` | AGPL-3.0 或另行取得的 Enterprise License；本项目选择 AGPL-3.0 路线 |
 | [YOLOX](https://github.com/Megvii-BaseDetection/YOLOX) | 当前检测器及外部 ONNX 模型来源；上游代码和模型不复制进仓库 | `0.1.1rc0` 发布资产 | Apache-2.0 |
 | [ByteTrack](https://github.com/FoundationVision/ByteTrack) | 仓库内包含经适配的 C++ 跟踪实现 | `d1bf0191adff59bc8fcfeaa0b33d3d1642552a99` | MIT |
 | [GStreamer](https://gstreamer.freedesktop.org/) | 系统安装的视频输入和编码依赖 | 由目标系统提供 | LGPL-2.1-or-later |
@@ -25,10 +25,16 @@
 `third_party/bytetrack/LICENSE`。项目根目录的 AGPL 许可证不替换该文件，也不改变这些
 第三方文件本身的 MIT 授权；包含该兼容实现的整体项目仍按 `AGPL-3.0-only` 分发。
 
-## YOLO26s 来源与完整性
+## YOLO26n 与 YOLO26s 来源与完整性
 
 - 官方模型系列和许可说明：<https://docs.ultralytics.com/models/yolo26/>
 - 官方资产版本：`ultralytics/assets` 的 `v8.4.0`
+- 共享导出工具：`scripts/export_yolo26_onnx.py`；YOLO26n 与 YOLO26s 的兼容入口分别为
+  `scripts/export_yolo26n_onnx.py` 和 `scripts/export_yolo26s_onnx.py`
+- YOLO26n 权重文件：`yolo26n.pt`
+- YOLO26n 官方下载地址：
+  <https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt>
+- YOLO26n SHA-256：`9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef`
 - 权重文件：`yolo26s.pt`
 - 官方下载地址：
   <https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26s.pt>
@@ -36,8 +42,8 @@
 - 导出工具：`ultralytics==8.4.138`，源码标签解析到
   `dad7bb4534c95021bc14969ab25d77b77c4efdc3`
 
-权重是可执行反序列化格式，只应从上述固定来源获取并在哈希校验通过后加载。获取、导出
-和 Jetson engine 构建步骤见 `docs/models/yolo26s.md`。
+两组权重均是可执行反序列化格式，只应从上述固定来源获取并在哈希校验通过后加载。获取、
+导出和 Jetson engine 构建步骤分别见 `docs/models/yolo26n.md` 与 `docs/models/yolo26s.md`。
 
 ## 资产和二进制边界
 

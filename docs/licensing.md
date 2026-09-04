@@ -27,6 +27,8 @@ MIT License。已经依据该许可证取得的副本继续享有原授权；本
 
 - `third_party/bytetrack/` 保留 ByteTrack 的 MIT 许可证与版权声明。
 - YOLOX 模型和上游实现仍受 Apache-2.0 约束。
+- Ultralytics YOLO26n 与 YOLO26s 权重及其上游工具按 AGPL-3.0 或 Enterprise License
+  提供；本项目选择 AGPL-3.0 路线，权重只在仓库外获取，第三方文件本身未被重新许可。
 - GStreamer、OpenCV、Eigen、nlohmann/json 和 TrackEval 保留各自许可证。
 - CAVIAR 派生截图作为独立文档资产保留原始 CC BY-SA 署名与共享方式要求，见
   [截图许可说明](assets/caviar_external/README.md)。

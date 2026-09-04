@@ -219,3 +219,27 @@ development/calibration；新留出执行入口须在参数和新协议冻结后
 
 不复用 YOLOX grid decode，不把 one-to-many 输出当作 NMS-free 结果，不根据文件名自动
 选择解码器，也不在固定 A/B 证明质量与实时性同时改善前变更正式默认值。
+
+## D013：YOLO26n 与 YOLO26s 共用参数化候选资产链
+
+**Decision**
+
+YOLO26n 和 YOLO26s 作为独立候选保留各自的官方权重哈希与机器可读元数据，并通过同一
+获取脚本、导出实现和 `Yolo26Detector` 接口提供 one-to-many `[1,84,8400]` 评估路径。两者
+均不改变默认 YOLOX-Tiny、systemd 或既有评估协议。
+
+**Reason**
+
+两个尺度使用相同的 YOLO26 输出契约和后处理语义。参数化共享链可避免复制实现，同时把
+权重、导出工具版本、ONNX 哈希和目标 Jetson engine 哈希分别记录，便于复现实验和审计。
+
+**验证证据**
+
+YOLO26n 官方权重 SHA-256、主机导出工具链和输出契约见[YOLO26n 资产与导出契约](models/yolo26n.md)；
+YOLO26s 的既有固定哈希和板端最小验证保持不变。主机确定性测试覆盖两种元数据与入口；
+YOLO26n 的目标 Jetson engine、MOT17/CAVIAR development 和完整实时链路尚未验证。
+
+**Rejected Alternative**
+
+不为 YOLO26n 复制独立解码器或下载器，不把主机 ONNX 导出写成 Jetson 性能结论，也不在
+固定 A/B 与完整实时证据完成前切换正式默认模型。

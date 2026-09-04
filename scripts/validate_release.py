@@ -15,15 +15,21 @@ REQUIRED_FILES = {
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "docs/licensing.md",
+    "docs/models/yolo26n.md",
     "docs/models/yolo26s.md",
     "docs/benchmarks/jetson_full_pipeline_matrix.md",
     "docs/benchmarks/mot17_tracking_results.md",
     "docs/operations/headless_service.md",
     "docs/operations/stability_report.md",
     "docs/releases/v1.0.0.md",
+    "models/yolo26n.json",
     "models/yolo26s.json",
     "requirements/yolo26-export.txt",
+    "scripts/export_yolo26_onnx.py",
+    "scripts/export_yolo26n_onnx.py",
     "scripts/export_yolo26s_onnx.py",
+    "scripts/fetch_yolo26.sh",
+    "scripts/fetch_yolo26n.sh",
     "scripts/fetch_yolo26s.sh",
 }
 REQUIRED_README_HEADINGS = {
@@ -68,9 +74,10 @@ FORBIDDEN_PREFIXES = (
     "outputs/",
     "reports/",
 )
-YOLO26_WEIGHT_SHA256 = (
-    "646f8bc3fe0a656803d95c294f7852321748cb29d13466a1af8862e2db384a1b"
-)
+YOLO26_WEIGHT_SHA256 = {
+    "yolo26n": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "yolo26s": "646f8bc3fe0a656803d95c294f7852321748cb29d13466a1af8862e2db384a1b",
+}
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
 
@@ -161,34 +168,61 @@ def validate(root: Path) -> list[str]:
         for missing in local_markdown_links(path):
             failures.append(f"{relative} 包含失效的本地 Markdown 链接：{missing}")
 
-    metadata = json.loads((root / "models/yolo26s.json").read_text(encoding="utf-8"))
-    if (
-        metadata.get("upstream", {}).get("weight_asset_release") != "v8.4.0"
-        or metadata.get("upstream", {}).get("source_code_tag") != "v8.4.138"
-        or metadata.get("upstream", {}).get("source_code_commit")
-        != "dad7bb4534c95021bc14969ab25d77b77c4efdc3"
-        or metadata.get("upstream", {}).get("license") != "AGPL-3.0"
-        or metadata.get("weight", {}).get("sha256") != YOLO26_WEIGHT_SHA256
-        or metadata.get("weight", {}).get("tracked") is not False
-        or metadata.get("export", {}).get("version") != "8.4.138"
-        or metadata.get("export", {}).get("end2end") is not False
-        or metadata.get("host_export_verification", {}).get("repeat_hash_equal")
-        is not True
-        or metadata.get("host_export_verification", {}).get(
-            "jetson_engine_validated"
-        )
-        is not False
-    ):
-        failures.append("YOLO26s 来源、许可证、哈希或导出契约不符合固定元数据")
+    for model_name, expected_weight_sha256 in YOLO26_WEIGHT_SHA256.items():
+        metadata_path = root / f"models/{model_name}.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        upstream = metadata.get("upstream", {})
+        weight = metadata.get("weight", {})
+        export = metadata.get("export", {})
+        input_contract = metadata.get("input", {})
+        output_contract = metadata.get("output", {})
+        host_verification = metadata.get("host_export_verification", {})
+        expected_name = f"YOLO26{model_name[-1]}"
+        if (
+            metadata.get("name") != expected_name
+            or upstream.get("project") != "Ultralytics YOLO26"
+            or upstream.get("weight_asset_release") != "v8.4.0"
+            or upstream.get("source_code_tag") != "v8.4.138"
+            or upstream.get("source_code_commit")
+            != "dad7bb4534c95021bc14969ab25d77b77c4efdc3"
+            or upstream.get("license") != "AGPL-3.0"
+            or weight.get("filename") != f"{model_name}.pt"
+            or weight.get("sha256") != expected_weight_sha256
+            or weight.get("tracked") is not False
+            or export.get("tool") != "ultralytics"
+            or export.get("version") != "8.4.138"
+            or export.get("format") != "onnx"
+            or export.get("opset") != 17
+            or export.get("image_size") != 640
+            or export.get("batch") != 1
+            or export.get("dynamic") is not False
+            or export.get("simplify") is not False
+            or export.get("end2end") is not False
+            or input_contract.get("shape") != [1, 3, 640, 640]
+            or input_contract.get("dtype") != "float32"
+            or output_contract.get("expected_shape") != [1, 84, 8400]
+            or output_contract.get("dtype") != "float32"
+            or output_contract.get("contains_objectness") is not False
+            or output_contract.get("requires_nms") is not True
+            or not re.fullmatch(r"[0-9a-f]{64}", host_verification.get("sha256", ""))
+            or host_verification.get("repeat_exports", 0) < 2
+            or host_verification.get("repeat_hash_equal") is not True
+            or host_verification.get("jetson_engine_validated") is not False
+        ):
+            failures.append(
+                f"{expected_name} 来源、许可证、哈希或导出契约不符合固定元数据"
+            )
 
-    for relative in (
-        "THIRD_PARTY_NOTICES.md",
-        "docs/models/yolo26s.md",
-        "scripts/export_yolo26s_onnx.py",
-        "scripts/fetch_yolo26s.sh",
-    ):
-        if YOLO26_WEIGHT_SHA256 not in (root / relative).read_text(encoding="utf-8"):
-            failures.append(f"{relative} 未包含固定的 YOLO26s 权重哈希")
+    for model_name, expected_weight_sha256 in YOLO26_WEIGHT_SHA256.items():
+        for relative in (
+            "THIRD_PARTY_NOTICES.md",
+            f"docs/models/{model_name}.md",
+            "scripts/fetch_yolo26.sh",
+        ):
+            if expected_weight_sha256 not in (root / relative).read_text(encoding="utf-8"):
+                failures.append(
+                    f"{relative} 未包含固定的 YOLO26{model_name[-1]} 权重哈希"
+                )
 
     return failures
 

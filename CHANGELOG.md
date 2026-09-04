@@ -27,9 +27,11 @@
   构建、探测和板端基准工具。
 - YOLO26s 官方 v8.4.0 权重元数据、固定 SHA-256、Ultralytics 8.4.138 one-to-many ONNX
   导出工具和目标 Jetson FP16 engine 构建说明；模型资产和生成物继续保留在仓库外。
+- YOLO26n 官方 v8.4.0 权重元数据、固定 SHA-256，以及与 YOLO26s 共用的参数化获取与
+  one-to-many ONNX 导出工具；YOLO26n 仅作为候选，目标 Jetson engine 与 A/B 仍待验证。
 - 许可证与发布边界文档，区分项目自有源码、仓库内第三方源码、外部 SDK、模型资产和
   历史版本授权。
-- 统一的分段计时检测器接口与显式 YOLO26s 工厂入口；独立 RGB/255 居中 letterbox、
+- 统一的分段计时检测器接口与显式 YOLO26 工厂入口；独立 RGB/255 居中 letterbox、
   one-to-many `cxcywh` 解码、按类别 NMS 和静态张量契约检查。
 - YOLO26 模式要求显式检测/跟踪阈值；实时入口增加可配置的匹配阈值，原默认值不变。
   MOT 序列工具新增独立预处理、TensorRT 和后处理 P95，保留原检测路径计时字段。

@@ -150,7 +150,7 @@ TensorRT plan 与硬件及软件栈耦合，必须在部署目标 Jetson 上构�
 | 采集流水线 | 专用生产者线程、有界队列、时间戳、丢弃最旧帧背压 | 已实现 |
 | TensorRT 运行时 | Engine 加载、CUDA 缓冲区与执行 | 已实现 |
 | YOLOX 检测器 | 预处理、TensorRT 执行、网格解码、置信度过滤与 NMS | 已实现 |
-| YOLO26s 候选检测器 | 独立 RGB letterbox、one-to-many 解码与按类别 NMS，共用检测器接口 | Jetson 编译与合成图像推理通过；固定 A/B 待验证 |
+| YOLO26n / YOLO26s 候选检测器 | 独立 RGB letterbox、one-to-many 解码与按类别 NMS，共用检测器接口 | 主机契约已验证；YOLO26s Jetson smoke 通过，YOLO26n engine 与固定 A/B 待验证 |
 | 连续检测与跟踪 | 采集、最新帧队列、TensorRT 检测、ByteTrack、标注视频与延迟统计 | 已实现 |
 | 基准脚本 | 预热隔离、功率遥测、模型/分辨率/功率对比 | 已实现 |
 | ByteTrack | Kalman 预测、两阶段关联、类别身份与重置语义 | 已实现 |
@@ -563,15 +563,17 @@ bash scripts/fetch_yolox_s.sh
 源 URL、校验和、许可证和张量契约记录在 `models/yolox_nano.json`、
 `models/yolox_tiny.json` 与 `models/yolox_s.json`。
 
-YOLO26s 当前仅作为 A/B 评估候选，不改变 YOLOX-Tiny 默认配置。官方权重、固定哈希、
-one-to-many ONNX 导出契约和目标 Jetson 上的 FP16 engine 构建步骤见
+YOLO26n 与 YOLO26s 当前仅作为 A/B 评估候选，不改变 YOLOX-Tiny 默认配置。两者共用
+参数化的获取与导出链，官方权重、固定哈希、one-to-many ONNX 导出契约和目标 Jetson
+上的 FP16 engine 构建步骤分别见[YOLO26n 资产与导出契约](docs/models/yolo26n.md)和
 [YOLO26s 资产与导出契约](docs/models/yolo26s.md)。权重、ONNX 和 TensorRT engine
 均在仓库外生成，不纳入版本控制。
 
 C++ 运行时通过统一检测器工厂提供显式 `--detector yolo26` 候选入口，并要求显式给出检测与
-跟踪阈值。默认仍为 `yolox`，现有 Tiny 服务配置与运行命令保持不变。候选已完成
+跟踪阈值。默认仍为 `yolox`，现有 Tiny 服务配置与运行命令保持不变。YOLO26s 已完成
 [Jetson 编译、engine 构建与合成图像最小推理](docs/benchmarks/yolo26s_jetson_smoke.md)，
-但真实视频质量、固定 A/B 和完整流水线实时性仍未验证，不能据此认定模型升级完成。
+YOLO26n 尚未进行 Jetson engine 构建；两者的真实视频质量、固定 A/B 和完整流水线实时性
+仍未验证，不能据此认定模型升级完成。
 
 ## 许可证
 
