@@ -17,6 +17,12 @@ PUBLIC_TRAIN_SEQUENCES = {
     "MOT17-11-FRCNN",
     "MOT17-13-FRCNN",
 }
+CALIBRATION_SEQUENCES = {
+    "MOT17-02-FRCNN",
+    "MOT17-04-FRCNN",
+    "MOT17-05-FRCNN",
+    "MOT17-10-FRCNN",
+}
 
 
 def read_sequence_map(path: Path) -> list[str]:
@@ -97,12 +103,17 @@ def validate_sequence(train_root: Path, sequence: str) -> int:
     return length
 
 
-def validate_dataset(train_root: Path, sequence_map: Path) -> dict[str, int]:
+def validate_dataset(
+    train_root: Path, sequence_map: Path, *, calibration_only: bool = False
+) -> dict[str, int]:
+    sequences = read_sequence_map(sequence_map)
+    if calibration_only and not set(sequences) <= CALIBRATION_SEQUENCES:
+        raise ValueError("candidate inference is restricted to calibration sequences")
     if not train_root.is_dir():
         raise ValueError(f"MOT17 training directory does not exist: {train_root}")
 
     results: dict[str, int] = {}
-    for sequence in read_sequence_map(sequence_map):
+    for sequence in sequences:
         results[sequence] = validate_sequence(train_root, sequence)
     return results
 
@@ -111,13 +122,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate selected MOT17 sequences")
     parser.add_argument("--train-root", type=Path, required=True)
     parser.add_argument("--seqmap", type=Path, required=True)
+    parser.add_argument("--calibration-only", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     try:
-        results = validate_dataset(args.train_root, args.seqmap)
+        results = validate_dataset(
+            args.train_root, args.seqmap, calibration_only=args.calibration_only
+        )
     except ValueError as error:
         print(f"MOT17 validation failed: {error}")
         return 1

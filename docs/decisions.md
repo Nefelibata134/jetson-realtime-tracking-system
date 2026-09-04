@@ -210,8 +210,10 @@ YOLO26 的输入归一化、补边和输出布局与 YOLOX 不同。模型无关
 
 固定官方权重和主机重复 ONNX 导出见[资产契约](models/yolo26s.md)；
 [`edge_vision_yolo26_check`](../apps/yolo26_check.cpp) 覆盖几何、颜色、NMS 与静态 shape。
-这些证据仅覆盖主机契约；TensorRT 链接、Jetson 实机推理和固定 A/B 尚未验证，尚无
-YOLO26s 质量或完整流水线性能结论。
+目标 Jetson 已完成 TensorRT 编译、链接、FP16 engine 构建、零张量与合成灰图推理，
+并验证原 Tiny 服务恢复及配置哈希不变，见[板端最小验证](benchmarks/yolo26s_jetson_smoke.md)。
+这些证据不包含真实视频质量或完整流水线性能。候选评估入口要求显式阈值，并限于
+development/calibration；新留出执行入口须在参数和新协议冻结后另行审核。
 
 **Rejected Alternative**
 

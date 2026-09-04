@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import importlib.util
+import io
+import json
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -280,6 +285,168 @@ class CaviarExternalValidationTest(unittest.TestCase):
                 "any",
             ],
         )
+
+
+class CaviarDetectorRunnerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dataset = protocol.load_json(ROOT / "configs/caviar/dataset.json")
+        self.rules = protocol.load_json(ROOT / "configs/caviar/rules.frozen.json")
+        self.sequence = protocol.sequence_by_id(self.dataset, "Walk1")
+
+    def arguments(self, *extra: str):
+        return RUNNER.parse_args([
+            "--sequence", "Walk1", "--rules", str(ROOT / "configs/caviar/rules.frozen.json"),
+            "--engine", "fixture.plan", *extra,
+        ])
+
+    def candidate_arguments(self, *extra: str):
+        return self.arguments(
+            "--detector", "yolo26", "--score-threshold", "0.15",
+            "--nms-threshold", "0.5", "--track-threshold", "0.35",
+            "--new-track-threshold", "0.45", "--match-threshold", "0.75", *extra,
+        )
+
+    def complete_metrics(self) -> dict:
+        return {
+            "schema_version": 1, "source": "rtsp",
+            "status": {"target_reached": True, "invalid_frames": 0},
+            "pipeline": {
+                "processed_frames": 2, "measured_frames": 2, "target_frames": 2,
+                "warmup_frames": 0, "dropped_frames_total": 0, "dropped_frames": 0,
+                "warmup_dropped_frames": 0, "sequence_gaps": 0,
+                "restart_attempts": 0, "restart_successes": 0,
+            },
+        }
+
+    def test_legacy_command_parameters_and_frozen_rules_are_unchanged(self) -> None:
+        args = self.arguments()
+        original = copy.deepcopy(self.rules)
+        runtime = RUNNER.resolve_runtime(args, self.sequence, self.rules["runtime_policy"])
+        self.assertEqual(RUNNER.detector_runtime_arguments(args, runtime), [
+            "--score-threshold", "0.3", "--nms-threshold", "0.45",
+            "--track-threshold", "0.5", "--new-track-threshold", "0.6",
+            "--track-buffer", "30",
+        ])
+        self.assertEqual(self.rules, original)
+
+    def test_candidate_forwards_detector_and_all_parameters(self) -> None:
+        args = self.candidate_arguments("--track-buffer", "20")
+        runtime = RUNNER.resolve_runtime(args, self.sequence, self.rules["runtime_policy"])
+        command = RUNNER.detector_runtime_arguments(args, runtime)
+        self.assertEqual(command[:2], ["--detector", "yolo26"])
+        self.assertEqual(runtime["score_threshold"], 0.15)
+        self.assertEqual(runtime["match_threshold"], 0.75)
+        self.assertEqual(command[-2:], ["--track-buffer", "20"])
+
+    def test_each_implicit_candidate_threshold_is_rejected(self) -> None:
+        for field in RUNNER.THRESHOLD_FIELDS:
+            args = self.candidate_arguments()
+            setattr(args, field, None)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "explicit"):
+                RUNNER.resolve_runtime(args, self.sequence, self.rules["runtime_policy"])
+
+    def test_candidate_and_overrides_cannot_unlock_old_holdout(self) -> None:
+        for sequence in self.dataset["sequences"]:
+            if sequence["split"] != "holdout":
+                continue
+            for args in (self.candidate_arguments("--allow-holdout"),
+                         self.arguments("--score-threshold", "0.2", "--allow-holdout")):
+                with self.subTest(sequence=sequence["sequence_id"], detector=args.detector):
+                    with self.assertRaisesRegex(ValueError, "holdout is blocked"):
+                        RUNNER.resolve_runtime(args, sequence, self.rules["runtime_policy"])
+
+    def test_relabeling_a_holdout_does_not_bypass_sequence_allowlist(self) -> None:
+        sequence = dict(protocol.sequence_by_id(self.dataset, "Walk2"), split="development")
+        with self.assertRaisesRegex(ValueError, "holdout is blocked"):
+            RUNNER.resolve_runtime(self.candidate_arguments(), sequence, self.rules["runtime_policy"])
+
+    def test_invalid_runtime_values_are_rejected(self) -> None:
+        for field, value in (("score_threshold", float("nan")), ("nms_threshold", float("inf")),
+                             ("track_threshold", 0.1), ("new_track_threshold", 0.1),
+                             ("track_buffer", 0)):
+            args = self.candidate_arguments()
+            setattr(args, field, value)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                RUNNER.resolve_runtime(args, self.sequence, self.rules["runtime_policy"])
+
+    def test_complete_metrics_pass_but_any_missing_or_invalid_count_fails(self) -> None:
+        valid = self.complete_metrics()
+        RUNNER.require_complete_frames(valid, 2)
+        for field in valid["pipeline"]:
+            for value in (None, valid["pipeline"][field] + 1, False):
+                metrics = copy.deepcopy(valid)
+                metrics["pipeline"][field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    RUNNER.require_complete_frames(metrics, 2)
+        for status in ({}, {"target_reached": False, "invalid_frames": 0},
+                       {"target_reached": True, "invalid_frames": 1}):
+            with self.assertRaises(ValueError):
+                RUNNER.require_complete_frames(dict(valid, status=status), 2)
+
+    def test_manifest_records_actual_parameters_hashes_and_cannot_be_overwritten(self) -> None:
+        args = self.candidate_arguments()
+        runtime = RUNNER.resolve_runtime(args, self.sequence, self.rules["runtime_policy"])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            asset = root / "fixture.txt"
+            asset.write_text("fixture")
+            RUNNER.write_manifest(root, args, self.sequence, runtime, {"fixture": asset})
+            result = json.loads((root / "run-manifest.json").read_text())
+            self.assertEqual(result["detector"], "yolo26")
+            self.assertEqual(result["split"], "development")
+            self.assertEqual(result["runtime_policy"], runtime)
+            self.assertEqual(result["files"]["fixture"]["sha256"], protocol.sha256_file(asset))
+            with self.assertRaises(FileExistsError):
+                RUNNER.write_manifest(root, args, self.sequence, runtime, {"fixture": asset})
+
+    def test_invalid_frame_measurement_never_reaches_event_scoring(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prepared = root / "prepared/videos/Walk1.mp4"
+            prepared.parent.mkdir(parents=True)
+            prepared.write_bytes(b"fixture")
+            binary = root / "binary"
+            binary.write_bytes(b"fixture")
+            args = self.candidate_arguments(
+                "--dataset-root", str(root), "--engine", str(binary),
+                "--binary", str(binary), "--output-root", str(root / "runs"),
+            )
+
+            def generate(command, **kwargs):
+                self.assertIn("generate_caviar_ground_truth.py", str(command[1]))
+                Path(command[command.index("--output") + 1]).write_text("{}\n")
+                return subprocess.CompletedProcess(command, 0)
+
+            def infer(command, log_path):
+                metrics = self.complete_metrics()
+                metrics["pipeline"]["dropped_frames_total"] = 1
+                Path(command[command.index("--metrics-json") + 1]).write_text(json.dumps(metrics))
+                log_path.write_text("fixture runtime\n")
+                self.assertIn("--detector", command)
+                self.assertIn("--match-threshold", command)
+                return 0
+
+            server = mock.Mock()
+            server.poll.return_value = None
+            captured = io.StringIO()
+            with mock.patch.object(RUNNER, "parse_args", return_value=args), \
+                 mock.patch.object(RUNNER, "require_inactive_service"), \
+                 mock.patch.object(RUNNER, "sha256_file", return_value=self.sequence["annotation"]["sha256"]), \
+                 mock.patch.object(RUNNER, "read_ground_truth_frames", return_value=("Walk1", [None, None])), \
+                 mock.patch.object(RUNNER, "write_manifest"), \
+                 mock.patch.object(RUNNER.subprocess, "run", side_effect=generate) as run, \
+                 mock.patch.object(RUNNER.subprocess, "Popen", return_value=server), \
+                 mock.patch.object(RUNNER.time, "sleep"), \
+                 mock.patch.object(RUNNER, "run_and_log", side_effect=infer), \
+                 contextlib.redirect_stdout(captured):
+                self.assertEqual(RUNNER.main(), 1)
+                self.assertEqual(run.call_count, 1)
+                server.terminate.assert_called_once()
+            self.assertIn("invalid measurement", captured.getvalue())
+            runs = list((root / "runs").iterdir())
+            self.assertEqual(len(runs), 1)
+            self.assertTrue((runs[0] / "metrics.json").is_file())
+            self.assertFalse((runs[0] / "report.json").exists())
 
 
 if __name__ == "__main__":

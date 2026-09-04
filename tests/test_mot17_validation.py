@@ -94,6 +94,15 @@ class Mot17ValidationTest(unittest.TestCase):
             set(calibration + holdout),
             MODULE.PUBLIC_TRAIN_SEQUENCES,
         )
+        self.assertEqual(set(calibration), MODULE.CALIBRATION_SEQUENCES)
+
+    def test_calibration_guard_rejects_holdout_before_reading_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seqmap = root / "seqmap.txt"
+            seqmap.write_text("name\nMOT17-09-FRCNN\n")
+            with self.assertRaisesRegex(ValueError, "restricted to calibration"):
+                MODULE.validate_dataset(root / "absent", seqmap, calibration_only=True)
 
 
 if __name__ == "__main__":

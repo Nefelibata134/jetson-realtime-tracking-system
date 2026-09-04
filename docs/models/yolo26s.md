@@ -141,9 +141,66 @@ MOT 序列工具新增 `detector_preprocess_p95_ms`、`tensorrt_inference_p95_ms
 
 主机测试使用 `edge_vision_yolo26_check` 验证公共接口、RGB/BGR、归一化、横竖帧补边、
 奇数补边、半整数舍入、坐标还原、按类别 NMS、阈值与非法输入。默认无 TensorRT 的 CMake
-构建也包含该测试。适配器及应用通过主机语法检查，但 TensorRT 链接尚未验证；engine
-反序列化、CUDA 执行、真实检测/事件效果、25W 720p 吞吐和恢复只能在目标 Jetson 验证，
-目前均未验证。固定 A/B 尚未执行，候选接入不代表模型升级完成。
+构建也包含该测试。提交 `49876fe` 随后在目标 Jetson 完成 TensorRT 编译、链接、engine
+构建、反序列化、CUDA 零张量执行和合成灰图检测，engine SHA-256 为
+`0a6606480b9726f0b98bf1b7a0f79d76b1635ad4d1af8d93d2b67139c595ce7c`；完整范围、
+原始记录及恢复检查见[板端最小验证](../benchmarks/yolo26s_jetson_smoke.md)。
+主机导出元数据中的验证边界仍描述导出当时，不替代这份独立板端记录。
+真实检测/事件效果、25W 720p 吞吐和候选恢复尚未验证。固定 A/B 尚未执行，不能认定升级完成。
+
+## 开发集评估入口
+
+`scripts/run_mot17_inference.sh` 支持显式 `--detector yolo26`，只接受既有校准划分
+02/04/05/10 的 FRCNN 序列或其子集；完整比较仍须覆盖全部四段。YOLO26 必须显式提供
+score、NMS、track、new-track、match 和独立的输出/报告路径。参数在运行前检查有限性和
+`score < track <= new-track`；两个目录均不得已经存在，失败轮次也不覆盖或自动重跑。
+旧 YOLOX 入口和数值默认值不变，Tiny 基线继续使用既有校准选定的阈值，而不是把脚本默认
+track `0.50` / new-track `0.60` 误作已选定的 MOT17 基线 `0.30` / `0.40`。
+
+下列变量必须来自明确的开发配置；这不是已选定或冻结的 YOLO26 参数：
+
+```bash
+bash scripts/run_mot17_inference.sh \
+  --detector yolo26 --engine "${ENGINE:?set target-built engine}" \
+  --binary "${MOT_BINARY:?set verified binary}" \
+  --seqmap configs/mot17/calibration.txt \
+  --output-root "${MOT_OUTPUT:?set unused output directory}" \
+  --report-root "${MOT_REPORT:?set unused report directory}" \
+  --score-threshold "${SCORE:?set calibration score}" \
+  --nms-threshold "${NMS:?set calibration NMS}" \
+  --track-threshold "${TRACK:?set calibration track}" \
+  --new-track-threshold "${NEW_TRACK:?set calibration new-track}" \
+  --match-threshold "${MATCH:?set calibration match}"
+```
+
+MOT 目录记录实际命令、代码提交、工作树状态、engine/程序/seqmap/运行脚本哈希。
+推理成功不等于完成 TrackEval，也不自动解锁 holdout；计算开发指标时仍须显式选择
+`configs/mot17/calibration.txt`，不能使用 TrackEval 包装脚本的 holdout 默认值。
+
+`scripts/run_caviar_external_validation.py` 同样支持检测器和阈值显式参数，仅在
+`Walk1`、`Browse1`、`EnterExitCrossingPaths1front` 上允许 YOLO26 或运行参数覆盖。
+原冻结规则文件不修改，覆盖值只用于本轮运行，并写入独立目录的 `run-manifest.json`。
+该文件记录实际检测器、参数、划分，以及 engine、程序、配置、视频、标注和脚本的哈希；
+事件几何、真值生成和匹配标准仍来自原冻结文件。没有新参数时，旧 YOLOX 命令保持相同。
+
+```bash
+python3 scripts/run_caviar_external_validation.py \
+  --sequence Walk1 --rules configs/caviar/rules.frozen.json \
+  --detector yolo26 --engine "${ENGINE:?set target-built engine}" \
+  --binary "${RUNTIME_BINARY:?set verified binary}" \
+  --output-root "${CAVIAR_OUTPUT:?set development output directory}" \
+  --score-threshold "${SCORE:?set calibration score}" \
+  --nms-threshold "${NMS:?set calibration NMS}" \
+  --track-threshold "${TRACK:?set calibration track}" \
+  --new-track-threshold "${NEW_TRACK:?set calibration new-track}" \
+  --match-threshold "${MATCH:?set calibration match}"
+```
+
+CAVIAR 在事件计分前检查完整目标帧数、零预热、零丢帧、零序列缺口及无输入重启，标注
+SHA-256 也必须与原数据清单一致。违反帧完整性的轮次保留原始产物并退出，不生成事件得分。
+即使提供 `--allow-holdout`，候选或覆盖参数也不能运行旧留出片段。
+候选正式 MOT17 holdout 与新 external holdout 的冻结、批准和单次执行机制不在这些
+开发入口中放行；本轮没有选择正式阈值、改变任何默认项或执行数据集评估。
 
 ## 纳入 A/B 的门禁
 
