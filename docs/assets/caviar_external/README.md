@@ -11,7 +11,7 @@
 | `browse2-unscored-roi-entry.jpg` | 停留序列中的 ROI 进入事件，不属于停留计分类型 |
 
 源数据由 EC Funded CAVIAR project/IST 2001 37540 提供，数据页面标示为 CC BY-SA。
-这些派生截图沿用相同署名与共享方式要求，不属于仓库根目录 MIT License 的授权范围。
+这些独立文档截图沿用相同署名与共享方式要求，文件本身未被仓库根许可证重新许可。
 
 - 数据来源：<https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/>
 - 评估结果：[`caviar_external_validation_results.md`](../../benchmarks/caviar_external_validation_results.md)

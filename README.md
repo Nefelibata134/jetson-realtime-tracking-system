@@ -1,7 +1,7 @@
 # Jetson 实时跟踪与安全事件分析系统
 
 [![CI](https://github.com/Nefelibata134/jetson-realtime-tracking-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Nefelibata134/jetson-realtime-tracking-system/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
 面向 NVIDIA Jetson 的生产导向 C++17 边缘视频分析运行时。系统接入文件、IMX219 CSI
 或 H.264 RTSP 视频，使用 TensorRT 执行 YOLOX，维护按类别关联的 ByteTrack 身份，
@@ -564,4 +564,14 @@ bash scripts/fetch_yolox_s.sh
 
 ## 许可证
 
-项目源码采用 MIT License，第三方组件许可证见 `THIRD_PARTY_NOTICES.md`。
+从许可证迁移提交开始，项目自有源码及包含兼容第三方组件的整体项目分发按
+[`AGPL-3.0-only`](LICENSE)（GNU Affero General Public License v3.0 only）提供，
+并须满足其相应源码提供与分发义务。第三方文件本身未被重新许可，原始许可证和版权声明
+继续保留；这不豁免整体组合程序的 AGPL 发布条件。
+截至并包括提交 `d790926b0187d27b1f5f5607f1ef709c909eaf7f` 的历史版本仍按其当时的
+MIT License 授权，既有授权不作追溯变更。范围、源码提供义务和二进制发布边界见
+[许可证与发布边界](docs/licensing.md)，第三方组件及资产的原始许可见
+[第三方声明](THIRD_PARTY_NOTICES.md)。
+
+CUDA/TensorRT 等外部专有依赖不随本仓库分发。未来发布项目二进制、容器或捆绑运行库前，
+必须重新审计实际组合及其许可兼容性；当前源码发布不构成二进制分发授权。

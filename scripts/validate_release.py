@@ -13,6 +13,7 @@ REQUIRED_FILES = {
     "LICENSE",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
+    "docs/licensing.md",
     "docs/benchmarks/jetson_full_pipeline_matrix.md",
     "docs/benchmarks/mot17_tracking_results.md",
     "docs/operations/headless_service.md",
@@ -30,9 +31,14 @@ REQUIRED_README_HEADINGS = {
     "许可证",
 }
 FORBIDDEN_TEXT = re.compile(
-    "Day\\s*\\d+|\\u5b66\\u4e60|\\u6559\\u7a0b|\\u6253\\u5361|"
-    "\\u62db\\u8058|\\u7b80\\u5386|\\u4f5c\\u54c1\\u96c6|"
-    "\\u9762\\u8bd5\\u5b98",
+    "Day\\s*\\d+|\\u5b66\\u4e60|\\u7ec3\\u4e60|\\u590d\\u4e60|"
+    "\\u6559\\u7a0b|\\u8bfe\\u7a0b\\u4f5c\\u4e1a|\\u6253\\u5361|"
+    "\\u6c42\\u804c|\\u62db\\u8058|\\u7b80\\u5386|\\u4f5c\\u54c1\\u96c6|"
+    "\\u9762\\u8bd5\\u51c6\\u5907|\\u9762\\u8bd5\\u5b98|"
+    "\\u7528\\u4e8e\\u5c55\\u793a|\\x43odex|\\x43hatGPT|"
+    "\\x41\\x49\\s*\\u534f\\u4f5c|\\u804a\\u5929\\u8fc7\\u7a0b|"
+    "\\u7528\\u6237\\u80cc\\u666f|\\u5185\\u90e8\\u4ea4\\u63a5|"
+    "\\u4e0b\\u4e00\\u6b21\\u5bf9\\u8bdd",
     re.IGNORECASE,
 )
 FORBIDDEN_SUFFIXES = {".avi", ".engine", ".log", ".mp4", ".onnx", ".plan", ".pth"}
@@ -83,6 +89,14 @@ def validate(root: Path) -> list[str]:
     missing_headings = sorted(REQUIRED_README_HEADINGS - headings)
     if missing_headings:
         failures.append("README 缺少章节：" + ", ".join(missing_headings))
+
+    license_text = (root / "LICENSE").read_text(encoding="utf-8")
+    if (
+        "GNU AFFERO GENERAL PUBLIC LICENSE" not in license_text
+        or "Version 3, 19 November 2007" not in license_text
+        or "AGPL-3.0-only" not in readme
+    ):
+        failures.append("项目许可证不是声明的 AGPL-3.0-only")
 
     forbidden_artifacts = sorted(
         path
