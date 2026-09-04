@@ -192,3 +192,28 @@ Jetson BSP 使用与具体 SoM、载板和 L4T 版本匹配的设备树、overla
 参考：Seeed [`指定产品 BSP 刷写流程`](https://wiki.seeedstudio.com/cn/flash/jetpack_to_selected_product/)、
 [`Jetson 串口调试指南`](https://wiki.seeedstudio.com/cn/jetson_debug_guide/) 与
 [`Seeed Jetson Develop Tool`](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool)。
+
+## D012：YOLO26s 通过独立张量契约进入检测器 A/B
+
+**Decision**
+
+候选固定使用 `640x640`、batch 1、one-to-many `[1,84,8400]` 导出。通过
+`IProfiledDetector` 和统一工厂接入，独立实现 RGB/255 居中 letterbox、`cxcywh` 解码与
+按类别 NMS。运行入口须显式选择候选并提供检测/跟踪阈值；默认 YOLOX-Tiny 保持不变。
+
+**Reason**
+
+YOLO26 的输入归一化、补边和输出布局与 YOLOX 不同。模型无关的上层链路需要一致结果与
+计时接口，但不能共用不兼容的解码公式。显式阈值避免不同 confidence 分布被当作同一标尺。
+
+**验证证据**
+
+固定官方权重和主机重复 ONNX 导出见[资产契约](models/yolo26s.md)；
+[`edge_vision_yolo26_check`](../apps/yolo26_check.cpp) 覆盖几何、颜色、NMS 与静态 shape。
+这些证据仅覆盖主机契约；TensorRT 链接、Jetson 实机推理和固定 A/B 尚未验证，尚无
+YOLO26s 质量或完整流水线性能结论。
+
+**Rejected Alternative**
+
+不复用 YOLOX grid decode，不把 one-to-many 输出当作 NMS-free 结果，不根据文件名自动
+选择解码器，也不在固定 A/B 证明质量与实时性同时改善前变更正式默认值。

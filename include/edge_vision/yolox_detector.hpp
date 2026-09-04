@@ -19,26 +19,17 @@ struct YoloXDetectorConfig {
     float nms_threshold{0.45F};
 };
 
-struct YoloXDetectorStageTiming {
-    double preprocess_ms{0.0};
-    double tensorrt_inference_ms{0.0};
-    double postprocess_ms{0.0};
-    double total_ms{0.0};
-};
+using YoloXDetectorStageTiming = DetectorStageTiming;
+using YoloXDetectorResult = DetectorResult;
 
-struct YoloXDetectorResult {
-    std::vector<Detection> detections;
-    YoloXDetectorStageTiming timing;
-};
-
-class YoloXDetector final : public IDetector {
+class YoloXDetector final : public IProfiledDetector {
 public:
     explicit YoloXDetector(
         const std::string& engine_path,
         YoloXDetectorConfig config = {});
 
     [[nodiscard]] std::vector<Detection> infer(const Frame& frame) override;
-    [[nodiscard]] YoloXDetectorResult infer_profiled(const Frame& frame);
+    [[nodiscard]] YoloXDetectorResult infer_profiled(const Frame& frame) override;
 
     [[nodiscard]] const TensorContract& input_contract() const noexcept;
     [[nodiscard]] const TensorContract& output_contract() const noexcept;

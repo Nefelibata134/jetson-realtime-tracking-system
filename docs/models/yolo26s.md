@@ -67,8 +67,8 @@ python -m pip freeze
 | 输出 | `[1, 84, 8400]` float32 | 4 个 `cxcywh` 通道 + 80 个 COCO 类别分数 |
 
 输出不含单独 objectness，人物类别为 COCO class 0。候选检测器必须先把 box 从模型坐标映射
-回原图，再按类别分数过滤并执行 class-aware NMS。阈值必须在 development/calibration split
-上重新校准，不能直接沿用 YOLOX-Tiny 的 confidence 分布假设。
+回原图的未裁剪坐标，按类别分数过滤并执行 class-aware NMS，最后裁剪到图像边界。阈值必须
+在 development/calibration split 上重新校准，不能直接沿用 YOLOX-Tiny 的 confidence 分布假设。
 
 ## 主机导出验证
 
@@ -104,6 +104,46 @@ sha256sum models/yolo26s.onnx models/yolo26s_fp16.plan
 
 本步骤不修改 APT 源、不执行系统升级，也不改变功率模式。需要 sudo 的设备操作由操作者在
 远程终端明确执行。
+
+## C++ 候选运行时
+
+`IProfiledDetector` 扩展既有 `IDetector`，返回相同的检测结果和预处理、TensorRT、后处理、
+总耗时。应用只通过 `make_detector` 装配实现；File/CSI/RTSP、ByteTrack、事件状态和输出
+队列共用原有链路。YOLOX-Nano/Tiny/S 的数值预处理和后处理未改变，默认选择仍是 `yolox`。
+
+YOLO26 实现只接受上述静态 one-to-many shape。输入为 RGB float32 NCHW，双线性缩放、
+允许放大、固定居中补边；缩放尺寸采用 nearest-even 舍入，奇数补边多出的一个像素放在右侧
+或底部，补边值为 `114/255`。输出每个候选只保留最高分的类别，不再做 sigmoid 或乘
+objectness；使用连续坐标的按类别 NMS，最后裁剪，最多选择 300 个框。相同分数按原候选
+顺序处理。NMS-free `[1,300,6]`、转置输出及 YOLOX 输出均直接拒绝，不自动猜测或转换。
+
+实时入口和 MOT 序列入口在 `--detector yolo26` 下要求显式指定 score、NMS、track、
+new-track、match 五个阈值。单图入口要求 score 和 NMS。这样不会把旧命令中的隐含
+YOLOX 预设当作候选已校准配置。下列命令仅用于目标 Jetson 上的有限连通性检查，变量应
+由开发/校准配置提供，不是已冻结的 A/B 配方：
+
+```bash
+./build/edge_vision_realtime_detect \
+  --detector yolo26 --engine models/yolo26s_fp16.plan \
+  --file development.mp4 --frames 300 --warmup-frames 30 \
+  --score-threshold "${SCORE:?set calibration score}" \
+  --nms-threshold "${NMS:?set calibration NMS}" \
+  --track-threshold "${TRACK:?set calibration track}" \
+  --new-track-threshold "${NEW_TRACK:?set calibration new-track}" \
+  --match-threshold "${MATCH:?set calibration match}"
+```
+
+MOT 序列工具新增 `detector_preprocess_p95_ms`、`tensorrt_inference_p95_ms` 和
+`detector_postprocess_p95_ms`。既有 `inference_p50_ms` / `inference_p95_ms` 保留原语义：
+它们包含帧封装与整个检测路径，不能当作纯 TensorRT 耗时。新的 TensorRT 阶段计时与实时
+入口一致，包含主机/设备传输、执行及同步，不等同于仅 GPU kernel 时间；后续 A/B 必须
+比较同名、同定义字段，不重写历史数值。
+
+主机测试使用 `edge_vision_yolo26_check` 验证公共接口、RGB/BGR、归一化、横竖帧补边、
+奇数补边、半整数舍入、坐标还原、按类别 NMS、阈值与非法输入。默认无 TensorRT 的 CMake
+构建也包含该测试。适配器及应用通过主机语法检查，但 TensorRT 链接尚未验证；engine
+反序列化、CUDA 执行、真实检测/事件效果、25W 720p 吞吐和恢复只能在目标 Jetson 验证，
+目前均未验证。固定 A/B 尚未执行，候选接入不代表模型升级完成。
 
 ## 纳入 A/B 的门禁
 

@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "edge_vision/frame.hpp"
-#include "edge_vision/yolox_detector.hpp"
+#include "edge_vision/detector_factory.hpp"
 
 namespace {
 
@@ -49,23 +49,57 @@ cv::Rect to_rectangle(
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc < 4) {
         std::cerr << "Usage: " << argv[0]
-                  << " ENGINE_PATH INPUT_IMAGE OUTPUT_IMAGE\n";
+                  << " ENGINE_PATH INPUT_IMAGE OUTPUT_IMAGE [--detector yolox|yolo26]"
+                  << " [--score-threshold VALUE] [--nms-threshold VALUE]\n";
         return 2;
     }
 
     try {
+        edge_vision::DetectorConfig config;
+        bool score_explicit = false;
+        bool nms_explicit = false;
+        for (int index = 4; index < argc; ++index) {
+            const std::string option = argv[index];
+            if (++index >= argc) {
+                throw std::invalid_argument("missing value for " + option);
+            }
+            const std::string value = argv[index];
+            if (option == "--detector") {
+                config.kind = edge_vision::parse_detector_kind(value);
+            } else if (option == "--score-threshold" || option == "--nms-threshold") {
+                std::size_t parsed = 0;
+                const float threshold = std::stof(value, &parsed);
+                if (parsed != value.size() || !std::isfinite(threshold) ||
+                    threshold < 0.0F || threshold > 1.0F) {
+                    throw std::invalid_argument("invalid threshold for " + option);
+                }
+                if (option == "--score-threshold") {
+                    config.score_threshold = threshold;
+                    score_explicit = true;
+                } else {
+                    config.nms_threshold = threshold;
+                    nms_explicit = true;
+                }
+            } else {
+                throw std::invalid_argument("unknown option: " + option);
+            }
+        }
+        if (config.kind == edge_vision::DetectorKind::Yolo26 && (!score_explicit || !nms_explicit)) {
+            throw std::invalid_argument("YOLO26 requires explicit score and NMS thresholds");
+        }
         cv::Mat image = cv::imread(argv[2], cv::IMREAD_COLOR);
         if (image.empty()) {
             throw std::runtime_error(
                 std::string("Failed to read input image: ") + argv[2]);
         }
 
-        edge_vision::YoloXDetector detector(argv[1]);
-        const auto detections = detector.infer(make_frame(image));
+        auto detector = edge_vision::make_detector(argv[1], config);
+        const auto detections = detector->infer(make_frame(image));
 
         std::cout << std::fixed << std::setprecision(3);
+        std::cout << "detector=" << edge_vision::detector_kind_name(config.kind) << '\n';
         std::cout << "image=" << image.cols << 'x' << image.rows << '\n';
         std::cout << "detections=" << detections.size() << '\n';
 

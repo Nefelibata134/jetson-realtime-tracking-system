@@ -391,7 +391,21 @@ target_link_libraries(
         edge_vision_yolox
 )
 
+add_library(
+    edge_vision_yolo26
+    src/yolo26_contract.cpp
+    src/yolo26_preprocessor.cpp
+    src/yolo26_postprocessor.cpp
+)
+target_include_directories(edge_vision_yolo26 PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(edge_vision_yolo26 PUBLIC edge_vision_core PRIVATE ${OpenCV_LIBS})
+
+add_executable(edge_vision_yolo26_check apps/yolo26_check.cpp)
+target_link_libraries(edge_vision_yolo26_check PRIVATE edge_vision_yolo26)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(edge_vision_yolo26 PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(edge_vision_yolo26_check PRIVATE -Wall -Wextra -Wpedantic)
     set_source_files_properties(
         ${BYTETRACK_UPSTREAM_SOURCES}
         PROPERTIES COMPILE_OPTIONS -w
@@ -664,6 +678,8 @@ if(EDGE_VISION_ENABLE_TENSORRT)
     add_library(
         edge_vision_detector
         src/yolox_detector.cpp
+        src/yolo26_detector.cpp
+        src/detector_factory.cpp
     )
     target_link_libraries(
         edge_vision_detector
@@ -672,6 +688,7 @@ if(EDGE_VISION_ENABLE_TENSORRT)
         PRIVATE
             edge_vision_tensorrt
             edge_vision_yolox
+            edge_vision_yolo26
     )
 
     add_executable(
@@ -795,6 +812,7 @@ add_test(
 )
 add_test(NAME edge_vision_preprocess_check COMMAND edge_vision_preprocess_check)
 add_test(NAME edge_vision_postprocess_check COMMAND edge_vision_postprocess_check)
+add_test(NAME edge_vision_yolo26_check COMMAND edge_vision_yolo26_check)
 add_test(NAME edge_vision_byte_tracker_check COMMAND edge_vision_byte_tracker_check)
 add_test(NAME edge_vision_video_writer_check COMMAND edge_vision_video_writer_check)
 add_test(

@@ -15,17 +15,20 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "edge_vision/byte_tracker.hpp"
 #include "edge_vision/frame.hpp"
 #include "edge_vision/mot_challenge_writer.hpp"
-#include "edge_vision/yolox_detector.hpp"
+#include "edge_vision/detector_factory.hpp"
 
 namespace {
 
 struct Options {
     std::string engine_path;
+    edge_vision::DetectorKind detector_kind{edge_vision::DetectorKind::YoloX};
+    std::set<std::string> provided_options;
     std::filesystem::path sequence_dir;
     std::string output_path;
     std::uint64_t max_frames{0};
@@ -55,6 +58,7 @@ struct SequenceInfo {
         << "Usage: " << program
         << " --engine ENGINE --sequence SEQUENCE_DIR --output RESULT [options]\n\n"
         << "Options:\n"
+        << "  --detector yolox|yolo26 (default: yolox)\n"
         << "  --max-frames N\n"
         << "  --log-interval N\n"
         << "  --class-id N\n"
@@ -79,10 +83,13 @@ Options parse_options(int argc, char** argv) {
     Options options;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
+        options.provided_options.insert(argument);
         if (argument == "--help" || argument == "-h") {
             usage(argv[0], 0);
         } else if (argument == "--engine") {
             options.engine_path = require_value(argc, argv, index);
+        } else if (argument == "--detector") {
+            options.detector_kind = edge_vision::parse_detector_kind(require_value(argc, argv, index));
         } else if (argument == "--sequence") {
             options.sequence_dir = require_value(argc, argv, index);
         } else if (argument == "--output") {
@@ -127,6 +134,16 @@ Options parse_options(int argc, char** argv) {
     }
     if (options.class_id < 0) {
         throw std::invalid_argument("class ID must be nonnegative");
+    }
+    if (options.detector_kind == edge_vision::DetectorKind::Yolo26) {
+        for (const auto* required : {"--score-threshold", "--nms-threshold",
+                                    "--track-threshold", "--new-track-threshold",
+                                    "--match-threshold"}) {
+            if (options.provided_options.count(required) == 0) {
+                throw std::invalid_argument(
+                    std::string("YOLO26 requires an explicit calibration value for ") + required);
+            }
+        }
     }
     if (options.score_threshold >= options.track_threshold) {
         throw std::invalid_argument(
@@ -238,12 +255,14 @@ int main(int argc, char** argv) {
             ? sequence.length
             : std::min(options.max_frames, sequence.length);
 
-        edge_vision::YoloXDetectorConfig detector_config;
+        edge_vision::DetectorConfig detector_config;
+        detector_config.kind = options.detector_kind;
         detector_config.score_threshold = options.score_threshold;
         detector_config.nms_threshold = options.nms_threshold;
-        edge_vision::YoloXDetector detector(
+        auto detector = edge_vision::make_detector(
             options.engine_path,
             detector_config);
+        std::cout << "detector=" << edge_vision::detector_kind_name(options.detector_kind) << '\n';
 
         edge_vision::ByteTrackerConfig tracker_config;
         tracker_config.frame_rate = sequence.frame_rate;
@@ -257,8 +276,14 @@ int main(int argc, char** argv) {
             options.class_id);
 
         std::vector<double> inference_ms;
+        std::vector<double> preprocess_ms;
+        std::vector<double> tensorrt_ms;
+        std::vector<double> postprocess_ms;
         std::vector<double> tracking_ms;
         inference_ms.reserve(frame_limit);
+        preprocess_ms.reserve(frame_limit);
+        tensorrt_ms.reserve(frame_limit);
+        postprocess_ms.reserve(frame_limit);
         tracking_ms.reserve(frame_limit);
         std::set<std::int64_t> unique_ids;
         std::uint64_t detections_total = 0;
@@ -283,9 +308,10 @@ int main(int argc, char** argv) {
             }
 
             const auto inference_started = std::chrono::steady_clock::now();
-            auto detections = detector.infer(
+            auto detector_result = detector->infer_profiled(
                 make_frame(image, one_based_frame - 1));
             const auto inference_finished = std::chrono::steady_clock::now();
+            auto detections = std::move(detector_result.detections);
             detections.erase(
                 std::remove_if(
                     detections.begin(),
@@ -299,6 +325,9 @@ int main(int argc, char** argv) {
             const auto tracking_finished = std::chrono::steady_clock::now();
             writer.write(one_based_frame - 1, tracks);
 
+            preprocess_ms.push_back(detector_result.timing.preprocess_ms);
+            tensorrt_ms.push_back(detector_result.timing.tensorrt_inference_ms);
+            postprocess_ms.push_back(detector_result.timing.postprocess_ms);
             inference_ms.push_back(std::chrono::duration<double, std::milli>(
                                        inference_finished - inference_started)
                                        .count());
@@ -336,6 +365,9 @@ int main(int argc, char** argv) {
                   << percentile(inference_ms, 0.50) << '\n';
         std::cout << "inference_p95_ms="
                   << percentile(inference_ms, 0.95) << '\n';
+        std::cout << "detector_preprocess_p95_ms=" << percentile(preprocess_ms, 0.95) << '\n';
+        std::cout << "tensorrt_inference_p95_ms=" << percentile(tensorrt_ms, 0.95) << '\n';
+        std::cout << "detector_postprocess_p95_ms=" << percentile(postprocess_ms, 0.95) << '\n';
         std::cout << "tracking_p95_ms="
                   << percentile(tracking_ms, 0.95) << '\n';
         std::cout << "effective_fps="

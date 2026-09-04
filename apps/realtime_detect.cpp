@@ -29,7 +29,7 @@
 #include "edge_vision/jetson_telemetry.hpp"
 #include "edge_vision/runtime_metrics.hpp"
 #include "edge_vision/service_runtime.hpp"
-#include "edge_vision/yolox_detector.hpp"
+#include "edge_vision/detector_factory.hpp"
 
 namespace {
 
@@ -43,6 +43,8 @@ struct Options {
 
     SourceType source_type{SourceType::none};
     std::string engine_path;
+    edge_vision::DetectorKind detector_kind{edge_vision::DetectorKind::YoloX};
+    std::set<std::string> provided_options;
     std::string file_path;
     std::string rtsp_uri;
     std::string output_video_path;
@@ -65,6 +67,7 @@ struct Options {
     float nms_threshold{0.45F};
     float track_threshold{0.5F};
     float new_track_threshold{0.6F};
+    float match_threshold{0.8F};
     int track_buffer{30};
     std::optional<std::array<float, 4>> event_roi;
     std::optional<std::array<float, 4>> event_line;
@@ -127,6 +130,7 @@ void print_usage(const char* program) {
         << "  " << program << " --engine ENGINE --csi [options]\n"
         << "  " << program << " --engine ENGINE --rtsp URI [options]\n\n"
         << "Options:\n"
+        << "  --detector yolox|yolo26 (default: yolox)\n"
         << "  --frames N\n"
         << "  --continuous\n"
         << "  --warmup-frames N\n"
@@ -135,6 +139,7 @@ void print_usage(const char* program) {
         << "  --nms-threshold VALUE\n"
         << "  --track-threshold VALUE\n"
         << "  --new-track-threshold VALUE\n"
+        << "  --match-threshold VALUE\n"
         << "  --track-buffer N\n"
         << "  --event-roi LEFT TOP RIGHT BOTTOM\n"
         << "  --event-line X1 Y1 X2 Y2\n"
@@ -277,6 +282,7 @@ Options parse_options(const int argc, char** argv) {
     Options options;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
+        options.provided_options.insert(argument);
         auto require_value = [&](const std::string& option) -> const char* {
             if (++index >= argc) {
                 throw std::invalid_argument("missing value for " + option);
@@ -286,6 +292,8 @@ Options parse_options(const int argc, char** argv) {
 
         if (argument == "--engine") {
             options.engine_path = require_value(argument);
+        } else if (argument == "--detector") {
+            options.detector_kind = edge_vision::parse_detector_kind(require_value(argument));
         } else if (argument == "--file") {
             select_source(
                 options,
@@ -319,6 +327,9 @@ Options parse_options(const int argc, char** argv) {
                 parse_probability(require_value(argument), argument);
         } else if (argument == "--new-track-threshold") {
             options.new_track_threshold =
+                parse_probability(require_value(argument), argument);
+        } else if (argument == "--match-threshold") {
+            options.match_threshold =
                 parse_probability(require_value(argument), argument);
         } else if (argument == "--track-buffer") {
             options.track_buffer =
@@ -454,6 +465,16 @@ Options parse_options(const int argc, char** argv) {
     if (options.continuous && options.frame_limit_explicit) {
         throw std::invalid_argument(
             "continuous and frames are mutually exclusive");
+    }
+    if (options.detector_kind == edge_vision::DetectorKind::Yolo26) {
+        for (const auto* required : {"--score-threshold", "--nms-threshold",
+                                    "--track-threshold", "--new-track-threshold",
+                                    "--match-threshold"}) {
+            if (options.provided_options.count(required) == 0) {
+                throw std::invalid_argument(
+                    std::string("YOLO26 requires an explicit calibration value for ") + required);
+            }
+        }
     }
     if (options.score_threshold >= options.track_threshold) {
         throw std::invalid_argument(
@@ -674,17 +695,20 @@ int main(int argc, char** argv) {
         edge_vision::ShutdownSignalHandler shutdown_signals;
         edge_vision::SystemdNotifier service_notifier;
 
-        edge_vision::YoloXDetectorConfig detector_config;
+        edge_vision::DetectorConfig detector_config;
+        detector_config.kind = options.detector_kind;
         detector_config.score_threshold = options.score_threshold;
         detector_config.nms_threshold = options.nms_threshold;
-        edge_vision::YoloXDetector detector(
+        auto detector = edge_vision::make_detector(
             options.engine_path, detector_config);
+        std::cout << "detector=" << edge_vision::detector_kind_name(options.detector_kind) << '\n';
 
         edge_vision::ByteTrackerConfig tracker_config;
         tracker_config.frame_rate = options.camera.frames_per_second;
         tracker_config.track_buffer = options.track_buffer;
         tracker_config.track_threshold = options.track_threshold;
         tracker_config.new_track_threshold = options.new_track_threshold;
+        tracker_config.match_threshold = options.match_threshold;
         edge_vision::ByteTracker tracker(tracker_config);
         const bool event_analysis_enabled =
             options.event_roi.has_value() || options.event_line.has_value();
@@ -920,7 +944,7 @@ int main(int argc, char** argv) {
             const std::int64_t inference_started_ns = monotonic_time_ns();
             const double queue_ms = static_cast<double>(
                 inference_started_ns - frame->captured_at_ns) / 1'000'000.0;
-            auto detector_result = detector.infer_profiled(*frame);
+            auto detector_result = detector->infer_profiled(*frame);
             const auto& detections = detector_result.detections;
             const std::int64_t inference_finished_ns = monotonic_time_ns();
             const double infer_ms = static_cast<double>(
