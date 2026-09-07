@@ -1,0 +1,1100 @@
+{
+  "schema_version": 1,
+  "protocol_id": "tiny-resolution-development-v2",
+  "run_id": "tiny640-csi-development-v2-3b48161.m72ygiqc",
+  "ended_utc": "2026-09-05T01:33:58.903159+00:00",
+  "scope": "CSI_development_MAXN_SUPER_not_holdout_not_25W",
+  "source": {
+    "commit": "3b48161e50b43831b1577764a02869de62b22420",
+    "source_manifest_sha256": "732d92337d4edb15da89a60044ee122c802b3c602671975804153780a0f6bf0f",
+    "source_tree": "基于所列提交的137文件未提交候选快照",
+    "binary_sha256": "a0b6605cf66ccead5564b665c683fd229a04c699f6b5377f41779ba435f39d80",
+    "config_sha256": "f36acddbb937e241ef2012b382e86a97f8aa4efff7c8423c08c162800d7eeb07",
+    "runner_sha256": "f8bf719a0495aa2305846c496d32bf668b0ccf09b3331b724c9ce1ddc786ef14",
+    "transfer_manifest_sha256": "9faba565a36e538001a3a3982902f4ef8e7a02600bec7cb0cc73f8fa3890ba95"
+  },
+  "environment": {
+    "som": "P3767-0003",
+    "board_config": "p3768-0000+p3767-0003-super",
+    "l4t": "36.4.3",
+    "jetpack_package": "6.2.1+b38",
+    "tensorrt_package": "10.3.0.30-1+cuda12.5",
+    "nvcc": "12.6.68",
+    "kernel": "5.15.148-tegra",
+    "power_mode": "MAXN_SUPER",
+    "mode_id": 2,
+    "cpu_lock_mhz": 1728,
+    "gpu_lock_mhz": 1020,
+    "emc_start_mhz": 3199,
+    "emc_continuous_frequency": "unavailable",
+    "thermal_controls": "preserved"
+  },
+  "status": {
+    "execution": "PASS",
+    "restoration": "PASS",
+    "active_event_realtime_gate": "FAIL",
+    "reason": "all_three_event_types_zero_no_snapshots_no_clips",
+    "scene_review": "sampled_real_people_present_truncated_body_box_bottom_outside_rule_region",
+    "scene_review_limit": "sampled_frames_not_exhaustive_per_frame_anchor_ground_truth",
+    "caviar_development": "NOT_RUN",
+    "event_f1": "NOT_ASSESSED",
+    "sixty_minute": "NOT_RUN",
+    "holdout": "NOT_RUN",
+    "tuning": "NOT_RUN",
+    "default_engine": "Tiny416_unchanged",
+    "previous_quality_gate": "FAIL_preserved"
+  },
+  "thermal_diagnostics": {
+    "counter_deltas": {
+      "/sys/class/hwmon/hwmon4/oc3_event_cnt": 0,
+      "/sys/class/hwmon/hwmon4/oc1_event_cnt": 0,
+      "/sys/class/hwmon/hwmon4/oc2_event_cnt": 0,
+      "/sys/class/hwmon/hwmon2/curr1_crit_alarm": 0,
+      "/sys/class/hwmon/hwmon2/curr4_crit_alarm": 0,
+      "/sys/class/hwmon/hwmon2/curr2_crit_alarm": 0,
+      "/sys/class/hwmon/hwmon2/curr3_crit_alarm": 0
+    },
+    "kernel_new_lines": 3,
+    "new_throttle_alarm_lines": 0,
+    "unavailable_temperature_sensors": [
+      "CV0",
+      "CV1",
+      "CV2"
+    ],
+    "conclusion": "no_observed_CPU_GPU_frequency_drop_or_new_available_alarm; incomplete_sensor_coverage"
+  },
+  "restoration": {
+    "service": {
+      "state": {
+        "MainPID": "10917",
+        "NRestarts": "0",
+        "ActiveState": "active",
+        "SubState": "running"
+      },
+      "fresh_frame_records": 6,
+      "first_frame": 38,
+      "last_frame": 157,
+      "verified_utc": "2026-09-05T01:33:58.476276+00:00"
+    },
+    "power": "25W",
+    "mode_id": 1,
+    "clock_controls_equal": true,
+    "deployed_files_equal": true,
+    "unit_equal": true,
+    "actual_engine_unchanged": true,
+    "service_unit_sha256": "546be750fe96c41b7cd797c3240cc9815d64102f372bd8abb92ced60706a0196"
+  },
+  "artifact_sha256": {
+    "after.json": "81b2b251a5c0488e5798357cd3924a09bc0c44cab907b709eff5416e38124a85",
+    "before.json": "561e3074c00b9faa3c3470473677f6870c0ba150ba214af88fa503ce3b83e1d8",
+    "clocks-maxn.log": "47e51e3276a418076ba823118366e4cff986ad557565838ec379e07dba8dcf1e",
+    "completion.json": "815afd5be8749935c7d1cfc516d754d5e51aa5a5a22800a423592951066abffe",
+    "prepared.json": "759f9f61c7d0f072fe3c52b6f8d0026012ecad632432a282ce458b26e1b2e6f0",
+    "service-restored.json": "9b20226e5df8721d030cccd76fe2ab1c2a295aaf4d6fe9708fa7d777ea5be069",
+    "thermal-after-runs.json": "95c03f128b366faa70ec4571cd7e47f039c83399bfd61e7a830889f3b8f45500",
+    "thermal-before.json": "238ed5b57d0a32dddd80756f0466fca97addf9296f92b72f6165215661d51598",
+    "tiny416/annotated.mp4": "f143fb031afdc2c0c37c8d5f2faf4a1acf41b9677d14caae074dde4438b72337",
+    "tiny416/command.json": "979c2e72a6e4d7276aedb6cf0fb7ae99d24c1fc55ab811b15061553a0db3717e",
+    "tiny416/events.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tiny416/execution.json": "148e4531ab4977b5ad960b643fb3779e46a533a106048ae4790a36351ec13bc3",
+    "tiny416/metrics.json": "364d483b9173bc5a03d900830528fd52e6280e2a4dbf6b7c1ce2f4c642645caf",
+    "tiny416/numeric-summary.json": "ad6302cd8b006fdba9c0557dc82f796602879c717fb735093b0193f974d6bd8e",
+    "tiny416/resources.jsonl": "52b06a02b0a2e374c0d4d0c6fb621854c38e282122a62eef6bba806e2dd517ad",
+    "tiny416/runtime-observations.jsonl": "b0aff4374065be96d78757094ce81fbe3346f66b40d22fd6e1a18a8c9801c174",
+    "tiny416/runtime.log": "0feda77b83f119f79a0771ae0392e9365678e7dd40ccbe994c127de4443c2f5c",
+    "tiny416/tegrastats.log": "74eb92a6a872ee89b94026215e6d638eee23a5c8124209945958fb9ab9e525cd",
+    "tiny640/annotated.mp4": "a24e7d694d3cae6783d055e1bac991a0b8a60b6eb05802ac4764f277b2702c9f",
+    "tiny640/command.json": "d561e2acfa36df604305dd42b59d077dca3ec95fdc0f13da22743ddd803c9a64",
+    "tiny640/events.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tiny640/execution.json": "332125299959806645e8a6e5ef7edaf4e742c792d98b9591c093dbea79c41b56",
+    "tiny640/metrics.json": "c0fbb405c7f826e20f57ffd89a66a7bfe6936d7327166640fd7cdfe7bacd8994",
+    "tiny640/numeric-summary.json": "055c29b2f797e53511cfd23e2e4cbf62807db90603e6056dfd51728fa98b6a4b",
+    "tiny640/resources.jsonl": "65446bebafd6678be877c7cf4c3e6f1c2cc927129cc2e6f9a5d0119e2e8036ac",
+    "tiny640/runtime-observations.jsonl": "3f96f3db8c7726d1078997147f4214ac4d73f310bdd7ac549b13030e3bf4d6fd",
+    "tiny640/runtime.log": "e1e3f4edaa71b465402aeaf92c72dc0ddb794e5427b56f0d3773a7ad4770ea8c",
+    "tiny640/tegrastats.log": "ff079a0ea53142c8eabc8cc22bcc55d44d0c09c9e5857edceecbd8ed876057c5"
+  },
+  "models": {
+    "tiny416": {
+      "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b",
+      "argv_repository_root_redacted": [
+        "stdbuf",
+        "-oL",
+        "-eL",
+        "${REPO}/.cache/tiny640-calibration-3b48161.lokkpazq/build/edge_vision_realtime_detect",
+        "--engine",
+        "${REPO}/models/yolox_tiny_fp16.plan",
+        "--detector",
+        "yolox",
+        "--csi",
+        "--sensor-id",
+        "0",
+        "--sensor-mode",
+        "4",
+        "--capture-width",
+        "1280",
+        "--capture-height",
+        "720",
+        "--capture-fps",
+        "60",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--fps",
+        "30",
+        "--warmup-frames",
+        "300",
+        "--frames",
+        "3600",
+        "--queue-capacity",
+        "2",
+        "--output-queue-capacity",
+        "4",
+        "--score-threshold",
+        "0.1",
+        "--nms-threshold",
+        "0.45",
+        "--track-threshold",
+        "0.3",
+        "--new-track-threshold",
+        "0.4",
+        "--match-threshold",
+        "0.8",
+        "--track-buffer",
+        "30",
+        "--event-roi",
+        "0.25",
+        "0.2",
+        "0.75",
+        "0.9",
+        "--event-line",
+        "0.5",
+        "0.2",
+        "0.5",
+        "0.9",
+        "--event-line-direction",
+        "any",
+        "--event-dwell-seconds",
+        "3",
+        "--event-class-id",
+        "0",
+        "--event-clip-pre-seconds",
+        "1",
+        "--event-clip-post-seconds",
+        "1",
+        "--event-jsonl",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny416/events.jsonl",
+        "--event-snapshot-dir",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny416/snapshots",
+        "--event-clip-dir",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny416/clips",
+        "--output-video",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny416/annotated.mp4",
+        "--output-encoder",
+        "x264",
+        "--output-bitrate-kbps",
+        "10000",
+        "--metrics-json",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny416/metrics.json",
+        "--tegrastats-interval-ms",
+        "500",
+        "--log-interval",
+        "1",
+        "--reconnect-attempts",
+        "3",
+        "--reconnect-delay-ms",
+        "1000"
+      ],
+      "metrics": {
+        "device": {
+          "available": true,
+          "cpu_temperature_c": {
+            "max": 60.531,
+            "mean": 59.39813565891489,
+            "p95": 60.375,
+            "samples": 258
+          },
+          "cpu_utilization_percent": {
+            "max": 41.333333333333336,
+            "mean": 26.792635658914744,
+            "p95": 29.666666666666668,
+            "samples": 258
+          },
+          "gpu_temperature_c": {
+            "max": 60.687,
+            "mean": 59.62825968992261,
+            "p95": 60.531,
+            "samples": 258
+          },
+          "gpu_utilization_percent": {
+            "max": 36.0,
+            "mean": 9.821705426356589,
+            "p95": 18.0,
+            "samples": 258
+          },
+          "input_power_w": {
+            "max": 9.9,
+            "mean": 9.37511240310078,
+            "p95": 9.494,
+            "samples": 258
+          },
+          "junction_temperature_c": {
+            "max": 60.75,
+            "mean": 59.79045348837221,
+            "p95": 60.625,
+            "samples": 258
+          },
+          "ram_total_mb": {
+            "max": 7620.0,
+            "mean": 7620.0,
+            "p95": 7620.0,
+            "samples": 258
+          },
+          "ram_used_mb": {
+            "max": 3458.0,
+            "mean": 3445.3798449612405,
+            "p95": 3457.0,
+            "samples": 258
+          },
+          "sampler_error": null,
+          "samples": 258
+        },
+        "latency_ms": {
+          "detection": {
+            "max": 7.883502,
+            "mean": 5.997096273611113,
+            "p50": 5.983765,
+            "p95": 6.0955189999999995,
+            "samples": 3600
+          },
+          "detector_postprocess": {
+            "max": 1.318302,
+            "mean": 0.2730830930555551,
+            "p50": 0.270422,
+            "p95": 0.2931286,
+            "samples": 3600
+          },
+          "detector_preprocess": {
+            "max": 3.038691,
+            "mean": 1.8858134580555577,
+            "p50": 1.8784095,
+            "p95": 1.9463512,
+            "samples": 3600
+          },
+          "end_to_end": {
+            "max": 13.329264,
+            "mean": 8.134156672500001,
+            "p50": 8.1297995,
+            "p95": 8.442495,
+            "samples": 3600
+          },
+          "event_analysis": {
+            "max": 0.048929,
+            "mean": 0.004998686666666706,
+            "p50": 0.005536,
+            "p95": 0.006465,
+            "samples": 3600
+          },
+          "event_io": {
+            "max": 6.254799,
+            "mean": 1.3424616669444422,
+            "p50": 1.3489735,
+            "p95": 1.5529646000000001,
+            "samples": 3600
+          },
+          "event_io_active": {
+            "samples": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null,
+            "missing_reason": "no_active_event_IO_samples"
+          },
+          "inference": {
+            "max": 7.883502,
+            "mean": 5.997096273611113,
+            "p50": 5.983765,
+            "p95": 6.0955189999999995,
+            "samples": 3600
+          },
+          "queue_wait": {
+            "max": 0.69624,
+            "mean": 0.39625098638888917,
+            "p50": 0.393753,
+            "p95": 0.4349556,
+            "samples": 3600
+          },
+          "tensorrt_inference": {
+            "max": 5.417624,
+            "mean": 3.8357175955555682,
+            "p50": 3.825797,
+            "p95": 3.88610515,
+            "samples": 3600
+          },
+          "tracking": {
+            "max": 0.270694,
+            "mean": 0.05691978222222212,
+            "p50": 0.0640175,
+            "p95": 0.07898119999999999,
+            "samples": 3600
+          },
+          "video_enqueue": {
+            "max": 4.234848,
+            "mean": 0.3353150119444436,
+            "p50": 0.319831,
+            "p95": 0.39112325,
+            "samples": 3600
+          }
+        },
+        "outputs": {
+          "annotated_video": {
+            "bitrate_kbps": 10000,
+            "enabled": true,
+            "encoder": "x264",
+            "encoding_max_ms": 11.321187,
+            "encoding_total_ms": 6028.212226999998,
+            "flush_ms": 1.65402,
+            "frames_dropped": 0,
+            "frames_submitted": 3600,
+            "frames_written": 3600,
+            "queue_high_watermark": 1
+          },
+          "event_clips": {
+            "completed": 0,
+            "enabled": true,
+            "encoding_max_ms": 0.0,
+            "encoding_total_ms": 0.0,
+            "flush_ms": 0.08429,
+            "frames_encoded": 0,
+            "queue_high_watermark": 0,
+            "reused": 0,
+            "skipped": 0,
+            "started": 0
+          },
+          "event_journal": {
+            "duplicates_skipped": 0,
+            "enabled": true,
+            "records_written": 0
+          },
+          "snapshots": {
+            "enabled": true,
+            "reused": 0,
+            "written": 0
+          }
+        },
+        "pipeline": {
+          "detection_frames": 2249,
+          "drop_rate_percent": 0.0,
+          "dropped_frames": 0,
+          "dropped_frames_total": 7,
+          "dwell_events": 0,
+          "effective_fps": 30.004168546145426,
+          "event_analysis_enabled": true,
+          "event_frames": 0,
+          "latency_window_capacity": 3600,
+          "latency_window_samples": 3600,
+          "line_crossing_events": 0,
+          "max_active_tracks": 3,
+          "measured_frames": 3600,
+          "processed_frames": 3900,
+          "produced_frames": 3907,
+          "queue_capacity": 2,
+          "queue_high_watermark": 2,
+          "restart_attempts": 0,
+          "restart_successes": 0,
+          "roi_intrusion_events": 0,
+          "sequence_gaps": 0,
+          "stream_generation": 0,
+          "target_frames": 3600,
+          "total_detections": 3394,
+          "total_events": 0,
+          "total_track_observations": 2397,
+          "tracker_gap_updates": 0,
+          "tracker_resets": 0,
+          "tracking_frames": 2194,
+          "unique_track_ids": 23,
+          "warmup_dropped_frames": 7,
+          "warmup_frames": 300
+        },
+        "schema_version": 1,
+        "source": "csi",
+        "status": {
+          "continuous": false,
+          "invalid_frames": 0,
+          "recovery_exhausted": false,
+          "shutdown_requested": false,
+          "shutdown_signal": 0,
+          "source_exhausted": false,
+          "target_reached": true
+        }
+      },
+      "raw_numeric_summary": {
+        "protocol_id": "tiny-resolution-development-v2",
+        "numeric_gate": "FAIL",
+        "overall": "FAIL",
+        "checks": {
+          "exit_code": true,
+          "schema_source": true,
+          "target_reached": true,
+          "no_invalid_frames": true,
+          "warmup": true,
+          "complete_frames": true,
+          "fps": true,
+          "e2e": true,
+          "capture_drops": true,
+          "drop_accounting": true,
+          "sequence_gaps": true,
+          "no_restart": true,
+          "video": true,
+          "output_recipe": true,
+          "event_types": false,
+          "event_files": false,
+          "latency_samples": true,
+          "active_io_samples": false,
+          "telemetry": true
+        },
+        "scene_review": "PENDING",
+        "video_decode_verification": "PENDING",
+        "runtime_effective_fps": 30.004168546145426,
+        "e2e_p95_ms": 8.442495,
+        "warmup_dropped_frames": 7,
+        "measured_dropped_frames": 0,
+        "observer_windows": [
+          {
+            "window": 1,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.96724103,
+            "observer_fps": 29.99913704151845
+          },
+          {
+            "window": 2,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.968657559,
+            "observer_fps": 29.997008974197513
+          },
+          {
+            "window": 3,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.968408368,
+            "observer_fps": 29.9973833147321
+          },
+          {
+            "window": 4,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.969770419,
+            "observer_fps": 29.995337323962854
+          },
+          {
+            "window": 5,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.966531154,
+            "observer_fps": 30.000203609729137
+          },
+          {
+            "window": 6,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.968461408,
+            "observer_fps": 29.997303636023833
+          }
+        ],
+        "observer_window_scope": "diagnostic_stdout_receipt_not_runtime_clock",
+        "quality_acceptance": "NOT_ASSESSED",
+        "sixty_minute_stability": "NOT_ASSESSED"
+      },
+      "video_decode": {
+        "decoded_frames": 3600,
+        "container_frames": 3600.0,
+        "fps": 30.0,
+        "shapes": [
+          [
+            720,
+            1280,
+            3
+          ]
+        ]
+      },
+      "process_rss_kib": {
+        "samples": 248,
+        "mean": 456310.62903225806,
+        "max": 467516
+      },
+      "frequency_samples": {
+        "/sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq": {
+          "min": 1728000,
+          "max": 1728000,
+          "samples": 248
+        },
+        "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq": {
+          "min": 1728000,
+          "max": 1728000,
+          "samples": 248
+        },
+        "/sys/class/devfreq/17000000.gpu/cur_freq": {
+          "min": 1020000000,
+          "max": 1020000000,
+          "samples": 248
+        }
+      },
+      "visual_review_samples": [
+        {
+          "zero_based_frame": 600,
+          "seconds": 20.0,
+          "file": "tiny416-frame-0600.png",
+          "sha256": "8e4b2075c0aa16f3cac150e7ac0af892a1aecb6b326f01f76b2f64b43628dc91"
+        },
+        {
+          "zero_based_frame": 1200,
+          "seconds": 40.0,
+          "file": "tiny416-frame-1200.png",
+          "sha256": "45e678cd7525af967bf1d9bfefb068c95d1f800593e5672f812cb34d08c63102"
+        },
+        {
+          "zero_based_frame": 2400,
+          "seconds": 80.0,
+          "file": "tiny416-frame-2400.png",
+          "sha256": "12b2ba4d6c2311c2676290a5a26221fbebbf2bfd7593f00b9a1bd50abb873266"
+        }
+      ]
+    },
+    "tiny640": {
+      "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c",
+      "argv_repository_root_redacted": [
+        "stdbuf",
+        "-oL",
+        "-eL",
+        "${REPO}/.cache/tiny640-calibration-3b48161.lokkpazq/build/edge_vision_realtime_detect",
+        "--engine",
+        "${REPO}/.cache/tiny640-calibration-3b48161.lokkpazq/engine/yolox_tiny_640_fp16.plan",
+        "--detector",
+        "yolox",
+        "--csi",
+        "--sensor-id",
+        "0",
+        "--sensor-mode",
+        "4",
+        "--capture-width",
+        "1280",
+        "--capture-height",
+        "720",
+        "--capture-fps",
+        "60",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--fps",
+        "30",
+        "--warmup-frames",
+        "300",
+        "--frames",
+        "3600",
+        "--queue-capacity",
+        "2",
+        "--output-queue-capacity",
+        "4",
+        "--score-threshold",
+        "0.1",
+        "--nms-threshold",
+        "0.45",
+        "--track-threshold",
+        "0.3",
+        "--new-track-threshold",
+        "0.4",
+        "--match-threshold",
+        "0.8",
+        "--track-buffer",
+        "30",
+        "--event-roi",
+        "0.25",
+        "0.2",
+        "0.75",
+        "0.9",
+        "--event-line",
+        "0.5",
+        "0.2",
+        "0.5",
+        "0.9",
+        "--event-line-direction",
+        "any",
+        "--event-dwell-seconds",
+        "3",
+        "--event-class-id",
+        "0",
+        "--event-clip-pre-seconds",
+        "1",
+        "--event-clip-post-seconds",
+        "1",
+        "--event-jsonl",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny640/events.jsonl",
+        "--event-snapshot-dir",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny640/snapshots",
+        "--event-clip-dir",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny640/clips",
+        "--output-video",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny640/annotated.mp4",
+        "--output-encoder",
+        "x264",
+        "--output-bitrate-kbps",
+        "10000",
+        "--metrics-json",
+        "${REPO}/.cache/tiny640-csi-development-v2-3b48161.m72ygiqc/tiny640/metrics.json",
+        "--tegrastats-interval-ms",
+        "500",
+        "--log-interval",
+        "1",
+        "--reconnect-attempts",
+        "3",
+        "--reconnect-delay-ms",
+        "1000"
+      ],
+      "metrics": {
+        "device": {
+          "available": true,
+          "cpu_temperature_c": {
+            "max": 62.281,
+            "mean": 61.27690272373557,
+            "p95": 62.093,
+            "samples": 257
+          },
+          "cpu_utilization_percent": {
+            "max": 38.833333333333336,
+            "mean": 27.783398184176413,
+            "p95": 30.7,
+            "samples": 257
+          },
+          "gpu_temperature_c": {
+            "max": 62.781,
+            "mean": 61.65537743190673,
+            "p95": 62.4122,
+            "samples": 257
+          },
+          "gpu_utilization_percent": {
+            "max": 34.0,
+            "mean": 17.67704280155642,
+            "p95": 34.0,
+            "samples": 257
+          },
+          "input_power_w": {
+            "max": 11.036,
+            "mean": 10.577704280155654,
+            "p95": 10.712,
+            "samples": 257
+          },
+          "junction_temperature_c": {
+            "max": 62.781,
+            "mean": 61.665105058365874,
+            "p95": 62.437,
+            "samples": 257
+          },
+          "ram_total_mb": {
+            "max": 7620.0,
+            "mean": 7620.0,
+            "p95": 7620.0,
+            "samples": 257
+          },
+          "ram_used_mb": {
+            "max": 3406.0,
+            "mean": 3390.1867704280157,
+            "p95": 3403.2,
+            "samples": 257
+          },
+          "sampler_error": null,
+          "samples": 257
+        },
+        "latency_ms": {
+          "detection": {
+            "max": 12.110463,
+            "mean": 8.778316707222256,
+            "p50": 8.748026,
+            "p95": 8.9617076,
+            "samples": 3600
+          },
+          "detector_postprocess": {
+            "max": 2.683802,
+            "mean": 0.6325513086111099,
+            "p50": 0.6287335000000001,
+            "p95": 0.6703932,
+            "samples": 3600
+          },
+          "detector_preprocess": {
+            "max": 4.303195,
+            "mean": 1.0977784391666692,
+            "p50": 1.0712385,
+            "p95": 1.25488845,
+            "samples": 3600
+          },
+          "end_to_end": {
+            "max": 14.413552,
+            "mean": 10.960501454444461,
+            "p50": 10.9489205,
+            "p95": 11.2920219,
+            "samples": 3600
+          },
+          "event_analysis": {
+            "max": 0.058849,
+            "mean": 0.0054137144444444535,
+            "p50": 0.005889,
+            "p95": 0.007264,
+            "samples": 3600
+          },
+          "event_io": {
+            "max": 2.657817,
+            "mean": 1.3912441647222251,
+            "p50": 1.40075,
+            "p95": 1.5605433999999994,
+            "samples": 3600
+          },
+          "event_io_active": {
+            "samples": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null,
+            "missing_reason": "no_active_event_IO_samples"
+          },
+          "inference": {
+            "max": 12.110463,
+            "mean": 8.778316707222256,
+            "p50": 8.748026,
+            "p95": 8.9617076,
+            "samples": 3600
+          },
+          "queue_wait": {
+            "max": 0.830065,
+            "mean": 0.3917991527777774,
+            "p50": 0.3870005,
+            "p95": 0.43412899999999993,
+            "samples": 3600
+          },
+          "tensorrt_inference": {
+            "max": 8.736567,
+            "mean": 7.0452806275,
+            "p50": 7.033751499999999,
+            "p95": 7.13279075,
+            "samples": 3600
+          },
+          "tracking": {
+            "max": 0.596781,
+            "mean": 0.0637065644444445,
+            "p50": 0.072802,
+            "p95": 0.090274,
+            "samples": 3600
+          },
+          "video_enqueue": {
+            "max": 1.01167,
+            "mean": 0.3288831088888883,
+            "p50": 0.3205665,
+            "p95": 0.36615355,
+            "samples": 3600
+          }
+        },
+        "outputs": {
+          "annotated_video": {
+            "bitrate_kbps": 10000,
+            "enabled": true,
+            "encoder": "x264",
+            "encoding_max_ms": 10.580229,
+            "encoding_total_ms": 5505.853300000003,
+            "flush_ms": 2.001738,
+            "frames_dropped": 0,
+            "frames_submitted": 3600,
+            "frames_written": 3600,
+            "queue_high_watermark": 1
+          },
+          "event_clips": {
+            "completed": 0,
+            "enabled": true,
+            "encoding_max_ms": 0.0,
+            "encoding_total_ms": 0.0,
+            "flush_ms": 4.712674,
+            "frames_encoded": 0,
+            "queue_high_watermark": 0,
+            "reused": 0,
+            "skipped": 0,
+            "started": 0
+          },
+          "event_journal": {
+            "duplicates_skipped": 0,
+            "enabled": true,
+            "records_written": 0
+          },
+          "snapshots": {
+            "enabled": true,
+            "reused": 0,
+            "written": 0
+          }
+        },
+        "pipeline": {
+          "detection_frames": 2385,
+          "drop_rate_percent": 0.0,
+          "dropped_frames": 0,
+          "dropped_frames_total": 6,
+          "dwell_events": 0,
+          "effective_fps": 30.00363449251452,
+          "event_analysis_enabled": true,
+          "event_frames": 0,
+          "latency_window_capacity": 3600,
+          "latency_window_samples": 3600,
+          "line_crossing_events": 0,
+          "max_active_tracks": 2,
+          "measured_frames": 3600,
+          "processed_frames": 3900,
+          "produced_frames": 3906,
+          "queue_capacity": 2,
+          "queue_high_watermark": 2,
+          "restart_attempts": 0,
+          "restart_successes": 0,
+          "roi_intrusion_events": 0,
+          "sequence_gaps": 0,
+          "stream_generation": 0,
+          "target_frames": 3600,
+          "total_detections": 3821,
+          "total_events": 0,
+          "total_track_observations": 2591,
+          "tracker_gap_updates": 0,
+          "tracker_resets": 0,
+          "tracking_frames": 2337,
+          "unique_track_ids": 24,
+          "warmup_dropped_frames": 6,
+          "warmup_frames": 300
+        },
+        "schema_version": 1,
+        "source": "csi",
+        "status": {
+          "continuous": false,
+          "invalid_frames": 0,
+          "recovery_exhausted": false,
+          "shutdown_requested": false,
+          "shutdown_signal": 0,
+          "source_exhausted": false,
+          "target_reached": true
+        }
+      },
+      "raw_numeric_summary": {
+        "protocol_id": "tiny-resolution-development-v2",
+        "numeric_gate": "FAIL",
+        "overall": "FAIL",
+        "checks": {
+          "exit_code": true,
+          "schema_source": true,
+          "target_reached": true,
+          "no_invalid_frames": true,
+          "warmup": true,
+          "complete_frames": true,
+          "fps": true,
+          "e2e": true,
+          "capture_drops": true,
+          "drop_accounting": true,
+          "sequence_gaps": true,
+          "no_restart": true,
+          "video": true,
+          "output_recipe": true,
+          "event_types": false,
+          "event_files": false,
+          "latency_samples": true,
+          "active_io_samples": false,
+          "telemetry": true
+        },
+        "scene_review": "PENDING",
+        "video_decode_verification": "PENDING",
+        "runtime_effective_fps": 30.00363449251452,
+        "e2e_p95_ms": 11.2920219,
+        "warmup_dropped_frames": 6,
+        "measured_dropped_frames": 0,
+        "observer_windows": [
+          {
+            "window": 1,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.968673667,
+            "observer_fps": 29.99698477670555
+          },
+          {
+            "window": 2,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.965755691,
+            "observer_fps": 30.001368807192826
+          },
+          {
+            "window": 3,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.967207451,
+            "observer_fps": 29.999187491288414
+          },
+          {
+            "window": 4,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.969233788,
+            "observer_fps": 29.99614338532877
+          },
+          {
+            "window": 5,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.959659501,
+            "observer_fps": 30.010531991790213
+          },
+          {
+            "window": 6,
+            "frames": 600,
+            "complete": true,
+            "elapsed_seconds": 19.968539265,
+            "observer_fps": 29.997186677039593
+          }
+        ],
+        "observer_window_scope": "diagnostic_stdout_receipt_not_runtime_clock",
+        "quality_acceptance": "NOT_ASSESSED",
+        "sixty_minute_stability": "NOT_ASSESSED"
+      },
+      "video_decode": {
+        "decoded_frames": 3600,
+        "container_frames": 3600.0,
+        "fps": 30.0,
+        "shapes": [
+          [
+            720,
+            1280,
+            3
+          ]
+        ]
+      },
+      "process_rss_kib": {
+        "samples": 248,
+        "mean": 373697.7419354839,
+        "max": 384684
+      },
+      "frequency_samples": {
+        "/sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq": {
+          "min": 1728000,
+          "max": 1728000,
+          "samples": 248
+        },
+        "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq": {
+          "min": 1728000,
+          "max": 1728000,
+          "samples": 248
+        },
+        "/sys/class/devfreq/17000000.gpu/cur_freq": {
+          "min": 1020000000,
+          "max": 1020000000,
+          "samples": 248
+        }
+      },
+      "visual_review_samples": [
+        {
+          "zero_based_frame": 900,
+          "seconds": 30.0,
+          "file": "tiny640-frame-0900.png",
+          "sha256": "e055571e72c853cb9fe886a1d701c19d47fee867500339be68e4fd57a019b5ac"
+        },
+        {
+          "zero_based_frame": 1800,
+          "seconds": 60.0,
+          "file": "tiny640-frame-1800.png",
+          "sha256": "4e8834e031d446e4ff1cd47db1bb6d2d979e572c51b1c340381fc9b3e70126f5"
+        },
+        {
+          "zero_based_frame": 3000,
+          "seconds": 100.0,
+          "file": "tiny640-frame-3000.png",
+          "sha256": "3098a671a7dcf8f9238a7cb4d0deec28fc7dccfd781ec77b3fe33af481bf6e6c"
+        }
+      ]
+    }
+  },
+  "continuity": {
+    "scope": "posthoc_paired_calibration_diagnostics_not_independent_validation",
+    "trackeval_commit": "12c8791b303e0a0b50f753af204249e622d0281a",
+    "input_sha256": {
+      "protocol.json": "7f4153cd72695f67022fb008e22684b07029a2e2369170d2020dbbe022ae559f",
+      "tracks/tiny416/data/MOT17-02-FRCNN.txt": "1683fc4e2907682a9216a144649ac3329d10dd885529251c993af687659a44b9",
+      "tracks/tiny640/data/MOT17-02-FRCNN.txt": "06d6bee8b43984b845077fbef21868b2ab64fb4868a4f653dab3a3e039c63d19",
+      "tracks/tiny416/data/MOT17-04-FRCNN.txt": "808074056c0acd8f0cfc3aacf3d66061b3488f92584f06412142e68f254968d0",
+      "tracks/tiny640/data/MOT17-04-FRCNN.txt": "0a04ea70e714b37a480cc891be732eda3c2fea6d76e8f5182d5c8c3344aa0aba",
+      "tracks/tiny416/data/MOT17-05-FRCNN.txt": "025806260222969b36edf8203b4d3c745236ea3ca239894f5fbafc19bb6413b9",
+      "tracks/tiny640/data/MOT17-05-FRCNN.txt": "397ca96614786619f3d2fb3179d4bcaf1ba39b0bd96ef17e1468b1a15f8a0f16",
+      "tracks/tiny416/data/MOT17-10-FRCNN.txt": "627c7ddd3d3cb588418a7783972c36794ce3b8e730ed4f1eb3d4cf6ab4621baf",
+      "tracks/tiny640/data/MOT17-10-FRCNN.txt": "b362f4c7068711b04a259e4af48be9068825d1420f29ae6111d7f3f7e88cdd46"
+    },
+    "raw_aggregate_csv_sha256": "ef36c03b4de3fa6f2097bb26b3a6121a2e119c3bd9d3d50ab15fdd65fb3ca13a",
+    "per_gt_sha256": "d77f62661cf81d4ec5a8e239e814e67ed1641ed86b9d95e206e09bc56184ce1b",
+    "notebook_sha256": "45fd669b953a96cdf4db7aea3e72b00913af43657fe0b6e542687500a3b65078",
+    "notebook_execution": "PASS",
+    "official_CLEAR": {
+      "MOT17-02-FRCNN": {
+        "tiny416": {
+          "CLR_TP": 3768,
+          "CLR_FP": 727,
+          "CLR_FN": 14813,
+          "IDSW": 26,
+          "Frag": 63
+        },
+        "tiny640": {
+          "CLR_TP": 5883,
+          "CLR_FP": 1314,
+          "CLR_FN": 12698,
+          "IDSW": 71,
+          "Frag": 144
+        }
+      },
+      "MOT17-04-FRCNN": {
+        "tiny416": {
+          "CLR_TP": 16481,
+          "CLR_FP": 1265,
+          "CLR_FN": 31076,
+          "IDSW": 44,
+          "Frag": 149
+        },
+        "tiny640": {
+          "CLR_TP": 23857,
+          "CLR_FP": 2597,
+          "CLR_FN": 23700,
+          "IDSW": 71,
+          "Frag": 250
+        }
+      },
+      "MOT17-05-FRCNN": {
+        "tiny416": {
+          "CLR_TP": 4300,
+          "CLR_FP": 902,
+          "CLR_FN": 2617,
+          "IDSW": 91,
+          "Frag": 152
+        },
+        "tiny640": {
+          "CLR_TP": 4378,
+          "CLR_FP": 1114,
+          "CLR_FN": 2539,
+          "IDSW": 94,
+          "Frag": 153
+        }
+      },
+      "MOT17-10-FRCNN": {
+        "tiny416": {
+          "CLR_TP": 4776,
+          "CLR_FP": 729,
+          "CLR_FN": 8063,
+          "IDSW": 71,
+          "Frag": 163
+        },
+        "tiny640": {
+          "CLR_TP": 6302,
+          "CLR_FP": 1237,
+          "CLR_FN": 6537,
+          "IDSW": 116,
+          "Frag": 251
+        }
+      }
+    }
+  }
+}

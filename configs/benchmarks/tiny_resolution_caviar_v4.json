@@ -1,0 +1,211 @@
+{
+  "protocol_id": "tiny-resolution-caviar-development-v4",
+  "schema_version": 1,
+  "scope": "four_fixed_tradeoff_candidates_calibration_and_development_only",
+  "prior_quality_gate": "FAIL_preserved",
+  "prior_grid": "tiny-resolution-tuning-v3_27_configurations_unchanged",
+  "source_commit": "3b48161e50b43831b1577764a02869de62b22420",
+  "source_manifest_sha256": "732d92337d4edb15da89a60044ee122c802b3c602671975804153780a0f6bf0f",
+  "models": [
+    {
+      "id": "tiny416",
+      "engine": "yolox_tiny_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.4,
+      "match": 0.8,
+      "buffer": 30
+    },
+    {
+      "id": "tiny640",
+      "engine": "yolox_tiny_640_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.4,
+      "match": 0.8,
+      "buffer": 30
+    },
+    {
+      "id": "t35_n35_m80",
+      "engine": "yolox_tiny_640_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.35,
+      "new_track": 0.35,
+      "match": 0.8,
+      "buffer": 30
+    },
+    {
+      "id": "t30_n45_m75",
+      "engine": "yolox_tiny_640_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.45,
+      "match": 0.75,
+      "buffer": 30
+    }
+  ],
+  "engines": {
+    "yolox_tiny_fp16.plan": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b",
+    "yolox_tiny_640_fp16.plan": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+  },
+  "tracking_fixed": {
+    "second_match": 0.5,
+    "unconfirmed_match": 0.7,
+    "implementation": "unchanged_ByteTrack"
+  },
+  "calibration": {
+    "MOT17-02-FRCNN": [
+      600,
+      30
+    ],
+    "MOT17-04-FRCNN": [
+      1050,
+      30
+    ],
+    "MOT17-05-FRCNN": [
+      837,
+      14
+    ],
+    "MOT17-10-FRCNN": [
+      654,
+      30
+    ]
+  },
+  "trackeval_commit": "12c8791b303e0a0b50f753af204249e622d0281a",
+  "replay_gate": {
+    "method": "new_Jetson_MOT_inference_all_four_configs_all_four_calibration_sequences",
+    "comparison": "byte_identical_MOT_files_against_fixed_host_results",
+    "expected_files": 16,
+    "on_mismatch": "retain_logs_stop_before_CAVIAR_no_automatic_tolerance_change"
+  },
+  "continuity": {
+    "pixel_basis": "original_GT_height_lt100",
+    "matching": "pinned_TrackEval_CLEAR_after_official_preprocessing",
+    "pairs": "all_six_unordered_pairs",
+    "cohorts": [
+      "all",
+      "common",
+      "candidate_only",
+      "reference_only",
+      "neither"
+    ],
+    "four_way_common": true,
+    "include_observation_gains_and_losses": true,
+    "duration_scope": "full_eligible_GT_lifetime_break_at_GT_absence",
+    "interruption_definition": "closed_matched_missing_rematched_gap; initial_and_terminal_misses_separate",
+    "percentiles": "nearest_rank",
+    "causal_claim": false
+  },
+  "caviar": {
+    "dataset_config": "configs/caviar/dataset.json",
+    "rules": "configs/caviar/rules.frozen.json",
+    "dataset_linux_bytes_sha256": "26032705371769cceeb0c3ad967afec799603603d96d5fc543a2606788fdb350",
+    "rules_linux_bytes_sha256": "69dfaa4c761d764a9ceb4b5c2702e1dfa8bdf8b8730397002938747bcb5dc271",
+    "sequences": [
+      {
+        "id": "Walk1",
+        "frames": 611,
+        "expected_events": 5,
+        "event_type": "line_crossing",
+        "expected_jsonl_sha256": "2b4f659cbe2da15e36245446c0c56afe91bcab018c2f01ca3cfa7aaf0da55ec2",
+        "video_sha256": "482e3d0faeec8d709fe98c5a6b69e68d798b82d96fc37bc0341cb820ecc7af02"
+      },
+      {
+        "id": "Browse1",
+        "frames": 1043,
+        "expected_events": 2,
+        "event_type": "dwell",
+        "expected_jsonl_sha256": "447e1a4a2b47f1177d1ffc422fcfcbdf9c33a0b9c4b1c86ce315be3cf4f42bf3",
+        "video_sha256": "a631cdf7bbd4405eabd8bd62f2e64b4f03a28398336590ababe5b337996d8d07"
+      },
+      {
+        "id": "EnterExitCrossingPaths1front",
+        "frames": 383,
+        "expected_events": 2,
+        "event_type": "roi_intrusion",
+        "expected_jsonl_sha256": "42cf3c2496d19d87b88a641eae6e4a60760984817b66cd805f7fdd775fadaa3f",
+        "video_sha256": "2afa3017ba14dfe2e90bc889e8cdc8967c16571b68e6e7597f869be06f775a98"
+      }
+    ],
+    "input": {
+      "source": "local_RTSP_H264_replay",
+      "resolution": [
+        384,
+        288
+      ],
+      "fps": 25,
+      "warmup_frames": 0,
+      "input_queue": 8,
+      "rtsp_transport": "tcp",
+      "rtsp_latency_ms": 200,
+      "rtsp_timeout_ms": 5000,
+      "reconnect_attempts": 0
+    },
+    "output": {
+      "screenshots": true,
+      "event_jsonl": true,
+      "clips": true,
+      "clip_pre_seconds": 1,
+      "clip_post_seconds": 1,
+      "annotated_video": true,
+      "codec": "x264",
+      "bitrate_kbps": 2500,
+      "output_queue": 4,
+      "metrics": true,
+      "tegrastats_interval_ms": 500
+    },
+    "measurement_validity": {
+      "target_reached": true,
+      "frames": "equal_frozen_sequence_length",
+      "invalid_frames": 0,
+      "dropped_frames": 0,
+      "warmup_dropped_frames": 0,
+      "sequence_gaps": 0,
+      "restarts": 0
+    },
+    "scoring": {
+      "unchanged_generator": true,
+      "unchanged_matching": true,
+      "frame_tolerance": 50,
+      "anchor_distance_tolerance": 0.2,
+      "one_to_one": true,
+      "unconfigured_event_classes": "NOT_SCORED_report_counts_separately",
+      "micro_aggregation": "sum_TP_FP_FN_before_ratios",
+      "empty_predictions_precision_display": null,
+      "development_status": "NOT_GATED",
+      "evidence_completeness": "report_separately_never_hide_missing_files",
+      "automatic_winner": false
+    },
+    "max_inference_runs": 12,
+    "extra_grid": false,
+    "on_invalid_measurement": "retain_all_outputs_no_score_or_automatic_rerun"
+  },
+  "device": {
+    "power_mode": "25W",
+    "power_mode_id": 1,
+    "clock_policy": "preserve_original_DVFS_controls",
+    "power_or_clock_switch": false,
+    "rebuild_engine": false,
+    "service": "temporarily_stop_then_restore_original_Tiny416",
+    "fresh_frames_before_after": true,
+    "stop_window_max_seconds": 1800,
+    "per_MOT_timeout_seconds": 180,
+    "per_CAVIAR_timeout_seconds": 150,
+    "preflight_required": true
+  },
+  "binaries": {
+    "edge_vision_realtime_detect": "a0b6605cf66ccead5564b665c683fd229a04c699f6b5377f41779ba435f39d80",
+    "edge_vision_mot_sequence_infer": "a10577e79beb5e84a00b5b88ea5ef9c1f4dfda498148a456ef211f5160a2afeb"
+  },
+  "excluded": [
+    "holdout",
+    "additional_parameter_grid",
+    "CSI_performance_matrix",
+    "60_minute_soak",
+    "default_model_change"
+  ]
+}

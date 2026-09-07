@@ -17,6 +17,8 @@
 | [TrackEval](https://github.com/JonathonLuiten/TrackEval) | 在忽略的 `external/` 目录获取并用于 MOTChallenge 指标计算 | `12c8791b303e0a0b50f753af204249e622d0281a` | MIT |
 | [JSON for Modern C++](https://github.com/nlohmann/json) | 系统或构建环境提供的 JSON 依赖 | 由构建环境提供 | MIT |
 | [CAVIAR Test Case Scenarios](https://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/) | 在忽略的 `data/` 目录获取并用于事件评估 | 数据提供方发布版本 | CC BY-SA |
+| [VIRAT Ground](https://viratdata.org/) | 同源分辨率开发验证；不分发媒体或原始标注 | Ground Release 2.0 | VIRAT 数据使用协议；不转为项目源码许可证 |
+| [MEVA KF1](https://mevadata.org/) | 近景事件开发验证；不分发媒体或原始标注 | `drops-123-r13` | CC-BY-4.0；保留数据来源与变换说明 |
 
 ## 仓库内第三方源码
 
@@ -47,7 +49,16 @@
 
 ## 资产和二进制边界
 
-本仓库不分发模型权重、ONNX、TensorRT engine、CAVIAR/MOT17 数据、
+Tiny640 候选使用 YOLOX `0.1.1rc0` 的官方 `yolox_tiny.pth`，源码固定为
+`e1052df71842031413f6030723c3607b839c80ce`，权重 SHA-256 为
+`9de513de589ac98bb92d3bca53b5af7b9acfa9b0bacb831f7999d0f7afaee8f0`。
+YOLOX 原始 Apache-2.0 版权与许可保持在独立上游目录，不将其文件重新许可或复制进仓库。
+主机导出环境另使用 PyTorch/torchvision（BSD-3-Clause）、ONNX（Apache-2.0）、
+ONNX Runtime（MIT）及 `ultralytics-thop`（AGPL-3.0）；这些包不随仓库分发，固定版本见
+`requirements/yolox-tiny-export.txt`。获取、等价性与 TensorRT 资产边界见
+[Tiny640 资产契约](docs/models/yolox_tiny_640.md)。
+
+本仓库不分发模型权重、ONNX、TensorRT engine、CAVIAR/MOT17/VIRAT/MEVA 数据、
 原视频、凭据或运行目录。TensorRT engine 与目标 GPU、CUDA/TensorRT 版本和构建 profile
 绑定，必须在准确目标设备上生成并记录哈希。
 
@@ -60,3 +71,8 @@ CAVIAR 视频和人工标注 XML 只下载到忽略的 `data/` 目录，不由�
 数据提供方要求注明 EC Funded CAVIAR project/IST 2001 37540。
 已有派生截图作为独立文档资产按原始 CC BY-SA 要求保留，见
 [截图许可说明](docs/assets/caviar_external/README.md)。
+
+VIRAT 和 MEVA 仅公开来源标识、校验和、工程方法与汇总结果，原片、派生帧、事件截图和
+逐帧标注保留在仓库外。数据许可独立于项目源码许可；来源、引用及处理过程分别见
+[VIRAT 同源验证协议](docs/benchmarks/tiny_source_resolution_v5.md)和
+[MEVA 近景验证协议](docs/benchmarks/tiny_near_field_v6.md)。

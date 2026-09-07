@@ -795,7 +795,20 @@ if(EDGE_VISION_ENABLE_TENSORRT)
     endif()
 endif()
 
+add_executable(edge_vision_source_resolution_replay apps/source_resolution_replay.cpp)
+target_include_directories(edge_vision_source_resolution_replay PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(edge_vision_source_resolution_replay PRIVATE
+    edge_vision_bytetrack edge_vision_event_analytics nlohmann_json::nlohmann_json ${OpenCV_LIBS})
+if(EDGE_VISION_ENABLE_TENSORRT)
+    target_compile_definitions(edge_vision_source_resolution_replay PRIVATE EDGE_VISION_SOURCE_REPLAY_TENSORRT=1)
+    target_link_libraries(edge_vision_source_resolution_replay PRIVATE edge_vision_detector edge_vision_tensorrt)
+endif()
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(edge_vision_source_resolution_replay PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 enable_testing()
+add_test(NAME edge_vision_source_resolution_replay_check COMMAND edge_vision_source_resolution_replay --self-test)
 add_test(NAME edge_vision_contract_check COMMAND edge_vision_contract_check)
 add_test(
     NAME edge_vision_service_runtime_check

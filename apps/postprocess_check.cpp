@@ -83,6 +83,37 @@ int main() {
         }
         require(invalid_size_rejected, "invalid output size was not rejected");
 
+        edge_vision::YoloXPostprocessConfig candidate_config;
+        candidate_config.input_width = 640;
+        candidate_config.input_height = 640;
+        const edge_vision::YoloXPostprocessor candidate(candidate_config);
+        require(candidate.expected_rows() == 8400U, "640 row count mismatch");
+        std::vector<float> candidate_output(8400U * columns, 0.0F);
+        // Stride 8/16/32 boundaries; three equal-size original-image boxes.
+        set_candidate(candidate_output, columns, 0U, 10, 10, 4, 2, .9F, 0, .9F);
+        set_candidate(candidate_output, columns, 1U, 9, 10, 4, 2, .8F, 1, .9F);
+        set_candidate(candidate_output, columns, 6400U, 15, 15, 2, 1, .9F, 0, .8F);
+        set_candidate(candidate_output, columns, 8000U, 12, 8, 1, .5F, .9F, 0, .7F);
+        const auto mapped = candidate.run(candidate_output, 1280, 720, .5F);
+        require(mapped.size() == 3U, "640 class-agnostic NMS mismatch");
+        require(approximately_equal(mapped[0].box.x, 128) && approximately_equal(mapped[0].box.y, 144),
+                "640 stride-8 mapping mismatch");
+        require(approximately_equal(mapped[1].box.x, 448) && approximately_equal(mapped[1].box.y, 464),
+                "640 stride-16 boundary mismatch");
+        require(approximately_equal(mapped[2].box.x, 736) && approximately_equal(mapped[2].box.y, 496),
+                "640 stride-32 boundary mismatch");
+        for (const auto& detection : mapped) {
+            require(approximately_equal(detection.box.width, 64) && approximately_equal(detection.box.height, 32),
+                    "640 inverse letterbox size mismatch");
+        }
+        bool wrong_resolution_rejected = false;
+        try {
+            static_cast<void>(candidate.run(output, 1280, 720, .5F));
+        } catch (const std::invalid_argument&) {
+            wrong_resolution_rejected = true;
+        }
+        require(wrong_resolution_rejected, "416 output accepted as 640");
+
         std::cout << "rows=" << rows << " columns=" << columns << '\n';
         std::cout << "candidates=3 detections=" << detections.size() << '\n';
         std::cout << "first=class:" << first.class_id

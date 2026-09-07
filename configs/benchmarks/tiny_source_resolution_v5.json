@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "protocol_id": "tiny-source-resolution-development-v5",
+  "status": "PREPARATION_NOT_FROZEN",
+  "scope": "paired_source_resolution_development_only",
+  "native_size": [1280, 720],
+  "low_size": [384, 216],
+  "fps": [30, 1],
+  "capture": {
+    "sensor_fps": [60, 1],
+    "delivery_fps": [30, 1],
+    "planned_videorate_decimation": "separate_from_unexpected_frame_loss",
+    "warmup_delivery_frames": 150,
+    "suggested_clips": 3,
+    "suggested_seconds_per_clip": 40,
+    "format": "unannotated_BGR8_PNG_with_source_PTS",
+    "unexpected_drops": 0,
+    "pts_grid_tolerance_ns": 1000000,
+    "service_stop_requires_separate_confirmation": true
+  },
+  "transform": {
+    "implementation": "OpenCV_INTER_AREA",
+    "source": "decode_each_native_PNG_once",
+    "pixel_format": "BGR8",
+    "codec": "PNG",
+    "png_compression": 1,
+    "crop": false,
+    "letterbox": false,
+    "lossy_reencode": false
+  },
+  "models": {
+    "tiny416": {
+      "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b",
+      "input_shape": [1, 3, 416, 416]
+    },
+    "tiny640": {
+      "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c",
+      "input_shape": [1, 3, 640, 640]
+    }
+  },
+  "groups": [
+    {"id": "native_tiny416", "source": "native", "model": "tiny416"},
+    {"id": "native_tiny640", "source": "native", "model": "tiny640"},
+    {"id": "low_tiny416", "source": "low", "model": "tiny416"},
+    {"id": "low_tiny640", "source": "low", "model": "tiny640"}
+  ],
+  "thresholds": {"score": 0.1, "nms": 0.45, "track": 0.3, "new_track": 0.4, "match": 0.8},
+  "bytetrack": {"frame_rate": 30, "buffer": 30, "second_match": 0.5, "unconfirmed_match": 0.7},
+  "event_semantics": {
+    "anchor": "normalized_box_bottom_center",
+    "rule_ids": {"roi_intrusion": "restricted-area-entry", "line_crossing": "directional-crossing", "dwell": "restricted-area-dwell"},
+    "roi_confirmation_frames": 2,
+    "line_confirmation_frames": 1,
+    "line_side_epsilon": 0.01,
+    "line_direction": "any",
+    "dwell_seconds": 3,
+    "dwell_confirmation_frames": 2,
+    "dwell_max_gap_frames": 3,
+    "stale_after_frames": 300,
+    "geometry": "freeze_from_unannotated_native_video_before_predictions"
+  },
+  "matching": {
+    "implementation": "evaluate_caviar_events.match_events",
+    "frame_tolerance": 60,
+    "time_tolerance_seconds": 2,
+    "anchor_distance_tolerance": 0.2,
+    "direction_must_match": true,
+    "partition_by": ["clip_id", "event_type", "rule_id"],
+    "one_to_one": true,
+    "micro_aggregate_counts_first": true,
+    "empty_precision_or_recall": null
+  },
+  "quality_replay": {
+    "mode": "sequential_all_frames_preserve_frozen_PTS",
+    "scored_warmup_frames": 0,
+    "measurement_gate": "all_frames_exact_sequence_and_PTS_zero_drops",
+    "on_invalid": "retain_outputs_NOT_SCORED_no_automatic_rerun",
+    "all_classes_scored": ["roi_intrusion", "line_crossing", "dwell"],
+    "evidence_integrity_separate_from_event_FN": true,
+    "per_frame_trace_required": true,
+    "default_switch_gate": "NOT_APPLICABLE"
+  },
+  "device_proposal": {
+    "power_mode": "25W",
+    "power_mode_id": 1,
+    "clocks": "preserve_original_DVFS_controls",
+    "engine_build": false,
+    "capture_window_seconds": 600,
+    "capture_restore_reserve_seconds": 60,
+    "replay_window": "separate_confirmation_after_ground_truth_freeze",
+    "automatic_service_or_power_changes": false
+  },
+  "excluded": ["holdout", "parameter_search", "tuned_v3_candidates", "default_change", "CSI_acceptance", "automatic_commit", "automatic_push"]
+}

@@ -1,0 +1,42 @@
+{
+  "protocol_id": "tiny-resolution-tuning-v3",
+  "schema_version": 1,
+  "scope": "bounded_calibration_development_only",
+  "candidate": "yolox_tiny_640",
+  "candidate_engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c",
+  "cache_contract": {"score": 0.10, "nms": 0.45, "stage": "post_nms_class_0", "precision_digits": 9},
+  "replay_gate": "all_eight_original_mot_files_byte_identical",
+  "calibration": {"MOT17-02-FRCNN": [600, 30], "MOT17-04-FRCNN": [1050, 30], "MOT17-05-FRCNN": [837, 14], "MOT17-10-FRCNN": [654, 30]},
+  "trackeval_commit": "12c8791b303e0a0b50f753af204249e622d0281a",
+  "fixed_thresholds": {"score": 0.10, "nms": 0.45, "buffer": 30, "second_match": 0.50, "unconfirmed_match": 0.70},
+  "search": {"track": [0.25, 0.30, 0.35], "new_track": [0.35, 0.40, 0.45], "match": [0.70, 0.75, 0.80]},
+  "max_configurations": 27,
+  "baseline_thresholds": {"score": 0.10, "nms": 0.45, "track": 0.30, "new_track": 0.40, "match": 0.80, "buffer": 30},
+  "shortlist": {
+    "comparison": "untuned_tiny640_same_calibration",
+    "nondecreasing": ["HOTA", "IDF1", "MOTA", "Recall"],
+    "nonincreasing": ["FP", "IDSW", "small_target_interruptions"],
+    "require_strict_improvement": true,
+    "order": ["HOTA_desc", "IDF1_desc", "small_target_interruptions_asc", "IDSW_asc", "FP_asc", "configuration_id_asc"],
+    "max_candidates": 3,
+    "no_candidate_action": "report_tradeoffs_do_not_relax_guardrails"
+  },
+  "development_videos": ["Walk1", "Browse1", "EnterExitCrossingPaths1front"],
+  "max_development_configurations": 5,
+  "matrix_plan": {
+    "resolutions": [[1280, 720], [1920, 1080]],
+    "power_clock_pairs": [{"power_mode": "25W", "jetson_clocks": false}, {"power_mode": "MAXN_SUPER", "jetson_clocks": true}],
+    "candidate_encoders": ["mp4v", "x264"],
+    "baseline_encoders": ["x264"],
+    "warmup_frames": 300,
+    "measured_frames": 3600,
+    "input_queue": 2,
+    "output_queue": 4,
+    "primary_target": "1280x720_MAXN_SUPER_x264_30fps",
+    "device_recipe_and_stop_window_confirmation_required": true
+  },
+  "prior_fail_preserved": true,
+  "holdout_allowed": false,
+  "default_switch_authorized": false,
+  "commit_push_authorized": false
+}

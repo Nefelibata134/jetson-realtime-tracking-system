@@ -86,6 +86,23 @@ int main() {
         }
         require(invalid_rejected, "invalid frame was not rejected");
 
+        const edge_vision::YoloXPreprocessor candidate_preprocessor(640, 640);
+        const auto candidate = candidate_preprocessor.run(frame);
+        constexpr std::size_t candidate_plane = 640U * 640U;
+        require(approximately_equal(candidate.scale, 0.5F), "640 scale mismatch");
+        require(candidate.resized_width == 640 && candidate.resized_height == 360,
+                "640 resized geometry mismatch");
+        require(candidate.pad_right == 0 && candidate.pad_bottom == 280,
+                "640 top-left letterbox mismatch");
+        require(candidate.tensor.size() == 3U * candidate_plane, "640 tensor size mismatch");
+        require(candidate.tensor[0] == 10.0F && candidate.tensor[candidate_plane] == 20.0F &&
+                    candidate.tensor[2U * candidate_plane] == 30.0F,
+                "640 BGR unscaled channel contract mismatch");
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            require(candidate.tensor[channel * candidate_plane + 360U * 640U] == 114.0F,
+                    "640 padding boundary mismatch");
+        }
+
         std::cout << "scale=" << result.scale << '\n';
         std::cout << "resized=" << result.resized_width << 'x'
                   << result.resized_height << '\n';

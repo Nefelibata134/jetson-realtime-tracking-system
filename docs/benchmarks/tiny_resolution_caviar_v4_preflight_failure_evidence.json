@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "scope": "development_preflight_failure_not_model_quality_evaluation",
+  "source_commit": "3b48161e50b43831b1577764a02869de62b22420",
+  "source_manifest_sha256": "732d92337d4edb15da89a60044ee122c802b3c602671975804153780a0f6bf0f",
+  "protocol_sha256": "6069303be6f1544c78488faa3a9bd08ab2e7a34ee4c75472b7e13554773fb58b",
+  "execution_package_sha256": "d0b6a11541f54de85a92595901d2b4aca9661b2f40509d6ad533c87a24b9e7bc",
+  "execution_script_sha256": "6e373e5ff4bed2651c9f50090f50dc5739c03c4c787eb925f0f0cf8acb5638c0",
+  "completion_utc": "2026-09-05T08:23:18.688968+00:00",
+  "diagnostic_utc": "2026-09-05T08:26:31.170091+00:00",
+  "execution_status": "FAIL",
+  "model_quality_status": "NOT_RUN",
+  "stop_requested": false,
+  "stop_confirmed": false,
+  "stop_window_started": false,
+  "restore_status": "NOT_REQUIRED_service_never_stopped",
+  "raw_restore_status": "NOT RUN",
+  "stop_budget_seconds": 1800,
+  "recovery_reserve_seconds": 180,
+  "assets_postflight": "PASS",
+  "MOT_gate": {
+    "planned_outputs": 16,
+    "executed_outputs": 0,
+    "status": "NOT_RUN",
+    "byte_identical_gate_unchanged": true
+  },
+  "CAVIAR": {
+    "planned_runs": 12,
+    "executed_runs": 0,
+    "rows": [
+      {
+        "model": "tiny416",
+        "video": "Walk1",
+        "event_class": "line_crossing",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "tiny416",
+        "video": "Browse1",
+        "event_class": "dwell",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "tiny416",
+        "video": "EnterExitCrossingPaths1front",
+        "event_class": "roi_intrusion",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "tiny640",
+        "video": "Walk1",
+        "event_class": "line_crossing",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "tiny640",
+        "video": "Browse1",
+        "event_class": "dwell",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "tiny640",
+        "video": "EnterExitCrossingPaths1front",
+        "event_class": "roi_intrusion",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t35_n35_m80",
+        "video": "Walk1",
+        "event_class": "line_crossing",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t35_n35_m80",
+        "video": "Browse1",
+        "event_class": "dwell",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t35_n35_m80",
+        "video": "EnterExitCrossingPaths1front",
+        "event_class": "roi_intrusion",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t30_n45_m75",
+        "video": "Walk1",
+        "event_class": "line_crossing",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t30_n45_m75",
+        "video": "Browse1",
+        "event_class": "dwell",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t30_n45_m75",
+        "video": "EnterExitCrossingPaths1front",
+        "event_class": "roi_intrusion",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      }
+    ],
+    "aggregate": [
+      {
+        "model": "tiny416",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "tiny640",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t35_n35_m80",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      {
+        "model": "t30_n45_m75",
+        "status": "NOT_RUN",
+        "TP": null,
+        "FP": null,
+        "FN": null,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      }
+    ]
+  },
+  "performance": {
+    "status": "NOT_RUN",
+    "effective_fps": null,
+    "TRT_P95_ms": null,
+    "E2E_P95_ms": null,
+    "preprocess_P95_ms": null,
+    "postprocess_P95_ms": null,
+    "ByteTrack_P95_ms": null,
+    "event_IO_P95_ms": null,
+    "dropped_frames": null,
+    "sequence_gaps": null,
+    "CPU_GPU_memory_power_temperature": "NOT_MEASURED_for_comparison"
+  },
+  "failure": {
+    "component": "pre_stop_optional_temperature_snapshot",
+    "exception": "can't concat NoneType to bytes",
+    "direct_read_errno": 11,
+    "direct_read_error": "EAGAIN_Resource_temporarily_unavailable",
+    "sensor_types": [
+      "cv0-thermal",
+      "cv1-thermal",
+      "cv2-thermal"
+    ],
+    "python": "3.10.12",
+    "mechanism": "text_reader_receives_None_and_decoder_raises_TypeError",
+    "exception_handling_gap": "counter_reader_handles_OSError_but_not_this_TypeError",
+    "deeper_sensor_driver_cause": "NOT_DETERMINED"
+  },
+  "service": {
+    "before_and_after_PID": 6496,
+    "ActiveState": "active",
+    "SubState": "running",
+    "NRestarts": 0,
+    "actual_engine": "yolox_tiny_fp16.plan",
+    "power_mode": "25W",
+    "power_mode_id": 1,
+    "fresh_frames_before_failure": {
+      "first": 335436,
+      "last": 335556,
+      "utc": "2026-09-05T08:23:17.378849+00:00"
+    },
+    "fresh_frames_after_failure": "UNAVAILABLE_unprivileged_log_access",
+    "full_EMC_snapshot": "NOT_PERSISTED_before_preflight_failure"
+  },
+  "models": [
+    {
+      "id": "tiny416",
+      "engine": "yolox_tiny_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.4,
+      "match": 0.8,
+      "buffer": 30
+    },
+    {
+      "id": "tiny640",
+      "engine": "yolox_tiny_640_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.4,
+      "match": 0.8,
+      "buffer": 30
+    },
+    {
+      "id": "t35_n35_m80",
+      "engine": "yolox_tiny_640_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.35,
+      "new_track": 0.35,
+      "match": 0.8,
+      "buffer": 30
+    },
+    {
+      "id": "t30_n45_m75",
+      "engine": "yolox_tiny_640_fp16.plan",
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.45,
+      "match": 0.75,
+      "buffer": 30
+    }
+  ],
+  "engine_sha256": {
+    "yolox_tiny_fp16.plan": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b",
+    "yolox_tiny_640_fp16.plan": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+  },
+  "prior_46_public_files": "UNCHANGED",
+  "prior_quality_FAIL": "PRESERVED",
+  "holdout_executed": false,
+  "defaults_modified": false,
+  "engine_rebuilt": false,
+  "automatic_retry": false,
+  "raw_evidence_sha256": {
+    "completion.json": "ffa1d46d1d2609e362821e8c7bb130fa6e4b2774fd9eed92b18cec5ab90c4609",
+    "execution.log": "c411ba88b34a99fa64ada91afdc41faf5e4b971b869d6ec71d6a49895b18346d",
+    "execution-started.json": "e70f691ee0c9e8e931661aedaecd869b7140b3c63bd09af8ea247fa9f66f3a5a",
+    "service-before-fresh.json": "d36c1a4be810a0b7ebfd7240ae3722cef6ebdfc51432a28b7863cd255230718d",
+    "service-before-fresh-frames.log": "0f96913175652a5140c60bed843606c04665ec25f778a93e4cfa4f4de67f9c1e",
+    "readonly-diagnostic.json": "c298670486ff2ef5e9fa50f4e475391fbfc4454e965536ae24eab280caf719df"
+  },
+  "read_only_diagnostic_implementation_sha256": "5cbf6cc4d7f078f6170b38344d97047ae7f7274fd4b3542025db42c9aad5d98f"
+}

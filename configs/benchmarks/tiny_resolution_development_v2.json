@@ -1,0 +1,31 @@
+{
+  "protocol_id": "tiny-resolution-development-v2",
+  "schema_version": 2,
+  "scope": "development_only_no_holdout_no_default_change",
+  "prior_calibration_gate": "FAIL_preserved",
+  "power_mode": "MAXN_SUPER",
+  "power_mode_id": 2,
+  "jetson_clocks": true,
+  "models": {
+    "tiny416": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b",
+    "tiny640": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+  },
+  "order": ["tiny416", "tiny640"],
+  "csi": {"sensor_id": 0, "sensor_mode": 4, "capture_width": 1280, "capture_height": 720, "capture_fps": 60, "width": 1280, "height": 720, "fps": 30},
+  "warmup_frames": 300,
+  "measured_frames": 3600,
+  "nominal_measurement_seconds": 120,
+  "model_timeout_seconds": 240,
+  "fps_window_frames": 600,
+  "queue_capacity": 2,
+  "output_queue_capacity": 4,
+  "thresholds": {"score": 0.10, "nms": 0.45, "track": 0.30, "new_track": 0.40, "match": 0.80, "buffer": 30},
+  "events": {"roi": [0.25, 0.20, 0.75, 0.90], "line": [0.50, 0.20, 0.50, 0.90], "line_direction": "any", "dwell_seconds": 3, "class_id": 0, "clip_pre_seconds": 1, "clip_post_seconds": 1},
+  "outputs": {"encoder": "x264", "bitrate_kbps": 10000, "snapshots": true, "clips": true, "annotated_video": true, "metrics": true, "log_interval": 1},
+  "telemetry_interval_ms": 500,
+  "gate": {"effective_fps_min": 30, "e2e_p95_ms_max": 33.33, "capture_drops_max": 0, "video_drops_max": 0, "sequence_gaps_max": 0, "event_types_required": ["roi_intrusion", "line_crossing", "dwell"]},
+  "thermal_abort_c": 85,
+  "holdout_allowed": false,
+  "tuning_authorized_by_this_config": false,
+  "default_switch_authorized": false
+}

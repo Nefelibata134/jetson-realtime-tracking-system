@@ -31,6 +31,7 @@ struct Options {
     std::set<std::string> provided_options;
     std::filesystem::path sequence_dir;
     std::string output_path;
+    std::string diagnostics_output;
     std::uint64_t max_frames{0};
     std::uint64_t log_interval{100};
     int class_id{0};
@@ -68,6 +69,7 @@ struct SequenceInfo {
         << "  --new-track-threshold VALUE\n"
         << "  --match-threshold VALUE\n"
         << "  --track-buffer N\n";
+    output << "  --diagnostics-output JSONL (optional per-frame detection evidence)\n";
     std::exit(exit_code);
 }
 
@@ -94,6 +96,8 @@ Options parse_options(int argc, char** argv) {
             options.sequence_dir = require_value(argc, argv, index);
         } else if (argument == "--output") {
             options.output_path = require_value(argc, argv, index);
+        } else if (argument == "--diagnostics-output") {
+            options.diagnostics_output = require_value(argc, argv, index);
         } else if (argument == "--max-frames") {
             options.max_frames = std::stoull(require_value(argc, argv, index));
         } else if (argument == "--log-interval") {
@@ -148,6 +152,20 @@ Options parse_options(int argc, char** argv) {
     if (options.score_threshold >= options.track_threshold) {
         throw std::invalid_argument(
             "score threshold must remain below track threshold");
+    }
+    if (!options.diagnostics_output.empty()) {
+        for (const auto* required : {"--score-threshold", "--nms-threshold", "--track-threshold",
+                                    "--new-track-threshold", "--match-threshold"}) {
+            if (options.provided_options.count(required) == 0) {
+                throw std::invalid_argument(std::string("diagnostics require explicit ") + required);
+            }
+        }
+        const auto diagnostic = std::filesystem::absolute(options.diagnostics_output).lexically_normal();
+        if (std::filesystem::exists(diagnostic) || std::filesystem::is_symlink(diagnostic) ||
+            std::filesystem::exists(options.output_path) ||
+            diagnostic == std::filesystem::absolute(options.output_path).lexically_normal()) {
+            throw std::invalid_argument("diagnostics require distinct new output files");
+        }
     }
     return options;
 }
@@ -251,6 +269,13 @@ int main(int argc, char** argv) {
     try {
         const Options options = parse_options(argc, argv);
         const SequenceInfo sequence = read_sequence_info(options.sequence_dir);
+        if (!options.diagnostics_output.empty()) {
+            const std::set<std::string> calibration = {
+                "MOT17-02-FRCNN", "MOT17-04-FRCNN", "MOT17-05-FRCNN", "MOT17-10-FRCNN"};
+            if (calibration.count(sequence.name) == 0 || options.class_id != 0 || options.max_frames != 0) {
+                throw std::invalid_argument("diagnostics require full pedestrian calibration sequences");
+            }
+        }
         const std::uint64_t frame_limit = options.max_frames == 0
             ? sequence.length
             : std::min(options.max_frames, sequence.length);
@@ -274,6 +299,14 @@ int main(int argc, char** argv) {
         edge_vision::MotChallengeWriter writer(
             options.output_path,
             options.class_id);
+        std::ofstream diagnostics;
+        if (!options.diagnostics_output.empty()) {
+            diagnostics.open(options.diagnostics_output);
+            if (!diagnostics) {
+                throw std::runtime_error("failed to open diagnostics output");
+            }
+            diagnostics << std::setprecision(9);
+        }
 
         std::vector<double> inference_ms;
         std::vector<double> preprocess_ms;
@@ -288,6 +321,7 @@ int main(int argc, char** argv) {
         std::set<std::int64_t> unique_ids;
         std::uint64_t detections_total = 0;
         std::uint64_t track_observations = 0;
+        double diagnostic_io_ms = 0.0;
 
         const auto run_started = std::chrono::steady_clock::now();
         for (std::uint64_t one_based_frame = 1;
@@ -325,6 +359,22 @@ int main(int argc, char** argv) {
             const auto tracking_finished = std::chrono::steady_clock::now();
             writer.write(one_based_frame - 1, tracks);
 
+            if (diagnostics.is_open()) {
+                const auto io_started = std::chrono::steady_clock::now();
+                diagnostics << "{\"frame\":" << one_based_frame << ",\"detections\":[";
+                for (std::size_t index = 0; index < detections.size(); ++index) {
+                    const auto& detection = detections[index];
+                    if (index != 0) { diagnostics << ','; }
+                    diagnostics << '[' << detection.box.x << ',' << detection.box.y << ','
+                                << detection.box.width << ',' << detection.box.height << ','
+                                << detection.confidence << ']';
+                }
+                diagnostics << "]}\n";
+                if (!diagnostics) { throw std::runtime_error("diagnostic evidence write failed"); }
+                diagnostic_io_ms += std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - io_started).count();
+            }
+
             preprocess_ms.push_back(detector_result.timing.preprocess_ms);
             tensorrt_ms.push_back(detector_result.timing.tensorrt_inference_ms);
             postprocess_ms.push_back(detector_result.timing.postprocess_ms);
@@ -349,6 +399,10 @@ int main(int argc, char** argv) {
             }
         }
         writer.finish();
+        if (diagnostics.is_open()) {
+            diagnostics.flush();
+            if (!diagnostics) { throw std::runtime_error("diagnostic evidence flush failed"); }
+        }
         const double elapsed_seconds =
             std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - run_started)
@@ -373,6 +427,11 @@ int main(int argc, char** argv) {
         std::cout << "effective_fps="
                   << static_cast<double>(frame_limit) / elapsed_seconds << '\n';
         std::cout << "output=" << options.output_path << '\n';
+        if (!options.diagnostics_output.empty()) {
+            std::cout << "diagnostics_output=" << options.diagnostics_output << '\n';
+            std::cout << "diagnostic_io_total_ms=" << diagnostic_io_ms << '\n';
+            std::cout << "diagnostics_frames=" << frame_limit << '\n';
+        }
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "MOT sequence inference failed: " << error.what() << '\n';

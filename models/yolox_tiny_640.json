@@ -1,0 +1,83 @@
+{
+  "name": "YOLOX-Tiny-640",
+  "role": "candidate",
+  "default": false,
+  "upstream": {
+    "repository": "https://github.com/Megvii-BaseDetection/YOLOX",
+    "tag": "0.1.1rc0",
+    "commit": "e1052df71842031413f6030723c3607b839c80ce",
+    "config": "exps/default/yolox_tiny.py",
+    "license": "Apache-2.0",
+    "depth": 0.33,
+    "width": 0.375,
+    "classes": 80
+  },
+  "weight": {
+    "source": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.pth",
+    "sha256": "9de513de589ac98bb92d3bca53b5af7b9acfa9b0bacb831f7999d0f7afaee8f0",
+    "tracked": false
+  },
+  "baseline_equivalence": {
+    "official_416_sha256": "427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7",
+    "reproduced_416_sha256": "f56cf7d378c2e13c85bd8d7419ffd36f8ea2f409efdd7959c626474e25e6c2a7",
+    "conv_layers_compared": 83,
+    "parameter_atol": 0.000001,
+    "parameter_rtol": 0.00001,
+    "calibration_first_frames": 4,
+    "raw_atol": 0.0001,
+    "raw_rtol": 0.0001,
+    "raw_max_abs": 0.00006714463233947754,
+    "box_atol_original_pixels": 0.05,
+    "box_max_abs_original_pixels": 0.0001220703125,
+    "status": "PASS",
+    "scope": "CPU float32 graph and fixed-image parity, not task-quality or TensorRT equivalence"
+  },
+  "export": {
+    "opset": 11,
+    "batch": 1,
+    "dynamic": false,
+    "decoded": false,
+    "nms": false,
+    "simplify": false,
+    "torch": "2.11.0+cpu",
+    "onnx": "1.20.0",
+    "python": "3.13.9"
+  },
+  "input": {
+    "name": "images",
+    "shape": [1, 3, 640, 640],
+    "dtype": "float32",
+    "color": "BGR",
+    "range": [0, 255],
+    "letterbox": "top_left_bilinear_pad_114"
+  },
+  "output": {
+    "name": "output",
+    "shape": [1, 8400, 85],
+    "dtype": "float32",
+    "strides": [8, 16, 32],
+    "objectness": true,
+    "decode": "grid_xy_exp_wh",
+    "nms": "class_agnostic_inclusive_iou"
+  },
+  "host_export_verification": {
+    "filename": "yolox_tiny_640.onnx",
+    "sha256": "d19526fb64f78d0dd58c2cf0b4fa283a895356d45bc8c91068233b4295020014",
+    "repeat_exports": 2,
+    "repeat_hash_equal": true
+  },
+  "engine": {
+    "filename": "yolox_tiny_640_fp16.plan",
+    "build_on_target": true,
+    "tracked": false,
+    "sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+  },
+  "jetson_validation": {
+    "engine_contract": "PASS",
+    "calibration_execution": "PASS",
+    "expansion_quality_gate": "FAIL",
+    "caviar_development": "not_run",
+    "csi_720p30": "not_run",
+    "report": "docs/benchmarks/tiny_resolution_results.md"
+  }
+}

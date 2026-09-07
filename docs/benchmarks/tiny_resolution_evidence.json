@@ -1,0 +1,386 @@
+{
+  "schema_version": 1,
+  "scope": "MOT17 calibration, equal thresholds, original-resolution sequential replay",
+  "run_id": "tiny640-calibration-resume-3b48161.mwmoyqpu",
+  "evaluation_date": "2026-09-05",
+  "execution_status": "PASS",
+  "independent_evidence_verification": "PASS",
+  "expansion_quality_gate": "FAIL",
+  "failed_rule": "small_target_track_interruptions_strictly_decrease",
+  "baseline": "YOLOX-Tiny-416",
+  "candidate": "YOLOX-Tiny-640",
+  "default_changed": false,
+  "source": {
+    "base_commit": "3b48161e50b43831b1577764a02869de62b22420",
+    "uncommitted_snapshot": true,
+    "snapshot_files": 137,
+    "snapshot_archive_sha256": "2cdf461230676f261fb4cef670a2a96d1e3e6ea111c0732fe3876a1b42f4dfc5",
+    "snapshot_manifest_sha256": "732d92337d4edb15da89a60044ee122c802b3c602671975804153780a0f6bf0f",
+    "mot_application_sha256": "729cd1f4cdc9689308354625e7121aad5fbc3e7d51d920ebf7e7a6bf279f48e9"
+  },
+  "platform": {
+    "soc": "P3767-0003",
+    "device": "Jetson Orin Nano 8GB",
+    "l4t": "36.4.3",
+    "jetpack_package": "6.2.1+b38",
+    "tensorrt": "10.3.0.30",
+    "cuda_toolkit": "12.6.68",
+    "power_mode_id": 1,
+    "power_mode": "25W",
+    "clock_controls_unchanged": true,
+    "cpu_governor": "schedutil",
+    "gpu_governor": "nvhost_podgov",
+    "emc_locked": false
+  },
+  "engines": {
+    "tiny416": {
+      "input_shape": [
+        1,
+        3,
+        416,
+        416
+      ],
+      "output_shape": [
+        1,
+        3549,
+        85
+      ],
+      "sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+    },
+    "tiny640": {
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_shape": [
+        1,
+        8400,
+        85
+      ],
+      "sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c",
+      "onnx_sha256": "d19526fb64f78d0dd58c2cf0b4fa283a895356d45bc8c91068233b4295020014",
+      "built_on_target": true,
+      "engine_bytes": 12886500,
+      "build_exit_code": 0,
+      "probe_finite_values": 714000
+    }
+  },
+  "protocol": {
+    "schema_version": 1,
+    "sequences": {
+      "MOT17-02-FRCNN": {
+        "frames": 600,
+        "gt_sha256": "2e3ecb488da8886d3200d402b2b08890c6d2879923839444e9b74fa43a551440",
+        "seqinfo_sha256": "669c5135aa1b7f1726ee50ab6cec86780fc448dadaf93ea9c4fb6e2a0d4256aa",
+        "valid_gt_observations": 18581,
+        "valid_gt_ids": 62,
+        "height_observations": {
+          "lt50": 1276,
+          "50_to_lt100": 7489,
+          "100_to_lt200": 6014,
+          "ge200": 3802
+        }
+      },
+      "MOT17-04-FRCNN": {
+        "frames": 1050,
+        "gt_sha256": "f8cfbe36ef38a2e1857d7ebfe7d754b2355a3ffb9e1f9cedea435e86e4fbc948",
+        "seqinfo_sha256": "f2d5bbe2c4d2a884422571987bc5363b61bb7e2c6748d1cff444e55b4886b888",
+        "valid_gt_observations": 47557,
+        "valid_gt_ids": 83,
+        "height_observations": {
+          "lt50": 0,
+          "50_to_lt100": 368,
+          "100_to_lt200": 35676,
+          "ge200": 11513
+        }
+      },
+      "MOT17-05-FRCNN": {
+        "frames": 837,
+        "gt_sha256": "ed74c54176b21b38cb690eda79a4755cf16e4c4a9ca2f019b0ba8904636174f5",
+        "seqinfo_sha256": "2f49de730bcdfcd684069aed291627d2e5f13f8524e5163129e4bac88af815d0",
+        "valid_gt_observations": 6917,
+        "valid_gt_ids": 133,
+        "height_observations": {
+          "lt50": 360,
+          "50_to_lt100": 1528,
+          "100_to_lt200": 1730,
+          "ge200": 3299
+        }
+      },
+      "MOT17-10-FRCNN": {
+        "frames": 654,
+        "gt_sha256": "f8cca05d98fa36d8b6f2b807e03d32407d00d40299d679e4da320e42862677c0",
+        "seqinfo_sha256": "7af062d088f3b7a88522f8095246eb01a6113d89823a96b7099a09d54421ecbd",
+        "valid_gt_observations": 12839,
+        "valid_gt_ids": 57,
+        "height_observations": {
+          "lt50": 725,
+          "50_to_lt100": 4145,
+          "100_to_lt200": 6121,
+          "ge200": 1848
+        }
+      }
+    },
+    "pixel_basis": "original_image_gt_height_no_resize",
+    "valid_gt": "TrackEval MOT17 DO_PREPROC: mark != 0 and class == 1; no extra visibility filter",
+    "bins": [
+      "lt50",
+      "50_to_lt100",
+      "100_to_lt200",
+      "ge200"
+    ],
+    "trackeval_commit": "12c8791b303e0a0b50f753af204249e622d0281a",
+    "thresholds": {
+      "score": 0.1,
+      "nms": 0.45,
+      "track": 0.3,
+      "new_track": 0.4,
+      "match": 0.8,
+      "buffer": 30
+    },
+    "matching": "fixed TrackEval CLEAR IoU 0.5 after official preprocessing; bin after full-frame matching",
+    "interruption": "matched-missed-rematched within consecutive eligible GT frames; bin at first missed frame; initial/final misses excluded",
+    "quality_gate": "detection recall for h<100 increases; detection FN and track interruptions for h<100 decrease; aggregate HOTA/IDF1/MOTA do not decrease",
+    "csi_gate": {
+      "input": [
+        1280,
+        720
+      ],
+      "effective_fps_min": 30,
+      "dropped_frames_max": 0,
+      "sequence_gaps_max": 0,
+      "e2e_p95_ms_max": 33.33
+    },
+    "power": "25W unchanged clock controls",
+    "holdout_allowed": false
+  },
+  "frames_per_model": 3141,
+  "valid_gt_observations": 85894,
+  "small_gt_observations": 15891,
+  "warmup_frames": 0,
+  "thresholds_explicit": true,
+  "frame_integrity": {
+    "diagnostic_records_each_model": 3141,
+    "unprocessed_frames": 0,
+    "sequence_gaps": 0,
+    "capture_queue_dropped_frames": null,
+    "capture_queue_used": false
+  },
+  "overall_quality": {
+    "tiny416": {
+      "HOTA": 33.307107273132836,
+      "DetA": 26.731172857404044,
+      "AssA": 41.9562307854047,
+      "IDF1": 39.80410965820165,
+      "MOTA": 29.652827904160944,
+      "Recall": 34.14091787552099,
+      "Precision": 89.00388490955446,
+      "TP": 29325,
+      "FP": 3623,
+      "FN": 56569,
+      "IDSW": 232,
+      "Frag": 527
+    },
+    "tiny640": {
+      "HOTA": 39.2188072475832,
+      "DetA": 35.966775910926714,
+      "AssA": 43.33281842289696,
+      "IDF1": 48.33152305092928,
+      "MOTA": 39.35781311849489,
+      "Recall": 47.058001723054,
+      "Precision": 86.58583608243006,
+      "TP": 40420,
+      "FP": 6262,
+      "FN": 45474,
+      "IDSW": 352,
+      "Frag": 798
+    }
+  },
+  "small_targets": {
+    "tiny416": {
+      "tracks": {
+        "gt": 15891,
+        "tp": 1005,
+        "fn": 14886,
+        "interruptions": 75,
+        "recall_percent": 6.324334528978667
+      },
+      "detections": {
+        "gt": 15891,
+        "tp": 1822,
+        "fn": 14069,
+        "recall_percent": 11.465609464476747
+      }
+    },
+    "tiny640": {
+      "tracks": {
+        "gt": 15891,
+        "tp": 2482,
+        "fn": 13409,
+        "interruptions": 194,
+        "recall_percent": 15.618903782014977
+      },
+      "detections": {
+        "gt": 15891,
+        "tp": 4488,
+        "fn": 11403,
+        "recall_percent": 28.242401359259958
+      }
+    }
+  },
+  "gate_checks": {
+    "HOTA": true,
+    "IDF1": true,
+    "MOTA": true,
+    "small_detection_recall_increases": true,
+    "small_detection_fn_decreases": true,
+    "small_track_interruptions_decrease": false
+  },
+  "telemetry": {
+    "tiny416": {
+      "system_ram_mb": {
+        "samples": 90,
+        "mean": 3053.088888888889,
+        "max": 3061
+      },
+      "input_power_w": {
+        "samples": 90,
+        "mean": 5.855855555555554,
+        "max": 6.064
+      },
+      "junction_temperature_c": {
+        "samples": 90,
+        "mean": 56.66422222222217,
+        "max": 57.656
+      },
+      "gpu_utilization_percent": {
+        "samples": 90,
+        "mean": 34.144444444444446,
+        "max": 56
+      },
+      "cpu_temperature_c": {
+        "samples": 90,
+        "mean": 55.45064444444439,
+        "max": 56.625
+      },
+      "gpu_temperature_c": {
+        "samples": 90,
+        "mean": 55.814499999999946,
+        "max": 56.843
+      },
+      "cpu_online_core_mean_percent": {
+        "samples": 90,
+        "mean": 14.19814814814815,
+        "max": 16.833333333333332
+      }
+    },
+    "tiny640": {
+      "system_ram_mb": {
+        "samples": 127,
+        "mean": 2989.551181102362,
+        "max": 2994
+      },
+      "input_power_w": {
+        "samples": 127,
+        "mean": 6.27069291338583,
+        "max": 6.664
+      },
+      "junction_temperature_c": {
+        "samples": 127,
+        "mean": 56.015803149606235,
+        "max": 56.218
+      },
+      "gpu_utilization_percent": {
+        "samples": 127,
+        "mean": 45.95275590551181,
+        "max": 99
+      },
+      "cpu_temperature_c": {
+        "samples": 127,
+        "mean": 54.72893700787396,
+        "max": 55.031
+      },
+      "gpu_temperature_c": {
+        "samples": 127,
+        "mean": 55.184370078740095,
+        "max": 55.593
+      },
+      "cpu_online_core_mean_percent": {
+        "samples": 127,
+        "mean": 13.826771653543311,
+        "max": 16.5
+      }
+    }
+  },
+  "telemetry_scope": "whole-device 1-second samples across each model batch; not exclusive process or GPU memory",
+  "service_restoration": {
+    "active_state": "active",
+    "sub_state": "running",
+    "n_restarts": 0,
+    "actual_engine": "/var/lib/edge-vision/models/yolox_tiny_fp16.plan",
+    "first_fresh_frame": 38,
+    "last_fresh_frame": 157,
+    "service_files_unchanged": true,
+    "unit_unchanged": true,
+    "power_unchanged": true,
+    "clocks_unchanged": true
+  },
+  "not_run": [
+    "threshold_tuning",
+    "MOT17_holdout",
+    "CAVIAR_development",
+    "CAVIAR_holdout",
+    "CSI_720p30",
+    "CSI_1080p_stress",
+    "RTSP_reconnect",
+    "long_duration_stability"
+  ],
+  "unavailable_metrics": {
+    "e2e_p95_ms": null,
+    "event_io_p95_ms": null,
+    "event_precision": null,
+    "event_recall": null,
+    "event_f1": null
+  },
+  "prior_attempt": {
+    "run_id": "tiny640-calibration-3b48161.lokkpazq",
+    "execution_status": "FAIL",
+    "reason": "visual_review_transfer_timeout",
+    "calibration_executed": false,
+    "service_restored": true,
+    "engine_and_smoke_reused_after_hash_bound_review": true
+  },
+  "audit": {
+    "remote_local_files_verified": 104,
+    "independent_clear_matching_cases": 16,
+    "independent_interruption_algorithm": "contiguous GT segments and adjacent matched positions",
+    "tiny416_prior_raw_tracks_identical_sequences": 4,
+    "numpy": "1.21.5",
+    "scipy": "1.8.0"
+  },
+  "raw_evidence_sha256": {
+    "calibration-results.json": "9ad830dd7da28cfda64c4e89561a681751edf09f176ab3658d0bccc859d2fc85",
+    "protocol.json": "7f4153cd72695f67022fb008e22684b07029a2e2369170d2020dbbe022ae559f",
+    "height-diagnostics/height-diagnostics.json": "29bf175439ec7b179c35afa46fcff0a14de052745f03569c24fe5c4ec5b97433",
+    "trackeval/tiny416/pedestrian_detailed.csv": "c8344310a5f60fbdecc9d851abd149ea864703f256e171dad77a792946738e64",
+    "trackeval/tiny640/pedestrian_detailed.csv": "a23aadacd32abc0731745031c635968c947c752926d687b74299cf748def1dd5",
+    "tiny416-tegrastats.log": "9187d5db8a5bbc7f016cf592815a4e7504b28c344b2dd9a5b44931e5c549dd9c",
+    "tiny640-tegrastats.log": "c3ae204c9469b5510c3cb8029a7590a134b58828bcafff17c207023429433eda",
+    "completion.json": "708d47ec45f02bf61971e5cb29f1d60eee2d759f71c3b40404820520420ed0d5",
+    "service-protection.json": "55163ba8791982c0314bf82a64ff8a825f009ef0e8d609d0738601073fabadbe",
+    "service-restored.json": "93e23ba0d692ec118e9f48cdb6e39d25f557b243314ded3dbd17f289ddd6d0d0",
+    "service-before.json": "fab27c112d57088dae0d8def86cf81ec61d96d5d12ece662900e90e1e516c261",
+    "binary-hashes.json": "8adafbbf938e8ad6cb805db1b4e10eaca8c463a03b986f71554e2d7a19eb1cf9"
+  },
+  "caveats": [
+    "本轮是 calibration，不是新的独立留出泛化结果。",
+    "匹配覆盖增加也会增加中断暴露机会；不根据结果事后改变已冻结的绝对中断次数门槛。",
+    "按 GT 高度分组的检测和跟踪统计属于自定义诊断，不是官方分组 TrackEval 指标。",
+    "逐序列阶段 P95 不可平均为整体 P95，也不可相加推算 E2E P95。",
+    "MOT 顺序回放吞吐包含 JPEG 读取和明细写入，不代表 CSI 720p/30 FPS。",
+    "固定先416后640的单次运行、相同DVFS控制，不构成热稳定性、置信区间或长期稳定性验证。",
+    "官方416与重导出图的导出器版本不同；固定参数和图像等价不是全部输入的位级等价证明。"
+  ]
+}

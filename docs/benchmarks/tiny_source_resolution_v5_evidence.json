@@ -1,0 +1,426 @@
+{
+  "schema_version": 1,
+  "protocol_id": "tiny-source-resolution-development-v5",
+  "status": "DEVELOPMENT_NOT_GATED",
+  "execution_status": "PASS",
+  "restore_status": "PASS",
+  "postflight_status": "PASS",
+  "scoring_exit_code": 0,
+  "input_frames": 3140,
+  "replayed_frames": 12560,
+  "jobs": 12,
+  "reference_events_per_group": 9,
+  "thresholds": {
+    "score": 0.1,
+    "nms": 0.45,
+    "track": 0.3,
+    "new_track": 0.4,
+    "match": 0.8
+  },
+  "bytetrack": {
+    "frame_rate": 30,
+    "buffer": 30,
+    "second_match": 0.5,
+    "unconfirmed_match": 0.7
+  },
+  "matching": {
+    "implementation": "evaluate_caviar_events.match_events",
+    "frame_tolerance": 60,
+    "time_tolerance_seconds": 2,
+    "anchor_distance_tolerance": 0.2,
+    "direction_must_match": true,
+    "partition_by": [
+      "clip_id",
+      "event_type",
+      "rule_id"
+    ],
+    "one_to_one": true,
+    "micro_aggregate_counts_first": true,
+    "empty_precision_or_recall": null
+  },
+  "power": "25W_mode_1",
+  "clocks": "original_DVFS_not_locked",
+  "device": {
+    "som": "P3767-0003",
+    "jetpack": "6.2.1+b38",
+    "l4t": "36.4.3-20250107174145",
+    "cuda": "12.6.68",
+    "tensorrt": "10.3.0.30-1+cuda12.5",
+    "opencv_cpp": "4.8.0"
+  },
+  "source": {
+    "base_commit": "3b48161e50b43831b1577764a02869de62b22420",
+    "includes_uncommitted_worktree_snapshot": true,
+    "source_manifest_sha256": "c85a2fcffc07f29a586f579c1647a390454894d7eb5969c1a059fb513333e338",
+    "frozen_sha256": "e1cbe9376aa6f584c9ea1b0b7adbcf23350280e6f88dab8f47af27328e9c5dd7",
+    "recipe_sha256": "39c468f3a4dc85b0e33eaed79f68a5312ac58ffb0fa74fb628883f52b37a0179",
+    "package_sha256": "3e0b31211750c5ca9268612d96b6cbf7e4fcf2594f847562a974b4f78bb63a15"
+  },
+  "evidence": {
+    "completion_sha256": "3411ff73f58d1fcd43e81fa6fa0d3c9746e17fe1e6bf64ec190133421a726f79",
+    "quality_report_sha256": "93f9b171c1a29fa20155c481b3d40e3fa3641a13e4680c9501deffc3589dca9b",
+    "run_index_sha256": "ebc98d2587fa29e9a90c2a4acff9a58ca20b79f01d1feac908ea0cb1706a316e",
+    "service_protection_sha256": "f6ad4f0ea76995d264cbaa7f66f3def53b4f0d6c67db30f6f42224b7d36f9991",
+    "commands_and_raw_results": "retained_locally_not_distributed",
+    "jobs": [
+      {
+        "job_id": "virat_s_000200_01_000226_000268--native_tiny416",
+        "job_sha256": "3ddaef54d4acb4d7004c5a9a97e850fc8b743d20b68c6ccb2fadfae26d3423a1",
+        "command_sha256": "7c71e1455dd4ad160f10272853104421844fad03207e69a601432d9e3a005227",
+        "outer_command_sha256": "94aceda0d75b6cb44498bc7722ddc1118453ccf9f9a0ed511ec7ee4e2a8f8eb0",
+        "execution_sha256": "2b96e4e650fa1bd6f87007071a1f43c448d54873484eaaedc7730731a71c7db3",
+        "trace_sha256": "5d279346efcbe2640d1c212c84f3da6eb20dc162f79414a2cfd2ada13402d304",
+        "summary_sha256": "89a27d91c77b41db1ed9b20b2c518f51b3b362d86aaa7626ede9e5abaef133eb",
+        "telemetry_sha256": "b0c83c5d1d8ad87b8735e42b09df6ce0f1137e1719758165d56c5f1b1af1937b",
+        "sensors_sha256": "c1e1a9cfb13ac1f13df397041cf83c99339275a90ae840a2e04c4475559fa01a",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+      },
+      {
+        "job_id": "virat_s_000200_01_000226_000268--native_tiny640",
+        "job_sha256": "a4b781148ea745d7d1cca1e2a3f5c9657fd015bd3442f5dfc6389261ff86e893",
+        "command_sha256": "9b4f2f5f2154b96f381f63dbbda11894233a00b272d30a93c8f2422cbe0fbb3a",
+        "outer_command_sha256": "de5c239dbbb8e2e2cbe16a5cb2b911e47fbb78a82eeb6416d486d9af957111a2",
+        "execution_sha256": "f13df295d3f56d2e26a344dae839983ed4960db02e8326e3e353bf5589872ef1",
+        "trace_sha256": "ad00d6020bfaed9fe880a6854e0aa38d87c0e64c566a21d870400e0a1382358a",
+        "summary_sha256": "5939a8d959acb3936b7236209334188bf1688c4fb6263c505b373fd36399352a",
+        "telemetry_sha256": "a5c19f170e2ec329022e4101f24890e418fb34cedebaf8cd5c8e6aab6d592500",
+        "sensors_sha256": "5b88a6517bfa6aadcb7ad5b131550122947befd59739b28ca906a51014f9da75",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+      },
+      {
+        "job_id": "virat_s_000200_01_000226_000268--low_tiny416",
+        "job_sha256": "d1098e2029209496096a882f91a071225d3ae7f82186d0d28c6ec4a88b25c02e",
+        "command_sha256": "c2ba8db57332c8647188bb751abbd45beb8b2305e19f7ebad4407aac14d1bd37",
+        "outer_command_sha256": "c40792640c68f0be129eb861ac2d6d57e29bda5903b6effe2a75b5d4a2632243",
+        "execution_sha256": "c3f767dc5ae1e5691d5801b0c1df3fa620f8cb74737226c6c037ecba79fa7bc6",
+        "trace_sha256": "823a8a21c3eb95ca46cd6a98ad2917c874301880d2f56c0faad5ee859aacca4a",
+        "summary_sha256": "68f5908f02567af4c295f18ded52146c3bcd4f1a3fa248180d22e66fa2327455",
+        "telemetry_sha256": "384425e0ba9eea42a1ad6a7aebe010be4fe3dc2708ce058a9d061f837e9b6170",
+        "sensors_sha256": "fe311808198f63ebf8ef8f71fb96eb3d0d50dccef42b5854e09c69f38971eefb",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+      },
+      {
+        "job_id": "virat_s_000200_01_000226_000268--low_tiny640",
+        "job_sha256": "c8ac231f6d5e2f2b9aef1a840dd46fc38f05932d4f54d82ff1e58d2004ced496",
+        "command_sha256": "d853a1896aed753c1c9f8b104e8a07404d37079ec6ccbb52c4f8a2a0c792aac1",
+        "outer_command_sha256": "611804489156e0ad7df9268e3c888913d45b30d856d079a4010ee9a09d4eda47",
+        "execution_sha256": "0f3db9e0a00be3532b58a8a798d9c499f66d186ad37d64ae3682906271cc373a",
+        "trace_sha256": "f5ac4c005de073ae191405845836c5fba6ca0991d49cb226b8ce7788bda91e00",
+        "summary_sha256": "44bbb639572650a15348923ad2d6f60549959e7916c7e6f9788a288cac373cfd",
+        "telemetry_sha256": "f365f40b5ac3daa88277e7c025c85f293f035d2bdd3704381e388bf8bd9fe566",
+        "sensors_sha256": "8b77aa2c6c0aee6be7c16f41d3f10ea923433db06ca7b9208a517b98f797c13f",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+      },
+      {
+        "job_id": "virat_s_000201_03_000640_000672--native_tiny416",
+        "job_sha256": "01f0815d0221704dd5f440428a3cb657162fec97e276a8d633314f46dc784ac5",
+        "command_sha256": "838a6638a4d46d0d26168cb6da0393deccf502c6a64b51b0a30583cf30c77d1c",
+        "outer_command_sha256": "0e1e4eee98935f56222551875e58a59a33ab808a2888a22e62243cf9b53520ce",
+        "execution_sha256": "35025b55f806758979505fd793d22f4a8a6000467585c2477ab15a742ca00852",
+        "trace_sha256": "a8ee52120316d6d279898cbf5c2750952da111362a78f2d327410734c35018d9",
+        "summary_sha256": "d6eaac90b1901cf703aa33310cf3bfb3994ea27bb1644f9c01e5fe302022f850",
+        "telemetry_sha256": "795f65d87d359220b3e8ee905bef3127df8da4cfde3c6c79c185bf35763b751b",
+        "sensors_sha256": "83c703bd9b7c6c40dc60608a4d809e79dd806f00b4bce70cb50805f587c097ee",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+      },
+      {
+        "job_id": "virat_s_000201_03_000640_000672--native_tiny640",
+        "job_sha256": "4756a2e5dda942532faff02a59f987fb93f36fb337014f19d9e29afe3091bf92",
+        "command_sha256": "d2312a7abe0514548dccb64e16713163bf92a905dc9c97499691ad484948e692",
+        "outer_command_sha256": "f1c6587915a0fda11cc70050b2a604423608d0a55600d1c957c86202ba7f28ea",
+        "execution_sha256": "95f3cd035c8ebc231afab47b8def96cb8517383a37ad4736506751e01c414893",
+        "trace_sha256": "c18948d1c4401501f87f95c8879a00039d853982ea72082dd78f88809c5b5984",
+        "summary_sha256": "eccfd0c501e76cc2189eeac2aae2633dcf75cd1760edff3d9486bed0cb75e78f",
+        "telemetry_sha256": "0079877b989ec959fbbb70d276b65b0b62ea32a77307ad9c73c9fab054cb6c5a",
+        "sensors_sha256": "e3a178e21e18b799c0c7788ac2f496e007367092d0ab851e95e7fb84cedde182",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+      },
+      {
+        "job_id": "virat_s_000201_03_000640_000672--low_tiny416",
+        "job_sha256": "7d1597363672f084c78d034a2509ba5400c6cf714aba8db682302b324d406052",
+        "command_sha256": "ba7ed2cea2304bc3a5b5c665fce8c4c7b13fa6b25f01ca96345471a7df1f0681",
+        "outer_command_sha256": "89be430e56fcae8f13c567a7e594a9d6ee9bf58af80d28c9f060a4a5411d1312",
+        "execution_sha256": "9c40fc9acc5c688a40560b6f555b47e9f2e7fb6d5bb592bec86e4eb7bb1d47da",
+        "trace_sha256": "8932f0b55da40b374ca534475337aacdafca392e0b4c88f8863002e7352d11f6",
+        "summary_sha256": "181b8899deff55842882b474601b03c3a9c1129b21650f2b270fc30907d34666",
+        "telemetry_sha256": "9c975e92ca0a4a54f6a1ad88b5eb0f29a22e3e5d957497b47aa43e94129e2e02",
+        "sensors_sha256": "47225d657b062a6988724528eecc5e7d46f51c04cd590404beb8d8c569e1bf35",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+      },
+      {
+        "job_id": "virat_s_000201_03_000640_000672--low_tiny640",
+        "job_sha256": "c136eed720e5852eb9b9f86c0069ab63b7b6ece109ca7b3489e8f4c99db26c61",
+        "command_sha256": "19071658c9676a686feee7f147d79e49c74acbaa648c58ad2aa78894d88abee7",
+        "outer_command_sha256": "bda8f205961d533c3bed619c896e6a9eb0334a65c3086f92cec665ab0f576835",
+        "execution_sha256": "7c51be4a2edb60db38a13cc82913381f2859d310d9fccc6a0c93079898c91717",
+        "trace_sha256": "821c27a34d1b54783aa90649a701642fdc519171082355618a6b24b83b9227d8",
+        "summary_sha256": "eb1be90b5596b9f6a04fcb68cb0eac73e267efaf838c0155c8f11abeb4080935",
+        "telemetry_sha256": "4fa3c21c251a380302b332da376acdf5afd8c5fb94441a3b0b73fda0c6643d07",
+        "sensors_sha256": "d793932fd5778110d8fb9ebe8b57d49c2f784b25da0e7e9cf3a93b92a587ccd2",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+      },
+      {
+        "job_id": "virat_s_000207_04_000902_000934--native_tiny416",
+        "job_sha256": "0faba5d6d95f1cb383347f009c6afe9c29bd2b3865b3270f0e774dcc0cddae47",
+        "command_sha256": "ba0aec81d5e972ce3e639e23070a63ec642ad7101fd395721a3526bdfae0d87d",
+        "outer_command_sha256": "7fdb6ad9ddf461621f30d02ece51257b0d8d7f8129cc03cc1736b4a7b82eb9d7",
+        "execution_sha256": "f743f3ea0944dd3dfcdfe1fd607cdc3fa85d147159e4361009da451c6a082c27",
+        "trace_sha256": "1e9e910d227e765e1e319eda83c3e9932e397dabfc8aceb50cb701c16d69a09d",
+        "summary_sha256": "3800155ce7a9597bbbe9db240322437e4bd92469e45b500eeb3cb352f40008f1",
+        "telemetry_sha256": "062cfa101b71bcb1894da81126295bcc31083825e545957ca14fa177dabb30a1",
+        "sensors_sha256": "f7472d085ca63191deb9585e3f9cf7dd17aa1ab83182887f70ef456fc9a103d2",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+      },
+      {
+        "job_id": "virat_s_000207_04_000902_000934--native_tiny640",
+        "job_sha256": "9ac669e30a07abb425fc46c3379913566f4fc3c950d83d44fcb9681bc148d890",
+        "command_sha256": "853b390d984f8af033933bbfb54fab7ec5b8a470976d5df675340d98d3febc4b",
+        "outer_command_sha256": "f0d3f3dce03f5e8997c702578870913e5f5ad867933727e369aac4b5664de87d",
+        "execution_sha256": "3496f5911dc55011b32c97cb9b3d1ffa76185694d973989ac5613a834bc9d0cb",
+        "trace_sha256": "216afcf83c0c2103feed19c0ca861ee31fd52039140c1b8340fc2619f75e852a",
+        "summary_sha256": "2e3f89a9dda2c3997c8abbe3d0eb840c40887d8272f0923f54ac67f7a8f60b36",
+        "telemetry_sha256": "897ce649bbcaa69e047e4bc89b529d0771b5f511452da6562168429231a70c6d",
+        "sensors_sha256": "960b2c4b92d7d7a8c02340d26e4d81e5b1aff77d357fb87e24ed258ad9eddc72",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+      },
+      {
+        "job_id": "virat_s_000207_04_000902_000934--low_tiny416",
+        "job_sha256": "4378583b99529c7595feda1c2f6a2fd6b3151d051064056e9ee0c9dadc158255",
+        "command_sha256": "9436e563fb52a855299472773eabc372d5146c6604720ab0f99fad5817fcebdb",
+        "outer_command_sha256": "3f168bf66da2298f84f4cd38b6d0c62e72d1978c4179e1708400b43e09b274c0",
+        "execution_sha256": "f54ed33ae86d693e9f0825e472e72b3286194f4b93db69f8a64bae2cae568313",
+        "trace_sha256": "061d3b7445b4d8396256d0e7b6efb0d8b735b61129cfebfd3cbbb7c9e84eb296",
+        "summary_sha256": "6b0401e84e639e39355a27747d11306159d166c2e319bb798e8a449553d6e3d7",
+        "telemetry_sha256": "a4a5c354f83756847a4b94fcba1020f8b27e15708718bfd003237b5c1803a647",
+        "sensors_sha256": "43ad4f7d0b4a63c5322538c38b5c0d6bf0aabb2a9d149f229e0e67b5d301d3b0",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b"
+      },
+      {
+        "job_id": "virat_s_000207_04_000902_000934--low_tiny640",
+        "job_sha256": "115ebd3823fec4e5ba28433b1ad42909c18b523d92c6ec6e31015ea74b5e3862",
+        "command_sha256": "0bdf0136830f20fb0e01d954e8284eac2b1bbf414fcbdf366c58f07ff157e86b",
+        "outer_command_sha256": "2f07545ef8e25a8364abc5e640697229035fe5d196f82d051f75e1b09229398f",
+        "execution_sha256": "9df7bf01b715452e67d818534d2ab4806acdb41e299517775b32c80df4d46aaf",
+        "trace_sha256": "2b130d4f07830f4a75342ad1cea35ce0e2c6df7e6bba6d90b788542ac115aae6",
+        "summary_sha256": "b4f32e0a387701b69639294e7113d3eca19649a0107406f45a91d68421591054",
+        "telemetry_sha256": "18c609eb810caa9b635b8d1e5e3aa899c3970990d605e6d5b030721aaa8f82b2",
+        "sensors_sha256": "624cbdb0bbfef118f71628d6c21861c7a472652c5c1ef8e0e19cadda9c4b9168",
+        "binary_sha256": "a37d7a51eb0f006499bc538030144f1b0d44df06de1cb4f8c992a4c738780c87",
+        "engine_sha256": "22ef7b68170e995d589c943eb8f684b2a5c9117bc5fc7de239a017f6a816760c"
+      }
+    ]
+  },
+  "recovery": {
+    "stop_request_utc": "2026-09-05T16:00:28.918810+00:00",
+    "verified_utc": "2026-09-05T16:14:29.235036+00:00",
+    "maximum_seconds": 1800,
+    "stop_window_upper_bound_seconds": 840.4960803380004,
+    "service_before": {
+      "MainPID": "991",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "service_after": {
+      "MainPID": "4412",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "default_engine_sha256": "7d1a77e78fdd1fa4f53780fa0e77f5e0c9a3b77fb65eb165264631ab6a37533b",
+    "fresh_frames_first": 41,
+    "fresh_frames_last": 160,
+    "power_unchanged": true,
+    "clock_controls_unchanged": true,
+    "service_files_unchanged": true,
+    "unit_unchanged": true
+  },
+  "aggregate": {
+    "native_tiny416": {
+      "by_class": {
+        "roi_intrusion": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 1,
+          "precision": 0.6666666666666666,
+          "recall": 0.6666666666666666,
+          "f1": 0.6666666666666666
+        },
+        "line_crossing": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "dwell": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 2,
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5
+        }
+      },
+      "total": {
+        "tp": 5,
+        "fp": 1,
+        "fn": 4,
+        "precision": 0.8333333333333334,
+        "recall": 0.5555555555555556,
+        "f1": 0.6666666666666666
+      }
+    },
+    "native_tiny640": {
+      "by_class": {
+        "roi_intrusion": {
+          "tp": 2,
+          "fp": 2,
+          "fn": 1,
+          "precision": 0.5,
+          "recall": 0.6666666666666666,
+          "f1": 0.5714285714285714
+        },
+        "line_crossing": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "dwell": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 1,
+          "precision": 0.6666666666666666,
+          "recall": 0.6666666666666666,
+          "f1": 0.6666666666666666
+        }
+      },
+      "total": {
+        "tp": 6,
+        "fp": 3,
+        "fn": 3,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666,
+        "f1": 0.6666666666666666
+      }
+    },
+    "low_tiny416": {
+      "by_class": {
+        "roi_intrusion": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "line_crossing": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "dwell": {
+          "tp": 1,
+          "fp": 1,
+          "fn": 2,
+          "precision": 0.5,
+          "recall": 0.3333333333333333,
+          "f1": 0.4
+        }
+      },
+      "total": {
+        "tp": 5,
+        "fp": 1,
+        "fn": 4,
+        "precision": 0.8333333333333334,
+        "recall": 0.5555555555555556,
+        "f1": 0.6666666666666666
+      }
+    },
+    "low_tiny640": {
+      "by_class": {
+        "roi_intrusion": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 1,
+          "precision": 0.6666666666666666,
+          "recall": 0.6666666666666666,
+          "f1": 0.6666666666666666
+        },
+        "line_crossing": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "dwell": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 1,
+          "precision": 0.6666666666666666,
+          "recall": 0.6666666666666666,
+          "f1": 0.6666666666666666
+        }
+      },
+      "total": {
+        "tp": 6,
+        "fp": 2,
+        "fn": 3,
+        "precision": 0.75,
+        "recall": 0.6666666666666666,
+        "f1": 0.7058823529411765
+      }
+    }
+  },
+  "validation": {
+    "independent_counts_and_matches": "PASS",
+    "trace_frame_sequence_pts_and_anchor_checks": "PASS",
+    "uniform_earliest_latest_boundary_counts": "UNCHANGED",
+    "reference_type": "visual_development_reference_not_official_VIRAT_event_GT",
+    "independent_second_annotator": false,
+    "dense_GT_identity_metrics_available": false
+  },
+  "runtime": {
+    "percentile": "nearest_rank_all_frames_no_warmup_discard",
+    "replay_fps_boundary": "first_PNG_read_to_final_trace_flush_excludes_engine_initialization",
+    "telemetry_scope": "500ms_whole_device_whole_job_includes_hash_checks_and_engine_init_no_trim",
+    "e2e_p95_ms": null,
+    "event_evidence_io_ms": null,
+    "thermal_throttle_proof": null,
+    "unavailable_temperature_sensors": [
+      "cv0-thermal_EAGAIN",
+      "cv1-thermal_EAGAIN",
+      "cv2-thermal_EAGAIN"
+    ],
+    "screenshots": "NOT_PRODUCED_trace_only",
+    "event_clips": "NOT_PRODUCED_trace_only",
+    "annotated_video": "NOT_PRODUCED_trace_only"
+  },
+  "default_change": false,
+  "independent_holdout": false,
+  "csi_acceptance": false,
+  "outputs": {
+    "tiny_source_resolution_v5_quality.csv": "0d130c4960f400160a636337914c728fce2fb368b1bc3aadd9a6014dd12272b4",
+    "tiny_source_resolution_v5_runtime.csv": "af155ecf304dcf6af7970449656335b8a138842419688125c1cccf62291cb220"
+  }
+}

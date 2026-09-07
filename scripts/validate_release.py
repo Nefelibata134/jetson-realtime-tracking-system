@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import subprocess
@@ -31,6 +32,15 @@ REQUIRED_FILES = {
     "scripts/fetch_yolo26.sh",
     "scripts/fetch_yolo26n.sh",
     "scripts/fetch_yolo26s.sh",
+    "docs/models/yolox_tiny_640.md",
+    "docs/benchmarks/tiny_resolution_protocol.md",
+    "models/yolox_tiny_640.json",
+    "requirements/yolox-tiny-export.txt",
+    "scripts/export_yolox_tiny_onnx.py",
+    "scripts/verify_yolox_tiny_416.py",
+    "scripts/fetch_yolox_tiny_weights.sh",
+    "scripts/build_yolox_tiny_640_engine.sh",
+    "scripts/diagnose_mot17_height.py",
 }
 REQUIRED_README_HEADINGS = {
     "Jetson 实机实测",
@@ -92,9 +102,9 @@ def is_forbidden_artifact(path: str) -> bool:
     )
 
 
-def tracked_files(root: Path) -> list[str]:
+def tracked_files(root: Path, include_untracked: bool = False) -> list[str]:
     result = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "ls-files", "-z", *(["--cached", "--others", "--exclude-standard"] if include_untracked else [])],
         cwd=root,
         check=True,
         capture_output=True,
@@ -114,9 +124,9 @@ def local_markdown_links(path: Path) -> list[Path]:
     return missing
 
 
-def validate(root: Path) -> list[str]:
+def validate(root: Path, include_untracked: bool = False) -> list[str]:
     failures: list[str] = []
-    files = tracked_files(root)
+    files = tracked_files(root, include_untracked)
     tracked = set(files)
 
     missing_required = sorted(REQUIRED_FILES - tracked)
@@ -224,13 +234,26 @@ def validate(root: Path) -> list[str]:
                     f"{relative} 未包含固定的 YOLO26{model_name[-1]} 权重哈希"
                 )
 
+    tiny = json.loads((root / "models/yolox_tiny_640.json").read_text(encoding="utf-8"))
+    if (tiny.get("default") is not False or tiny.get("role") != "candidate"
+            or tiny.get("weight", {}).get("sha256") != "9de513de589ac98bb92d3bca53b5af7b9acfa9b0bacb831f7999d0f7afaee8f0"
+            or tiny.get("input", {}).get("shape") != [1, 3, 640, 640]
+            or tiny.get("output", {}).get("shape") != [1, 8400, 85]
+            or tiny.get("export", {}).get("decoded") is not False
+            or tiny.get("host_export_verification", {}).get("sha256") != "d19526fb64f78d0dd58c2cf0b4fa283a895356d45bc8c91068233b4295020014"
+            or tiny.get("weight", {}).get("tracked") is not False
+            or tiny.get("engine", {}).get("tracked") is not False):
+        failures.append("Tiny640 候选权重、静态输出或资产边界不符合固定契约")
     return failures
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--include-untracked", action="store_true", help="Audit non-ignored working-tree additions without staging them")
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     try:
-        failures = validate(root)
+        failures = validate(root, args.include_untracked)
     except (OSError, subprocess.CalledProcessError, UnicodeError) as error:
         print(f"FAIL 无法检查仓库：{error}")
         return 1
@@ -239,6 +262,7 @@ def main() -> int:
             print(f"FAIL {failure}")
         return 1
     print(f"release_version={EXPECTED_VERSION}")
+    print("scope=" + ("working_tree_including_nonignored_additions" if args.include_untracked else "tracked_files"))
     print("required_files=true")
     print("readme_contract=true")
     print("artifact_boundary=true")

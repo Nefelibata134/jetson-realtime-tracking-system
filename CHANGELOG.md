@@ -4,7 +4,54 @@
 
 ## [未发布]
 
+### 调整
+
+- README 当前使用示例统一为 Tiny416，分开呈现历史 Nano 性能、当前默认与 Tiny640
+  开发候选；保留全部历史结果和未完成验收项，不修改服务阈值或默认 engine。
+- CI 显式提供回放检查程序并安装主机像素测试依赖，使 12 项 C++ 回放契约检查不再因
+  缺少程序路径而跳过；不在 CI 加载 TensorRT engine 或把主机检查视为 Jetson 验证。
+
 ### 新增
+
+- [Tiny 近景事件开发结果 v6](docs/benchmarks/tiny_near_field_v6_results.md)：三段同机位 MEVA
+  派生720p素材、六次完整回放，Tiny416/Tiny640 F1为74.29%/72.22%。保留入区重复误报和
+  遮挡穿线漏报，不作默认晋级或CSI验收结论。计分工具兼容v6视觉时间带，修复原敏感性
+  分支未移动参考时刻的问题；主结果不变，原输出与运行快照保留。
+
+- [Tiny 同源分辨率 v5 结果](docs/benchmarks/tiny_source_resolution_v5_results.md)：12项25W原DVFS
+  回放完整有效，原生输入两组事件F1均66.67%，同源低清为66.67%/70.59%。保留远景漏报、
+  入区迟报/重复及停留重计时误报，未证实原生输入有更大640收益。服务及真实帧恢复通过；
+  逐帧质量、顺序吞吐和整机遥测分开记录，不改变默认、旧FAIL或CSI验收边界。
+
+- [Tiny 原始分辨率配对验证 v5](docs/benchmarks/tiny_source_resolution_v5.md)：预测前冻结三段
+  VIRAT 完整原片及同源 384×216 输入，共3,140对帧；事件参考标注含明确的视觉边界误差。
+  新增隔离的顺序回放与逐帧 trace/计分入口，复用现有检测、跟踪和事件实现，缺帧或配置
+  漂移时拒绝计分。主机合成检查不代替 TensorRT 链接、Jetson 质量或 CSI 实时性验证。
+
+- [Tiny 四组开发事件对照 v4](docs/benchmarks/tiny_resolution_caviar_v4_results.md)：25W 原 DVFS 下
+  16 份新板端 MOT 文件与主机逐字节一致，12 次 CAVIAR 共 8,148 帧完整有效。
+  三组 Tiny640 聚合 F1 低于本轮 Tiny416，穿线漏报、入口误报及缺少片段均完整保留；
+  原无回退 FAIL 与旧预检失败不改写，默认 Tiny416 不变，不新增 holdout、CSI 矩阵或持续运行验收。
+
+- Tiny640有界跟踪调参v3协议和27组calibration参数矩阵：固定检测缓存、原ByteTrack与
+  TrackEval，8份原MOT输出字节一致复现；135行整体/逐序列结果保留全部回退，未找到满足
+  全部无回退条件的配置。不把主机跟踪重放写成设备性能，不改默认或旧FAIL。
+
+- Tiny输入尺寸带事件CSI复测证据：同MAXN_SUPER锁频下两组数值实时性达标，保留4/5条
+  事件及输出完整性；Tiny416缺穿线、规范动作覆盖未验证、OC3计数增加1，未宣称完整A/B通过。
+  原质量FAIL与零事件轮次不变，默认Tiny416、25W及既有服务参数保持不变。
+
+- Tiny输入尺寸开发验证v2：独立冻结MAXN_SUPER锁频CSI720p配方、输出完整性检查和同GT
+  连续性诊断。首轮两组数值FPS与E2E达标，但三类事件/截图/片段缺失，带事件门槛FAIL；
+  共同覆盖小目标的中断74→92，保留全部回退及旧25W FAIL，不改默认或解锁holdout。
+
+- YOLOX-Tiny 同权重 640x640 候选的获取、416 数值等价核验、静态 ONNX 导出与独立 Jetson
+  FP16 构建入口；固定权重、上游提交、ONNX 哈希，不修改默认 Tiny416。
+- 640 输入预处理/三尺度解码确定性检查，以及 calibration 专用逐帧检测明细和 GT 高度
+  分组诊断；官方 TrackEval 匹配与分组诊断分开记录，不解锁 holdout。
+- Tiny640 目标 FP16 engine 与 25W 同阈值 calibration 对照报告：召回与整体 HOTA/IDF1/MOTA
+  提高，但 h<100 跟踪中断 75→194，扩大验证门槛 FAIL；保留首个图像复核超时轮次，
+  不改默认，不进入 CAVIAR/CSI 或留出验证。
 
 - 可选择的 GStreamer x264 标注视频输出，使用适合 Orin Nano CPU 的低延迟编码配置，
   并支持显式码率控制。
