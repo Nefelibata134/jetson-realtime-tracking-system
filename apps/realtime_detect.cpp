@@ -72,6 +72,8 @@ struct Options {
     std::optional<std::array<float, 4>> event_roi;
     float event_roi_exit_margin{0.0F};
     float event_roi_exit_seconds{0.0F};
+    double event_roi_entry_seconds{0.0};
+    bool event_dwell_rearm_on_exit{false};
     double event_line_confirm_seconds{0.0};
     std::optional<std::array<float, 4>> event_line;
     std::optional<float> event_dwell_seconds;
@@ -165,6 +167,8 @@ void print_usage(const char* program) {
         << "  --event-clip-capacity N (1..8, default: 2; collecting + encoding)\n"
         << "  --event-clip-bitrate-kbps N (default: 10000, x264 only)\n"
         << "  --event-roi-exit-margin 0..0.25 --event-roi-exit-seconds 0..60\n"
+        << "  --event-roi-entry-seconds 0..60 (default: 0; consecutive observed entry)\n"
+        << "  --event-dwell-rearm-on-exit (default: off; retain emitted latch across gaps)\n"
         << "  --event-line-confirm-seconds 0..60 (default: 0; opt-in observed-side confirmation)\n"
         << "  --event-clip-share-overlap [--event-clip-max-shared-seconds 10] [--event-clip-max-shared-events 32]\n"
         << "  --output-video PATH\n"
@@ -367,6 +371,10 @@ Options parse_options(const int argc, char** argv) {
                 parse_normalized_coordinate(require_value(argument), argument),
                 parse_normalized_coordinate(require_value(argument), argument),
             };
+        } else if (argument == "--event-roi-entry-seconds") {
+            options.event_roi_entry_seconds = parse_nonnegative_double(require_value(argument), argument);
+        } else if (argument == "--event-dwell-rearm-on-exit") {
+            options.event_dwell_rearm_on_exit = true;
         } else if (argument == "--event-roi-exit-margin") {
             options.event_roi_exit_margin = parse_nonnegative_float(require_value(argument), argument);
         } else if (argument == "--event-roi-exit-seconds") {
@@ -513,6 +521,14 @@ Options parse_options(const int argc, char** argv) {
         options.event_clip_bitrate_kbps == 0) {
         throw std::invalid_argument("event clip capacity must be 1..8 and bitrate must be positive");
     }
+    if (options.event_roi_entry_seconds > 60.0 ||
+        (options.event_roi_entry_seconds > 0.0 && options.event_roi_entry_seconds < 1e-9) ||
+        (options.provided_options.count("--event-roi-entry-seconds") && !options.event_roi)) {
+        throw std::invalid_argument("ROI entry confirmation requires ROI and 0 or 1ns..60 seconds");
+    }
+    if (options.event_dwell_rearm_on_exit && !options.event_dwell_seconds) {
+        throw std::invalid_argument("dwell rearming requires a dwell rule");
+    }
     if (options.event_line_confirm_seconds > 60.0 ||
         (options.event_line_confirm_seconds > 0.0 && options.event_line_confirm_seconds < 1e-9) ||
         (options.provided_options.count("--event-line-confirm-seconds") && !options.event_line)) {
@@ -633,6 +649,7 @@ edge_vision::SafetyEventEngineConfig make_event_config(
             300,
             options.event_roi_exit_margin,
             static_cast<std::int64_t>(std::llround(options.event_roi_exit_seconds * 1'000'000'000.0)),
+            static_cast<std::int64_t>(std::llround(options.event_roi_entry_seconds * 1'000'000'000.0)),
         });
     }
     if (options.event_line.has_value()) {
@@ -661,6 +678,7 @@ edge_vision::SafetyEventEngineConfig make_event_config(
             2,
             3,
             300,
+            options.event_dwell_rearm_on_exit,
         });
     }
     return config;
@@ -1491,6 +1509,8 @@ int main(int argc, char** argv) {
         std::cout << "roi_intrusion_events=" << roi_intrusion_events << '\n';
         std::cout << "roi_exit_margin=" << options.event_roi_exit_margin << '\n';
         std::cout << "roi_exit_seconds=" << options.event_roi_exit_seconds << '\n';
+        std::cout << "roi_entry_seconds=" << options.event_roi_entry_seconds << '\n';
+        std::cout << "dwell_rearm_on_exit=" << options.event_dwell_rearm_on_exit << '\n';
         std::cout << "line_confirm_seconds=" << options.event_line_confirm_seconds << '\n';
         std::cout << "line_crossing_events=" << line_crossing_events << '\n';
         std::cout << "dwell_events=" << dwell_events << '\n';

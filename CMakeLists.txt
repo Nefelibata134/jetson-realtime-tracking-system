@@ -275,6 +275,9 @@ target_link_libraries(
         edge_vision_event_analytics
 )
 
+add_executable(edge_vision_event_quality_check apps/event_quality_check.cpp)
+target_link_libraries(edge_vision_event_quality_check PRIVATE edge_vision_event_analytics)
+
 add_library(
     edge_vision_event_journal
     src/event_journal.cpp
@@ -851,6 +854,7 @@ add_test(
     NAME edge_vision_event_analytics_check
     COMMAND edge_vision_event_analytics_check
 )
+add_test(NAME edge_vision_event_quality_check COMMAND edge_vision_event_quality_check)
 add_test(
     NAME edge_vision_event_journal_check
     COMMAND edge_vision_event_journal_check

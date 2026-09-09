@@ -172,7 +172,8 @@ OccupancyTransition update_occupancy(
     bool inside,
     std::uint32_t confirmation_frames,
     std::int64_t pts_ns,
-    std::int64_t exit_confirmation_ns = 0) {
+    std::int64_t exit_confirmation_ns = 0,
+    std::int64_t entry_confirmation_ns = 0) {
     if (!state.has_candidate || state.candidate_inside != inside) {
         state.has_candidate = true;
         state.candidate_inside = inside;
@@ -184,6 +185,10 @@ OccupancyTransition update_occupancy(
     }
 
     if (state.candidate_count < confirmation_frames) {
+        return OccupancyTransition::None;
+    }
+    if (inside && (!state.initialized || !state.stable_inside) &&
+        pts_ns - state.candidate_since_ns < entry_confirmation_ns) {
         return OccupancyTransition::None;
     }
     if (!inside && state.initialized && state.stable_inside &&
@@ -330,7 +335,8 @@ public:
             if (rule.confirmation_frames == 0 ||
                 rule.stale_after_frames == 0 || !std::isfinite(rule.exit_margin) ||
                 rule.exit_margin < 0.0F || rule.exit_margin > 0.25F ||
-                rule.exit_confirmation_ns < 0 || rule.exit_confirmation_ns > 60'000'000'000LL) {
+                rule.exit_confirmation_ns < 0 || rule.exit_confirmation_ns > 60'000'000'000LL ||
+                rule.entry_confirmation_ns < 0 || rule.entry_confirmation_ns > 60'000'000'000LL) {
                 throw std::invalid_argument(
                     "invalid ROI confirmation, stale, exit margin or exit duration");
             }
@@ -444,10 +450,14 @@ private:
                 }
                 auto& state = rule.states[track->track_id];
                 const bool guarded = rule.config.exit_margin > 0.0F ||
-                                     rule.config.exit_confirmation_ns > 0;
-                if (guarded && frame.sequence > state.last_seen_sequence &&
-                    frame.sequence - state.last_seen_sequence > 1) {
-                    // Missing observations cannot prove continuous time outside.
+                                     rule.config.exit_confirmation_ns > 0 ||
+                                     rule.config.entry_confirmation_ns > 0;
+                const bool observation_gap = frame.sequence > state.last_seen_sequence &&
+                    frame.sequence - state.last_seen_sequence > 1;
+                const bool repeated_pts = rule.config.entry_confirmation_ns > 0 &&
+                    state.has_candidate && frame.pts_ns <= state.last_seen_pts_ns;
+                if (guarded && (observation_gap || repeated_pts)) {
+                    // Missing observations cannot prove continuous occupancy or departure.
                     if (frame.sequence - state.last_seen_sequence > rule.config.stale_after_frames) {
                         state = OccupancyState{};
                     } else {
@@ -465,7 +475,8 @@ private:
                     inside,
                     rule.config.confirmation_frames,
                     frame.pts_ns,
-                    rule.config.exit_confirmation_ns);
+                    rule.config.exit_confirmation_ns,
+                    rule.config.entry_confirmation_ns);
                 state.last_seen_sequence = frame.sequence;
                 state.last_seen_pts_ns = frame.pts_ns;
                 if (transition == OccupancyTransition::Entered) {
@@ -632,15 +643,29 @@ private:
                 }
 
                 auto& state = rule.states[track->track_id];
+                const bool observed_before = state.occupancy.initialized || state.occupancy.has_candidate;
+                const auto sequence_delta = frame.sequence - state.last_seen_sequence;
+                if (rule.config.rearm_on_observed_exit && observed_before &&
+                    sequence_delta > rule.config.stale_after_frames) {
+                    // Also expire when the caller jumps directly over a long gap.
+                    state = DwellState{};
+                }
                 if (state.occupancy.initialized &&
                     frame.sequence > state.last_seen_sequence + 1 &&
                     frame.sequence - state.last_seen_sequence - 1 >
                         rule.config.max_gap_frames) {
-                    state = DwellState{};
+                    if (!(rule.config.rearm_on_observed_exit && state.dwell_emitted)) {
+                        state = DwellState{};
+                    }
                 }
                 if (state.occupancy.initialized &&
                     frame.pts_ns < state.occupancy.last_seen_pts_ns) {
                     state = DwellState{};
+                }
+                if (rule.config.rearm_on_observed_exit &&
+                    (sequence_delta != 1 || frame.pts_ns <= state.occupancy.last_seen_pts_ns)) {
+                    // A disappearance is not proof of exit. Do not join outside observations across it.
+                    state.occupancy.has_candidate = false;
                 }
 
                 const auto transition = update_occupancy(

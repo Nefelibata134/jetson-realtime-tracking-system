@@ -58,6 +58,8 @@ struct RoiIntrusionRuleConfig {
     // Opt-in rearming guard; zero values preserve legacy occupancy transitions.
     float exit_margin{0.0F};
     std::int64_t exit_confirmation_ns{0};
+    // Opt-in consecutive observed occupancy before an entry event.
+    std::int64_t entry_confirmation_ns{0};
 };
 
 struct LineCrossingRuleConfig {
@@ -81,6 +83,8 @@ struct DwellRuleConfig {
     std::uint32_t confirmation_frames{2};
     std::uint64_t max_gap_frames{3};
     std::uint64_t stale_after_frames{300};
+    // Retain an emitted latch across observation gaps until observed exit or expiry.
+    bool rearm_on_observed_exit{false};
 };
 
 struct SafetyEventEngineConfig {

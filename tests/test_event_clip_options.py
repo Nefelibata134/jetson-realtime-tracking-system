@@ -26,7 +26,8 @@ Options parse(std::vector<std::string> extra) {
 }
 int main() {
     auto baseline = parse({});
-    if (baseline.event_clip_share_overlap || baseline.event_roi_exit_margin != 0 || baseline.event_roi_exit_seconds != 0 ||
+    if (baseline.event_roi_entry_seconds != 0 || baseline.event_dwell_rearm_on_exit ||
+        baseline.event_clip_share_overlap || baseline.event_roi_exit_margin != 0 || baseline.event_roi_exit_seconds != 0 ||
         baseline.event_line_confirm_seconds != 0 || baseline.event_clip_capacity != 2 || baseline.event_clip_encoder !=
         edge_vision::AnnotatedVideoEncoder::OpenCvMp4v) return 1;
     auto candidate = parse({"--event-clip-encoder", "x264", "--event-clip-capacity", "8",
@@ -58,7 +59,18 @@ int main() {
     auto min_line = parse({"--event-line", "0.5", "0.2", "0.5", "0.8", "--event-line-confirm-seconds", "0.000000001"});
     if (make_event_config(max_line).line_crossing_rules[0].confirmation_ns != 60000000000LL ||
         make_event_config(min_line).line_crossing_rules[0].confirmation_ns != 1) return 10;
+    auto quality = parse({"--event-roi", "0.2", "0.2", "0.8", "0.8", "--event-roi-entry-seconds", "0.5",
+                          "--event-dwell-seconds", "3", "--event-dwell-rearm-on-exit"});
+    const auto quality_rules = make_event_config(quality);
+    if (quality_rules.roi_intrusion_rules[0].entry_confirmation_ns != 500000000LL ||
+        !quality_rules.dwell_rules[0].rearm_on_observed_exit) return 11;
+    for (auto value : {"-0.1", "nan", "inf", "61", "0.5junk", "0.0000000001"}) {
+        try { parse({"--event-roi", "0.2", "0.2", "0.8", "0.8", "--event-roi-entry-seconds", value}); return 12; }
+        catch (const std::exception&) {}
+    }
     const std::vector<std::vector<std::string>> invalid{
+        {"--event-roi-entry-seconds", "0.5"}, {"--event-roi-entry-seconds", "0"},
+        {"--event-roi-entry-seconds"}, {"--event-dwell-rearm-on-exit"},
         {"--event-line-confirm-seconds", "0.2"}, {"--event-line-confirm-seconds", "0"},
         {"--event-line-confirm-seconds"}, {"--event-clip-capacity", "0"}, {"--event-clip-capacity", "9"},
         {"--event-clip-capacity", "-1"}, {"--event-clip-capacity", "1.5"},
