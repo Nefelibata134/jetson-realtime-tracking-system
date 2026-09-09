@@ -38,6 +38,22 @@ int main() {
     report.outputs.event_clips_completed = 2;
     report.outputs.event_clip_frames_encoded = 120;
     report.outputs.event_clip_encoding_total_ms = 80.0;
+    report.outputs.event_clip_encoder = "x264";
+    report.outputs.event_clip_bitrate_kbps = 10000;
+    report.outputs.event_clip_capacity = 8;
+    report.outputs.event_clip_events_completed = 5;
+    report.outputs.event_clip_events_shared = 3;
+    report.outputs.event_clip_events_skipped_capacity = 4;
+    report.outputs.event_clip_events_skipped_queue = 2;
+    report.outputs.event_clip_events_skipped_worker_queue = 1;
+    report.outputs.event_clips_skipped = 7;
+    report.outputs.event_clip_pending_jobs_high_watermark = 8;
+    report.outputs.event_clip_queue_wait_samples = 2;
+    report.outputs.event_clip_queue_wait_total_ms = 12.0;
+    report.outputs.event_clip_queue_wait_max_ms = 9.0;
+    report.outputs.event_clip_share_overlap = true;
+    report.outputs.event_clip_max_shared_seconds = 10.0;
+    report.outputs.event_clip_max_shared_events = 32;
     report.outputs.annotated_video_enabled = true;
     report.outputs.annotated_video_encoder = "x264";
     report.outputs.annotated_video_bitrate_kbps = 10000;
@@ -71,6 +87,21 @@ int main() {
                 .at("tensorrt_inference")
                 .at("p95") == 4.5;
     const bool outputs =
+        document.at("outputs").at("event_clips").at("encoder") == "x264" &&
+        document.at("outputs").at("event_clips").at("bitrate_kbps") == 10000 &&
+        document.at("outputs").at("event_clips").at("capacity") == 8 &&
+        document.at("outputs").at("event_clips").at("events_completed") == 5 &&
+        document.at("outputs").at("event_clips").at("events_shared") == 3 &&
+        document.at("outputs").at("event_clips").at("events_skipped_capacity") == 4 &&
+        document.at("outputs").at("event_clips").at("events_skipped_queue") == 2 &&
+        document.at("outputs").at("event_clips").at("events_skipped_worker_queue") == 1 &&
+        document.at("outputs").at("event_clips").at("pending_jobs_high_watermark") == 8 &&
+        document.at("outputs").at("event_clips").at("queue_wait_samples") == 2 &&
+        document.at("outputs").at("event_clips").at("queue_wait_total_ms") == 12.0 &&
+        document.at("outputs").at("event_clips").at("queue_wait_max_ms") == 9.0 &&
+        document.at("outputs").at("event_clips").at("share_overlap") == true &&
+        document.at("outputs").at("event_clips").at("max_shared_seconds") == 10.0 &&
+        document.at("outputs").at("event_clips").at("max_shared_events") == 32 &&
         document.at("outputs")
                 .at("event_journal")
                 .at("records_written") == 2 &&

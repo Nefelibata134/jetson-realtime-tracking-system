@@ -41,6 +41,15 @@ args=(
   --reconnect-delay-ms "${EDGE_VISION_RECONNECT_DELAY_MS:-1000}"
 )
 
+# 可选部署参数不改变旧环境文件的运行语义；值作为单个参数传递，不执行环境内容。
+append_optional() {
+  local name="$1" option="$2"
+  if [[ -n "${!name:-}" ]]; then
+    args+=("$option" "${!name}")
+  fi
+}
+append_optional EDGE_VISION_MATCH_THRESHOLD --match-threshold
+
 case "$source_type" in
   csi)
     args+=(
@@ -90,6 +99,8 @@ if [[ -n "${EDGE_VISION_EVENT_ROI:-}" ]]; then
     exit 1
   }
   args+=(--event-roi "${roi[@]}")
+  append_optional EDGE_VISION_EVENT_ROI_EXIT_MARGIN --event-roi-exit-margin
+  append_optional EDGE_VISION_EVENT_ROI_EXIT_SECONDS --event-roi-exit-seconds
   rules_enabled=1
 fi
 if [[ -n "${EDGE_VISION_EVENT_LINE:-}" ]]; then
@@ -102,6 +113,7 @@ if [[ -n "${EDGE_VISION_EVENT_LINE:-}" ]]; then
     --event-line "${line[@]}"
     --event-line-direction "${EDGE_VISION_EVENT_LINE_DIRECTION:-any}"
   )
+  append_optional EDGE_VISION_EVENT_LINE_CONFIRM_SECONDS --event-line-confirm-seconds
   rules_enabled=1
 fi
 if [[ -n "${EDGE_VISION_EVENT_DWELL_SECONDS:-}" ]]; then
@@ -117,6 +129,18 @@ if [[ $rules_enabled -eq 1 ]]; then
     --event-clip-pre-seconds "${EDGE_VISION_EVENT_CLIP_PRE_SECONDS:-2}"
     --event-clip-post-seconds "${EDGE_VISION_EVENT_CLIP_POST_SECONDS:-3}"
   )
+  append_optional EDGE_VISION_EVENT_CLIP_ENCODER --event-clip-encoder
+  append_optional EDGE_VISION_EVENT_CLIP_CAPACITY --event-clip-capacity
+  append_optional EDGE_VISION_EVENT_CLIP_BITRATE_KBPS --event-clip-bitrate-kbps
+  case "${EDGE_VISION_EVENT_CLIP_SHARE_OVERLAP:-0}" in
+    1)
+      args+=(--event-clip-share-overlap)
+      append_optional EDGE_VISION_EVENT_CLIP_MAX_SHARED_SECONDS --event-clip-max-shared-seconds
+      append_optional EDGE_VISION_EVENT_CLIP_MAX_SHARED_EVENTS --event-clip-max-shared-events
+      ;;
+    0) ;;
+    *) echo "EDGE_VISION_EVENT_CLIP_SHARE_OVERLAP must be 0 or 1" >&2; exit 1 ;;
+  esac
 fi
 
 echo "session_directory=$session_directory"

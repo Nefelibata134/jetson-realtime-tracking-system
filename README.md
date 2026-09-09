@@ -3,145 +3,109 @@
 [![CI](https://github.com/Nefelibata134/jetson-realtime-tracking-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Nefelibata134/jetson-realtime-tracking-system/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
-面向 NVIDIA Jetson Orin Nano 的 C++17 行人跟踪与事件分析系统。系统接入文件、IMX219 CSI
-或 H.264 RTSP 视频，使用 TensorRT 执行 YOLOX，维护 ByteTrack 跟踪身份，
-计算 ROI 入侵、穿线和停留规则，并持久化可审计事件证据。同步 I/O 有独立计时，异步
-编码器采用有界队列，避免输出工作阻塞实时分析。
+面向 NVIDIA Jetson Orin Nano 的单路 C++17 行人跟踪与事件分析系统。接入文件、IMX219 CSI
+或 H.264 RTSP，以 TensorRT FP16 检测和 ByteTrack 跟踪驱动 **ROI 入侵、有限方向穿线、停留**
+三类规则，输出事件日志、截图、片段和运行指标。
 
-当前主线为 **YOLOX-Tiny416 FP16**。Tiny640、YOLOX-S、YOLO26n/s 保留为候选，
-YOLOX-Nano 保留为历史基线；支持三类事件不等于三类事件质量均已验收合格。
+**当前默认：YOLOX-Tiny416。** Nano 是历史基线；Tiny640、YOLOX-S、YOLO26n/s 是候选。
+三类事件的实现已具备，但事件质量和最终部署配置的完整验收仍未完成。
 
-[快速开始](#jetson-快速开始) · [实测与限制](#jetson-实机实测) ·
-[运行时架构](#运行时架构) · [模型与评估记录](#模型资产) ·
-[服务运维](docs/operations/headless_service.md) · [工程决策](docs/decisions.md)
+[当前部署](#当前部署) · [实测与模型选择](#实测与模型选择) · [快速开始](#jetson-快速开始) ·
+[模型资产与开发证据](#模型资产) · [服务运维](docs/operations/headless_service.md)
 
-## Jetson 实机实测
+## 当前部署
 
-### 当前 Tiny 主线与输入尺寸候选
+| 项目 | 当前配置 |
+| --- | --- |
+| 平台 | Jetson Orin Nano 8GB；已记录软件基线见下方，部署时须核对目标设备 |
+| 检测器 | YOLOX-Tiny，静态输入 `1×3×416×416`，TensorRT FP16 |
+| 服务 engine | `/var/lib/edge-vision/models/yolox_tiny_fp16.plan` |
+| CSI 输入 | IMX219 模式 4：1280×720 / 60 FPS 采集 → 30 FPS 交付 |
+| 运行策略 | 25W / 动态调频；服务不自动切功率或执行 `jetson_clocks` |
+| 服务阈值 | score 0.30、NMS 0.45、track 0.50、new-track 0.60；track buffer 30 帧 |
+| 事件配置 | 实测设备启用 ROI、3秒停留、有限线0.2秒确认与共享片段；基础示例保留兼容行为 |
 
-完整流水线包括采集、检测、跟踪、事件规则、截图与片段、标注视频、指标和设备遥测。
-下表是 **MAXN_SUPER + jetson_clocks** 下的 CSI 1280×720 短时实测：60 FPS 采集、
-30 FPS 交付，每个模型预热 300 帧、测量 3,600 帧，启用 x264 和事件证据输出。
-
-| 模型 | 有效 FPS | TRT P95 | E2E P95 | 测量采集丢帧 / 序列缺口 / 视频丢帧 | 标注帧写入 | 事件 / 截图 / 片段 |
-| --- | ---: | ---: | ---: | --- | --- | --- |
-| Tiny416（当前默认尺寸） | 30.007089 | 3.87 ms | 8.77 ms | 0 / 0 / 0 | 3600/3600 | 4 / 4 / 4 |
-| Tiny640（候选） | 30.006253 | 7.09 ms | 11.50 ms | 0 / 0 / 0 | 3600/3600 | 5 / 5 / 5 |
-
-这是观测负载下的约 30 FPS 证据，不代表充足余量或持续运行验收。两组人物动作不完全一致，
-Tiny416 未出现穿线，OC3 保护计数增加 1；完整同负载 A/B 未通过。预热丢弃另计为 6/5 帧。
-E2E 统计到同步事件 I/O 与视频入队，不含传感器曝光、后台编码落盘或停止 flush。
-上述测试阈值与当前服务默认阈值不同，不能直接当作 25W 默认服务性能。
-逐阶段延迟、功耗、温度和恢复证据见[CSI 带事件复测](docs/benchmarks/tiny_resolution_csi_event_retest.md)。
-
-### 为什么仍选择 Tiny416
-
-| 同条件开发对照 | Nano | Tiny416 | 取舍 |
-| --- | ---: | ---: | --- |
-| MOT17 calibration HOTA / IDF1 / MOTA | 29.19 / 34.50 / 24.38 | 33.31 / 39.80 / 29.65 | Tiny 整体检测与关联更好，IDSW 为 232 对 227 |
-| CAVIAR development TP / FP / FN | 4 / 4 / 5 | 4 / 2 / 5 | Tiny 误报减少，但穿线少检出一次、停留多检出一次 |
-| 同轮 CAVIAR development F1 | 47.06% | 53.33% | 仅 9 项参考事件，不代表独立外部验收 |
-
-Tiny416 的固定 MOT17 留出结果为 HOTA **38.89**、IDF1 **46.75**、MOTA **39.19**；
-留出成绩不与上表 calibration 数值混用。Tiny640 虽提高 MOT17 召回，但后续 CAVIAR、
-同源分辨率与近景事件对照未形成一致收益，因此不晋级为默认。
-详见[MOT17 结果](docs/benchmarks/mot17_tracking_results.md)、
-[历史 CAVIAR 模型对照](docs/benchmarks/caviar_detector_development_comparison.md)和下方[开发证据索引](#模型资产)。
-
-### 历史性能证据
-
-<details>
-<summary>YOLOX-Nano 完整流水线矩阵、持续运行与恢复记录（不代表 Tiny 的结果）</summary>
-
-下列八组数据均使用 YOLOX-Nano，在 Jetson Orin Nano 8GB 锁频状态下测得，保留原始数值。
-
-| 配置 | 审计编码器 | FPS | 采集丢帧 | TRT P95 | 端到端 P95 | 视频写入 | 平均输入功率 |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 720p, 25W | MP4V | 30.03 | 0.00% | 3.53 ms | 9.99 ms | 600/600 | 8.69 W |
-| 720p, 25W | x264 | 30.03 | 0.00% | 3.49 ms | 9.93 ms | 600/600 | 8.94 W |
-| 720p, MAXN_SUPER | MP4V | 30.04 | 0.00% | 3.22 ms | 8.46 ms | 600/600 | 9.00 W |
-| 720p, MAXN_SUPER | x264 | 30.04 | 0.00% | 3.25 ms | 8.62 ms | 600/600 | 9.36 W |
-| 1080p, 25W | MP4V | 30.04 | 0.00% | 3.49 ms | 14.17 ms | 280/600 | 8.93 W |
-| 1080p, 25W | x264 | 30.00 | 0.00% | 3.75 ms | 13.67 ms | 600/600 | 9.35 W |
-| 1080p, MAXN_SUPER | MP4V | 29.99 | 0.00% | 3.24 ms | 12.13 ms | 379/600 | 9.46 W |
-| 1080p, MAXN_SUPER | x264 | 29.12 | 0.00% | 6.31 ms | 14.45 ms | 600/600 | 9.92 W |
-
-上述完整流水线矩阵和 60 分钟稳定性记录使用 YOLOX-Nano，是不可改写的历史基线。
-服务默认模型后续依据 CAVIAR 开发集 A/B 切换为 YOLOX-Tiny；两种模型的结果必须按各自
-报告解释，不能把 Nano 性能表直接标成 Tiny。
-
-YOLOX-S 以官方 `640x640` 输入完成了单独的可行性验证：720p 完整流水线在 25W 与
-MAXN_SUPER 下均为 `30.03 FPS`、测量丢帧为 `0`、x264 写入 `600/600`；E2E P95
-分别为 `13.02 ms` 和 `11.65 ms`。但 S 在冻结 CAVIAR 开发规则上的 F1 为
-`50.00%`，低于 Tiny 的 `53.33%`，所以 Tiny 仍是默认模型。
-
-补充验证：
-
-- 60 分钟 CSI 服务持续运行实现 100% 活跃覆盖，进程零重启、watchdog 零停滞、
-  真实帧零停滞、30.00 FPS、采集丢帧率 0.00%。
-- 受控 SIGKILL 和 RTSP 输入中断测试都恢复到真实帧处理，而不是把“进程已重启但没有
-  帧输入”误判为恢复。
-- 固定 YOLOX-Tiny MOT17 留出划分得到 HOTA 38.89、IDF1 46.75、MOTA 39.19。
-  该结果衡量完整的检测器与跟踪器组合。
-
-详细协议、样本数和限制见[完整流水线矩阵](docs/benchmarks/jetson_full_pipeline_matrix.md)、
-[MOT17 跟踪结果](docs/benchmarks/mot17_tracking_results.md)和
-[服务稳定性报告](docs/operations/stability_report.md)。S 的独立结果见
-[YOLOX-S Jetson 可行性验证](docs/benchmarks/yolox_s_feasibility.md)。
-
-1080p 25W x264 测试中没有检测结果，也没有触发事件；它能验证审计编码连续性，但不能
-验证活跃事件 I/O。1080p MAXN_SUPER x264 测试触发了入侵和停留证据，同时保存全部
-600 个审计帧。两组 720p x264 测试也都触发了事件证据并保存全部 600 帧。
-
-</details>
-
-## 运行证据
-
-以下历史记录摘录说明事件与指标字段，不作为当前候选之间的性能对照：
-
-```text
-event=line_crossing rule=directional-crossing track_id=2 class_id=0 frame=131 pts_ms=4366.667
-target_reached=true
-invalid_frames=0
-output_frames=240
-output_frames_dropped=0
-event_analysis_p95_ms=0.006
-end_to_end_p95_ms=15.038
-effective_fps=30.093
-```
-
-采集视频、截图、片段、JSONL 日志和原始指标写入 `outputs/` 或配置的服务 spool。
-这些运行产物被 Git 忽略，因此不会意外发布摄像头内容或设备生成的模型 engine。
+`416` 是检测网络输入尺寸，不是摄像头分辨率。服务配置与 calibration 评估阈值是不同配置，
+不可混用其指标。默认项以[服务配置](deploy/systemd/edge-vision.env.example)和
+[启动器](scripts/run_edge_vision_service.sh)为准；仓库默认不证明某台设备当前已经部署成功。
+可选[事件证据配置](deploy/systemd/event-evidence.env.example)只保存JSONL、截图和片段，不开启全程录像。
+实测设备已完成该配置的程序/参数/engine哈希及新增真实帧核验；这是部署健康检查通过，
+不是事件准确率或60分钟稳定性验收通过。见[部署记录与限制](docs/benchmarks/tiny416_event_runtime_25w.md#部署与剩余验证)。
 
 ## 运行时架构
 
 ```mermaid
 flowchart LR
-    A["文件 / IMX219 CSI / H.264 RTSP"] --> B["GStreamer 采集线程"]
-    B --> C["有界丢弃最旧帧队列"]
-    C --> D["YOLOX 预处理 + TensorRT + NMS"]
-    D --> E["按类别关联的 ByteTrack"]
-    E --> F["ROI / 穿线 / 停留状态机"]
-    F --> G["截图 + JSONL 主线程计时 I/O"]
-    F --> H["有界事件片段工作线程"]
-    F --> I["有界标注视频工作线程"]
-    J["tegrastats 采样器"] --> K["原子运行指标 JSON"]
-    D --> K
-    L["systemd 真实帧 watchdog"] -. 监管 .-> B
-    M["重连 + 流代次"] -. 重置 .-> E
+    A["File / CSI / RTSP"] --> B["GStreamer / 帧时间戳"]
+    B --> C["有界队列 / 丢弃最旧帧"]
+    C --> D["Tiny416 / TensorRT FP16"]
+    D --> E["ByteTrack / 行人轨迹"]
+    E --> F["ROI / 有限穿线 / 停留"]
+    F --> G["有序 JSONL / 截图"]
+    F --> H["有界后台片段 / 标注视频"]
+    D --> I["阶段指标 / 设备遥测"]
+    J["systemd / 真实帧 watchdog"] -. 监管 .-> B
+    K["重连 / 流代次"] -. 清理旧状态 .-> E
+    K -. 清理旧状态 .-> F
 ```
 
-文件输入用于可重复回放、回归和基准测试；IMX219 CSI 是主要实时输入；RTSP 用于验证
-网络视频流重连和故障恢复。
+- **输入新鲜度：** 实时拥塞时丢弃最旧待处理帧；完整帧质量回放使用独立入口，不混用统计口径。
+- **轨迹与事件：** 使用框底边中心和视频时间戳；重连后清理旧轨迹与事件状态。
+- **证据输出：** JSONL/截图保持顺序；片段与标注视频异步编码，分别记录同步 I/O、后台编码和停止刷新。
+- **故障恢复：** watchdog 依据真实解码帧增长，而非进程存活；RTSP/CSI 重连有超时与次数上限。
 
-有界采集队列在过载时丢弃最旧待处理帧，以保护画面新鲜度。事件片段与标注视频编码运行
-在独立有界工作线程，因此软件编码不会阻塞检测。截图和 JSONL 写入仍在处理线程执行，
-用于保持发布顺序；它们的成本单独报告为活跃事件 I/O，慢存储可能提高事件帧延迟。输入源
-只有收到真实解码帧才算恢复成功；成功后流代次递增，并清除旧跟踪与事件状态。
+详细接口和 File / CSI / RTSP 命令见[运行与评估手册](docs/runtime_guide.md)。
+
+## 实测与模型选择
+
+### Tiny416：25W 动态调频事件短测
+
+在 CSI 720p、真实人物活动、截图/共享事件片段及全程 x264 标注录像负载下，
+300帧预热后测量9000帧：**30.0013 FPS，TRT P95 12.65 ms，E2E P95 23.11 ms**，
+正式采集/录像丢帧和序列缺口均为0；预热丢弃7帧单列。
+32条事件都有截图，25个物理片段覆盖全部事件。该结果不等于事件准确率或长期稳定性通过：
+回顾性复核确认11条错误报警，完整真值不足，未计算事件P/R/F1；60分钟验证尚未完成。
+详见[协议、计时边界与限制](docs/benchmarks/tiny416_event_runtime_25w.md)。
+长期事件证据配置不启用全程录像，且不以这次短测宣称性能优于旧服务。
+
+### Tiny416 与 Tiny640：CSI 720p 短测
+
+以下两组均为 **MAXN_SUPER + jetson_clocks**，60 FPS 采集、30 FPS 交付，
+每组预热 300 帧、测量 3,600 帧，启用 x264、截图与事件片段。
+
+| 模型 | 有效 FPS | TRT P95 | E2E P95 | 采集丢帧 / 序列缺口 / 视频丢帧 | 标注帧写入 | 事件 / 截图 / 片段 |
+| --- | ---: | ---: | ---: | --- | --- | --- |
+| Tiny416 | 30.007089 | 3.87 ms | 8.77 ms | 0 / 0 / 0 | 3600/3600 | 4 / 4 / 4 |
+| Tiny640 | 30.006253 | 7.09 ms | 11.50 ms | 0 / 0 / 0 | 3600/3600 | 5 / 5 / 5 |
+
+两者在该短测负载下达到约 30 FPS，**不代表 25W 默认服务性能、充足余量或长期稳定通过**。
+人物动作不完全一致，Tiny416 未出现穿线，测试窗口 OC3 保护计数增加 1；
+完整同负载 A/B 未通过。预热丢弃另计为 6/5 帧。
+E2E 计时到同步事件 I/O 与视频入队，不含传感器曝光、后台编码落盘或停止 flush。
+逐阶段延迟、功耗、温度及恢复证据见[带事件 CSI 复测](docs/benchmarks/tiny_resolution_csi_event_retest.md)。
+
+### 为什么默认仍是 Tiny416
+
+| 同条件开发对照 | Nano | Tiny416 | 取舍 |
+| --- | ---: | ---: | --- |
+| MOT17 calibration HOTA / IDF1 / MOTA | 29.19 / 34.50 / 24.38 | 33.31 / 39.80 / 29.65 | 整体质量改善；IDSW 从 227 增至 232 |
+| CAVIAR development TP / FP / FN | 4 / 4 / 5 | 4 / 2 / 5 | 误报减少；穿线少检出一次，停留多检出一次 |
+| 同轮 CAVIAR development F1 | 47.06% | 53.33% | 仅 9 项参考事件，不是独立外部验收 |
+
+Tiny416 固定 MOT17 留出成绩为 **HOTA 38.89、IDF1 46.75、MOTA 39.19**；
+留出与 calibration 不合并。Tiny640 提高了 MOT17 召回，但未形成一致的事件质量收益，
+因此不替换默认模型。依据见[MOT17 结果](docs/benchmarks/mot17_tracking_results.md)、
+[历史 CAVIAR 模型对照](docs/benchmarks/caviar_detector_development_comparison.md)。
+
+Nano 的八组性能矩阵、60 分钟稳定性和恢复记录保留为历史基线，不能改名为 Tiny 的结果：
+[历史矩阵](docs/benchmarks/jetson_full_pipeline_matrix.md) ·
+[完整矩阵摘录与复现入口](docs/runtime_guide.md#历史性能证据) ·
+[稳定性报告](docs/operations/stability_report.md)。
 
 ## Jetson 快速开始
 
-安装构建依赖，下载带校验和的模型，并在目标 Jetson 上构建 FP16 TensorRT engine：
+适用于已具备匹配 CUDA/TensorRT 的目标 Jetson。先核对软件栈与依赖安装计划；不要用系统升级代替应用依赖配置。
+在全新部署中获取已校验的 Tiny416 ONNX，再在目标设备构建 engine：
 
 ```bash
 sudo apt-get update
@@ -166,7 +130,8 @@ cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure
 ```
 
-执行一次有限 IMX219 验证并原子发布指标：
+执行一次有限 IMX219 验证并原子发布指标。已运行摄像头服务时，不要同时启动第二个 CSI 进程；
+应先安排停服与退出恢复窗口。此命令仅验证基础链路，不启用事件规则或媒体输出：
 
 ```bash
 ./build/edge_vision_realtime_detect \
@@ -180,450 +145,15 @@ ctest --test-dir build --output-on-failure
   --metrics-json outputs/metrics/imx219.json
 ```
 
-TensorRT plan 与硬件及软件栈耦合，必须在部署目标 Jetson 上构建。安装连续无人值守服务前，
-请阅读[模型资产](#模型资产)和[服务运维指南](docs/operations/headless_service.md)。
-
-## 组件
-
-| 组件 | 职责 | 状态 |
-| --- | --- | --- |
-| 运行契约 | Frame、输入源、检测器和检测结果类型 | 已实现 |
-| GStreamer 输入源 | 文件回放、IMX219 CSI 采集、H.264 RTSP 接入 | 已实现 |
-| 采集流水线 | 专用生产者线程、有界队列、时间戳、丢弃最旧帧背压 | 已实现 |
-| TensorRT 运行时 | Engine 加载、CUDA 缓冲区与执行 | 已实现 |
-| YOLOX 检测器 | 预处理、TensorRT 执行、网格解码、置信度过滤与 NMS | 已实现 |
-| YOLO26n / YOLO26s 候选检测器 | 独立 RGB letterbox、one-to-many 解码与按类别 NMS，共用检测器接口 | 候选接口已实现；不作为当前默认或完整部署验收依据 |
-| 连续检测与跟踪 | 采集、最新帧队列、TensorRT 检测、ByteTrack、标注视频与延迟统计 | 已实现 |
-| 基准脚本 | 预热隔离、功率遥测、模型/分辨率/功率对比 | 已实现 |
-| ByteTrack | Kalman 预测、两阶段关联、类别身份与重置语义 | 已实现 |
-| 事件分析器 | 确认式 ROI 入侵、有限定向穿线、时间戳停留与流重置 | 已实现 |
-| 事件证据 | 版本化 JSONL、持久化去重、截图和有界事件前后片段 | 已实现 |
-| 遥测 | 版本化流水线指标及后台 Jetson 利用率、温度、功率和内存采样 | 已实现 |
-| 恢复 | 有界 CSI/RTSP 重连、无帧超时、流代次与显式失败状态 | 已实现 |
-| 服务生命周期 | 连续模式、SIGTERM 停止、systemd readiness、进度 watchdog、有界延迟窗口 | 已实现 |
-| 运维 | systemd 安装、本地持久化事件 spool、保留定时器与日志轮转 | 已实现 |
-| 稳定性验证 | 服务持续运行、资源趋势、进程崩溃注入与 RTSP 中断恢复 | 已实现 |
-
-## 构建与运行
-
-<details>
-<summary>展开主机构建、文件 / CSI / RTSP 命令及运行契约</summary>
-
-以下当前使用示例统一使用 Tiny416；参数保持既有运行配置。ROI 与警戒线是归一化示例，
-部署前须按场景定义。服务配置示例没有启用警戒线，不能仅启动服务就声称已验证三类事件。
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j"$(nproc)"
-ctest --test-dir build --output-on-failure
-./build/edge_vision_contract_check
-./build/edge_vision_frame_queue_check
-./build/edge_vision_preprocess_check
-./build/edge_vision_postprocess_check
-./build/edge_vision_byte_tracker_check
-```
-
-默认目标需要 C++17 编译器、OpenCV、Eigen 3 和 `nlohmann-json3-dev`。Jetson 上的
-TensorRT 目标需要显式启用。
-
-在 Jetson 上配置 GStreamer 采集目标：
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DEDGE_VISION_ENABLE_GSTREAMER=ON
-cmake --build build -j"$(nproc)"
-
-./build/edge_vision_capture_stream \
-  --file input.mp4 --frames 300 --queue-capacity 4
-
-./build/edge_vision_capture_stream \
-  --csi --sensor-id 0 \
-  --sensor-mode 4 \
-  --capture-width 1280 --capture-height 720 --capture-fps 60 \
-  --width 1280 --height 720 --fps 30 \
-  --frames 300 --queue-capacity 4 \
-  --reconnect-attempts 3 --reconnect-delay-ms 1000
-
-./build/edge_vision_capture_stream \
-  --rtsp rtsp://192.168.1.20:8554/camera \
-  --rtsp-transport tcp \
-  --rtsp-latency-ms 200 --rtsp-timeout-ms 5000 \
-  --width 1280 --height 720 --fps 30 \
-  --frames 300 --queue-capacity 4 \
-  --reconnect-attempts 3 --reconnect-delay-ms 1000
-```
-
-采集工作线程在专用生产者线程运行输入源。消费者落后时，有界队列丢弃最旧帧，使内存
-保持有界，并优先把新画面交给实时分析。可以设置 `--consumer-delay-ms` 制造受控
-过载，观察队列深度、丢帧、序号间隙和队列驻留时间。
-
-可以从 H.264 MP4 回放文件建立确定性 RTSP 服务：
-
-```bash
-sudo apt-get install -y python3-gi gir1.2-gst-rtsp-server-1.0
-python3 scripts/serve_rtsp_replay.py videos/replay.mp4 \
-  --port 8554 --mount /replay
-```
-
-客户端 URI 为 `rtsp://HOST:8554/replay`，其中 `HOST` 是服务器局域网地址。停止并
-重启该进程即可制造受控网络视频中断，不必更改检测器或跟踪器配置。
-
-RTSP URI 以进程参数传入。共享主机上不要在 URI 中嵌入长期凭据，因为本地进程检查可能
-暴露它们；应优先使用无凭据的本地转发，或限制主机访问权限。
-
-CSI 采集速率与应用输出速率分别配置。上述 IMX219 命令选择原生模式 4，即
-1280x720/60 FPS，再由 `videorate` 向应用交付 30 FPS。意外 EOS 会触发有界流水线
-重开。RTSP 支持 TCP 或 UDP 上的 H.264；TCP 是可靠传输默认值，受控网络中 UDP 可
-降低传输延迟。无帧超时还能发现“连接仍打开但没有可解码帧”的情况。只有真正收到一帧，
-重试预算、成功恢复计数和流代次才会推进，因此重复空重连不会被报告成恢复，也不会无限
-持续。所有尝试结束后若仍未达到请求帧数，进程会报告恢复统计并以非零状态退出。
-
-配置 TensorRT 运行时并执行 engine 探测：
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DEDGE_VISION_ENABLE_TENSORRT=ON
-cmake --build build -j"$(nproc)"
-./build/edge_vision_trt_probe models/yolox_tiny_fp16.plan
-./build/edge_vision_detect_image \
-  models/yolox_tiny_fp16.plan input.jpg output.jpg
-```
-
-同时启用两个后端，从回放文件或 IMX219 连续检测与跟踪：
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
-  -DEDGE_VISION_ENABLE_TENSORRT=ON
-cmake --build build -j"$(nproc)"
-
-./build/edge_vision_realtime_detect \
-  --engine models/yolox_tiny_fp16.plan \
-  --file input.mp4 \
-  --warmup-frames 30 \
-  --frames 300 \
-  --queue-capacity 2 \
-  --score-threshold 0.3 \
-  --track-threshold 0.5 \
-  --new-track-threshold 0.6 \
-  --track-buffer 30 \
-  --output-video outputs/replay_tracking.mp4 \
-  --output-queue-capacity 4
-
-./build/edge_vision_realtime_detect \
-  --engine models/yolox_tiny_fp16.plan \
-  --csi --sensor-id 0 \
-  --sensor-mode 4 \
-  --capture-width 1280 --capture-height 720 --capture-fps 60 \
-  --width 1280 --height 720 --fps 30 \
-  --warmup-frames 30 \
-  --frames 300 \
-  --queue-capacity 2 \
-  --score-threshold 0.3 \
-  --track-threshold 0.5 \
-  --new-track-threshold 0.6 \
-  --track-buffer 30 \
-  --event-roi 0.20 0.35 0.80 0.95 \
-  --event-dwell-seconds 3 \
-  --event-line 0.15 0.70 0.85 0.70 \
-  --event-line-direction any \
-  --event-class-id 0 \
-  --event-jsonl outputs/events/events.jsonl \
-  --event-snapshot-dir outputs/events/snapshots \
-  --event-clip-dir outputs/events/clips \
-  --event-clip-pre-seconds 2 \
-  --event-clip-post-seconds 3 \
-  --output-video outputs/imx219_tracking.mp4 \
-  --output-queue-capacity 4 \
-  --metrics-json outputs/metrics/imx219_runtime.json \
-  --tegrastats-interval-ms 500 \
-  --reconnect-attempts 3 --reconnect-delay-ms 1000
-
-./build/edge_vision_realtime_detect \
-  --engine models/yolox_tiny_fp16.plan \
-  --rtsp rtsp://192.168.1.20:8554/camera \
-  --rtsp-transport tcp \
-  --rtsp-latency-ms 200 --rtsp-timeout-ms 5000 \
-  --width 1280 --height 720 --fps 30 \
-  --warmup-frames 30 \
-  --frames 300 \
-  --queue-capacity 2 \
-  --score-threshold 0.3 \
-  --track-threshold 0.5 \
-  --new-track-threshold 0.6 \
-  --track-buffer 30 \
-  --reconnect-attempts 3 --reconnect-delay-ms 1000
-```
-
-运行时报告生产、处理和丢弃帧数，队列深度与序号间隙，检测、轨迹和事件计数，唯一轨迹
-ID，以及队列等待、检测预处理、TensorRT 执行、检测后处理、跟踪、事件分析、事件输出、
-视频入队和端到端 P50/P95 延迟与有效吞吐。检测分数阈值必须低于 ByteTrack 轨迹阈值，
-这样低置信度检测仍可参与第二阶段关联。小队列在采集快于推理时限制旧帧延迟。帧序号缺失
-会通过空更新让跟踪器老化；输入源成功重连会增加流代次并清空所有旧轨迹。预热帧执行完整
-流水线，但不计入检测、跟踪、延迟、吞吐和稳态丢帧统计。
-
-`--metrics-json` 把最终状态发布为版本化 JSON。流水线计数、丢帧率、队列高水位、恢复
-状态、检测/跟踪/事件总数、输出工作量、有效 FPS 和阶段延迟，会与专用后台
-`tegrastats` 进程采样的 Jetson 遥测合并。设备采样从不在推理线程运行；如果
-`tegrastats` 不可用，流水线指标仍会写出，并将 `device.available` 设为 `false`。
-完整字段和单位见[运行时指标 Schema](docs/metrics/runtime_metrics_schema.md)，实测采样
-开销见[运行时遥测基准](docs/benchmarks/runtime_telemetry_overhead.md)。
-
-无人值守时，`--continuous` 移除有限帧目标，只保留最近
-`--metrics-window-frames` 个延迟样本。SIGINT 与 SIGTERM 请求有序停止：采集停止，
-待处理事件片段和标注视频完成，遥测结束，最终指标原子发布。systemd 下运行时会发送
-`READY=1`、帧进度 watchdog 心跳和 `STOPPING=1`。真实帧停止时不再发送心跳，
-systemd 因此能恢复停滞的采集或推理，而不是把空闲事件循环当成健康。
-
-支持的无头安装、持久化目录、保留策略、服务检查和日志轮转命令见
-[服务运维指南](docs/operations/headless_service.md)。长期健康标准及可重复的进程/输入源
-故障注入见[稳定性与恢复验证指南](docs/operations/stability_validation.md)，实测 1 小时
-持续运行和故障注入结果见[Jetson 服务稳定性报告](docs/operations/stability_report.md)。
-
-安全规则默认关闭。`--event-roi` 以 `LEFT TOP RIGHT BOTTOM` 定义归一化矩形区域，并
-启用确认式 ROI 入侵。`--event-dwell-seconds` 为同一区域增加基于时间戳的停留规则。
-`--event-line` 定义有限归一化线段，`--event-line-direction` 可选 `any`、
-`negative-to-positive` 或 `positive-to-negative`。`--event-class-id` 选择一个
-COCO 类别，也接受 `-1` 以对所有跟踪类别应用规则。规则使用每条轨迹边界框的底边中心；
-流代次变化和时间线重启会清空全部事件状态。
-
-`--event-jsonl` 启用版本化追加事件日志。可选截图和片段目录会把已验证证据路径写入记录。
-先提交截图，再追加事件记录。事件片段使用有界原始帧预缓冲；实时线程只收集共享帧引用，
-完整片段在有界后台队列编码。片段关闭并验证后才发布日志。运行时报告日志写入、重复跳过、
-证据数量、事件 I/O 延迟与片段缓冲峰值。完整契约和持久化语义见
-[安全事件记录 Schema](docs/events/event_schema.md)。
-
-`--output-video` 为可选参数。启用后，运行时把预热后的测量帧发送到专用有界写入队列，
-并叠加每条活跃轨迹的边界框、底边中心、类别 ID、置信度和持久 track ID。配置的 ROI 与
-线段保持可见，已触发事件标签和锚点会短暂保留，便于复核。编码过慢时丢弃最旧待输出帧，
-不会阻塞采集、检测或跟踪。入队延迟、写入丢帧、队列高水位和最终刷新时间与实时流水线
-延迟分别报告。后台编码总耗时与最大执行时间也会报告；仅看入队时间不能代表编码器或存储
-成本。
-
-标注输出默认使用 GStreamer `x264enc`，配置 `ultrafast`、`zerolatency`、一秒
-GOP、无 B 帧、单参考帧和关闭自适应量化。目标码率由
-`--output-bitrate-kbps` 设置，默认 `10000`。Jetson Orin Nano 没有 NVENC，因此
-该路径有意采用调优后的 CPU H.264。`--output-encoder mp4v` 保留 OpenCV 兼容后端用于
-对比，但实测 1080p MP4V 吞吐低于 30 FPS。所选编码器和码率都会写入运行日志与指标 JSON。
-
-同步和异步输出实测见[标注视频输出基准](docs/benchmarks/annotated_video_output.md)。
-
-</details>
-
-## Jetson 检测基准矩阵
-
-<details>
-<summary>展开 Nano / Tiny416 历史检测基准复现方法</summary>
-
-基准脚本在两种 Jetson 功率模式下，对比 YOLOX-Nano 与 YOLOX-Tiny 的 720p 和 1080p
-CSI 采集。两个检测器始终使用固定 `1x3x416x416` TensorRT 输入；采集分辨率衡量上游
-摄像头、转换、缩放和内存传输负载，不改变模型张量契约。
-
-下载已校验的上游模型，然后在目标 Jetson 上构建两个 FP16 engine：
-
-```bash
-bash scripts/fetch_yolox_nano.sh
-bash scripts/fetch_yolox_tiny.sh
-
-bash scripts/build_tensorrt_engine.sh \
-  models/yolox_nano.onnx models/yolox_nano_fp16.plan
-bash scripts/build_tensorrt_engine.sh \
-  models/yolox_tiny.onnx models/yolox_tiny_fp16.plan
-```
-
-构建运行时并查看设备可用功率模式：
-
-```bash
-cmake -S . -B build-jetson-benchmark \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
-  -DEDGE_VISION_ENABLE_TENSORRT=ON
-cmake --build build-jetson-benchmark -j"$(nproc)"
-ctest --test-dir build-jetson-benchmark --output-on-failure
-
-sudo nvpmodel -q --verbose
-```
-
-在当前功率模式下运行一个受控组。分别对 `nano`、`tiny`、`720p`、`1080p`，
-以及每个待比较功率模式重复命令。脚本只记录当前模式，不会自行切换。
-
-```bash
-bash scripts/run_jetson_benchmark.sh \
-  --model nano \
-  --engine models/yolox_nano_fp16.plan \
-  --resolution 720p \
-  --warmup-frames 30 \
-  --frames 600
-```
-
-原始运行日志和 `tegrastats` 日志保存在 Git 忽略的
-`reports/benchmarks/raw/`。全部组完成后生成受版本控制的对比表：
-
-```bash
-python3 scripts/summarize_jetson_benchmarks.py
-```
-
-生成的 CSV 与 Markdown 报告稳态 FPS、推理和端到端 P95、丢帧率、平均及峰值功率、
-温度、GPU 利用率和每瓦 FPS。
-
-</details>
-
-## 完整流水线基准
-
-<details>
-<summary>展开历史 Nano 完整链路基准方法（涉及停服和锁频）</summary>
-
-以下保留历史实验命令，不是默认启动方式，也不会自动完成退出恢复。实际执行前应核对
-设备功率模式、保存原时钟状态，安排停服窗口和异常恢复；结束后恢复原配置并核验真实帧增长。
-
-完整流水线基准固定 YOLOX-Nano，同时测量检测、ByteTrack、安全规则、事件截图和片段、
-标注视频及 Jetson 遥测。脚本拒绝在 `edge-vision.service` 活跃或 GPU 未锁频时运行，
-避免摄像头占用和频率状态在测试之间悄然变化。
-
-选择功率模式、锁频，并运行两个采集分辨率：
-
-```bash
-cmake -S . -B build-pipeline-benchmark \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DEDGE_VISION_ENABLE_GSTREAMER=ON \
-  -DEDGE_VISION_ENABLE_TENSORRT=ON
-cmake --build build-pipeline-benchmark -j"$(nproc)"
-
-sudo systemctl stop edge-vision.service
-sudo nvpmodel -m 1
-sudo jetson_clocks
-
-bash scripts/run_pipeline_benchmark.sh \
-  --model nano \
-  --engine models/yolox_nano_fp16.plan \
-  --resolution 720p \
-  --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
-
-bash scripts/run_pipeline_benchmark.sh \
-  --model nano \
-  --engine models/yolox_nano_fp16.plan \
-  --resolution 1080p \
-  --binary ./build-pipeline-benchmark/edge_vision_realtime_detect
-```
-
-选择并锁定第二种功率模式后重复，再生成受版本控制的报告：
-
-```bash
-python3 scripts/summarize_pipeline_benchmarks.py
-```
-
-协议和指标解释见[完整流水线基准测试协议](docs/benchmarks/full_pipeline_benchmark.md)。
-
-</details>
-
-## MOT17 跟踪评估
-
-离线评估按顺序处理每个所选 MOT17 帧，导出标准 10 列 MOTChallenge 结果，并用固定的
-官方 TrackEval 计算 HOTA、IDF1、MOTA 和身份切换。每段物理 MOT17 视频只使用 FRCNN
-命名副本，因为本系统自己提供检测结果。固定划分只使用公开训练序列；每条命令在推理前
-校验元数据、真值、图像数和帧编号。
-
-下面保留历史冻结留出结果的复现命令。该留出集已经消费，不用于后续候选调参；重复执行
-不能称为新的独立验证，输出也不得覆盖已有结果。
-
-<details>
-<summary>展开固定 MOT17 评估命令</summary>
-
-```bash
-bash scripts/fetch_mot17.sh
-bash scripts/fetch_trackeval.sh
-
-cmake -S . -B build-mot17 \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DEDGE_VISION_ENABLE_TENSORRT=ON
-cmake --build build-mot17 -j"$(nproc)"
-
-bash scripts/run_mot17_inference.sh \
-  --engine models/yolox_tiny_fp16.plan \
-  --seqmap configs/mot17/holdout.txt \
-  --output-root outputs/mot17/holdout/final_tiny/edge_vision/data \
-  --report-root reports/mot17/holdout/final_tiny/inference \
-  --score-threshold 0.10 \
-  --nms-threshold 0.45 \
-  --track-threshold 0.30 \
-  --new-track-threshold 0.40 \
-  --match-threshold 0.80 \
-  --track-buffer 30
-
-bash scripts/run_trackeval_mot17.sh \
-  --python /usr/bin/python3 \
-  --seqmap configs/mot17/holdout.txt \
-  --tracker-root outputs/mot17/holdout/final_tiny \
-  --tracker-name edge_vision \
-  --output-root reports/mot17/holdout/final_tiny/trackeval
-```
-
-</details>
-
-固定 YOLOX-Tiny FP16 配置在三序列留出划分上达到 **HOTA 38.89**、**IDF1 46.75**
-和 **MOTA 39.19**。各序列检测路径 P95 为 13.98 至 14.07 ms，包含帧封装、预处理、
-TensorRT 推理和后处理，并非纯 TensorRT 耗时；ByteTrack P95 低于 0.32 ms。
-
-固定的校准/留出划分、帧策略、依赖版本和报告命令见
-[MOT17 评估协议](docs/benchmarks/mot17_evaluation_protocol.md)，检测器对比与最终留出
-指标见[MOT17 跟踪结果](docs/benchmarks/mot17_tracking_results.md)。
-
-## CAVIAR 外部事件验证
-
-项目另选七段 CAVIAR 固定机位公开视频，分别为穿线、停留和 ROI 入侵建立开发/留出片段。
-停留验证同时包含一个零事件负样本和一个正样本留出片段。CAVIAR 已有的人工边界框用于
-生成独立事件真值；人工观看只确定业务区域并确认预期事件，不需要重新逐帧画框。规则在
-任何留出推理前冻结，留出运行还要求显式 `--allow-holdout`，防止查看结果后继续调参。
-
-当前人工复核后的规则已保存为
-[`configs/caviar/rules.frozen.json`](configs/caviar/rules.frozen.json)：穿线采用双向有限线段，
-停留采用右侧展台区域和 `3.0` 秒阈值，ROI 入侵采用开放商店入口区域。三段开发视频生成的
-`5/2/2` 个预期事件已逐项人工确认。
-
-Jetson 25W 锁定时钟下的正式留出轮次完成了 `4,310/4,310` 帧，输入丢帧和帧序缺口均为
-`0`。零事件负样本通过，但三个正样本序列均未达到冻结门限；合计 TP/FP/FN 为
-`2/1/5`，聚合 Precision 为 `66.67%`、Recall 为 `28.57%`、F1 为 `40.00%`。当前
-YOLOX-Nano 配置的主要限制是低分辨率远景人物无法稳定转化为连续轨迹，不是 TensorRT
-吞吐。
-
-在相同三段开发视频、相同冻结规则与阈值下，Nano、Tiny 与 S 的聚合 F1 分别为
-`47.06%`、`53.33%` 和 `50.00%`。S 使用官方 `640x640` 输入并消除了入口误报，
-但没有检出停留事件；更多检测框没有转化为更高的整体事件 F1。因此 Tiny 仍是服务默认
-候选，这不代表事件精度已经合格。完整开发集对比见
-[CAVIAR 检测器开发集对比](docs/benchmarks/caviar_detector_development_comparison.md)。
-
-```bash
-python3 scripts/fetch_caviar.py
-python3 scripts/prepare_caviar_media.py
-```
-
-数据选择、人工复核步骤、MPEG2 到 H.264 MP4 转换、RTSP 实时回放、事件匹配标准和
-完整运行命令见
-[CAVIAR 公开场景外部事件验证协议](docs/benchmarks/caviar_external_validation_protocol.md)，
-逐段指标与事件截图见
-[CAVIAR 外部事件验证结果](docs/benchmarks/caviar_external_validation_results.md)。
-
-## 目标平台
-
-- NVIDIA Jetson Orin Nano 8GB
-- JetPack 6.2.1 / Ubuntu 22.04
-- CUDA 12.6 / TensorRT 10.3
-- C++17 / CMake 3.22+
-- OpenCV 4.5+
-- GStreamer 1.20+
-- IMX219 CSI 摄像头
+TensorRT plan 与硬件及软件栈耦合，不从其他设备直接复制使用。正式服务安装、环境配置、
+启停与恢复见[服务运维指南](docs/operations/headless_service.md)；完整事件与媒体命令见
+[运行手册](docs/runtime_guide.md#构建与运行)。切换 engine 后应核对实际进程参数、文件哈希、
+服务状态、重启计数及新增真实帧，不能只凭 `active` 判断完成。
 
 ## 模型资产
 
-模型资产和 TensorRT engine 在仓库外生成。TensorRT engine 与目标 GPU、TensorRT
-版本和优化 profile 耦合，必须在目标 Jetson 上构建。
-
-检测器对比使用官方 YOLOX-Nano、YOLOX-Tiny 与 YOLOX-S ONNX 导出。Nano/Tiny
-输入为 `1x3x416x416`，S 输入为 `1x3x640x640`；运行时从 TensorRT engine 契约
-读取尺寸。使用以下脚本下载并校验：
+仓库只跟踪获取/导出/构建工具、模型元数据和校验和，不分发权重、ONNX 或 TensorRT engine。
+官方 Nano/Tiny416/S ONNX 获取入口：
 
 ```bash
 bash scripts/fetch_yolox_nano.sh
@@ -631,12 +161,14 @@ bash scripts/fetch_yolox_tiny.sh
 bash scripts/fetch_yolox_s.sh
 ```
 
-源 URL、校验和、许可证和张量契约记录在 `models/yolox_nano.json`、
-`models/yolox_tiny.json` 与 `models/yolox_s.json`。
+来源、哈希和输入输出契约见 [Nano](models/yolox_nano.json)、
+[Tiny416](models/yolox_tiny.json)、[S](models/yolox_s.json)。
+Tiny640 的同权重导出与 416 等价检查见[资产契约](docs/models/yolox_tiny_640.md)。
+YOLO26n/s 共用独立导出与 Detector 适配，保留为显式候选，分别见
+[YOLO26n](docs/models/yolo26n.md)、[YOLO26s](docs/models/yolo26s.md)；
+其输出不复用 YOLOX 网格解码。导出或最小推理成功均不等于部署验收。
 
-Tiny `640x640` 是同权重输入尺寸候选，原始权重身份、416 输出等价核验和独立导出步骤见
-[Tiny640 资产契约](docs/models/yolox_tiny_640.md)。当前主线仍为 Tiny416，以下实验结果
-分别按自身冻结协议解释，不修改旧门槛或将局部改善表述为默认晋级。
+### 开发证据
 
 | 验证范围 | 核心结果与限制 | 证据 |
 | --- | --- | --- |
@@ -647,26 +179,37 @@ Tiny `640x640` 是同权重输入尺寸候选，原始权重身份、416 输出�
 | v5：VIRAT 同源原生 720p / 384×216 | 原生输入两模型 F1 均 66.67%，低清分别 66.67% / 70.59%；未证实原生清晰度带来更大 640 收益 | [源分辨率对照](docs/benchmarks/tiny_source_resolution_v5_results.md) |
 | v6：MEVA 近景，派生 720p | Tiny416 / Tiny640 为 13/8/1 与 13/9/1（TP/FP/FN），F1 74.29% / 72.22%；640 没有新增正确事件 | [协议](docs/benchmarks/tiny_near_field_v6.md) · [逐类结果与诊断](docs/benchmarks/tiny_near_field_v6_results.md) |
 
-v4 参数不同于历史 Nano/Tiny/S CAVIAR 对照，不把两轮差异单独归因于模型或分辨率。
-v5/v6 是顺序 PNG 开发回放，不是 CSI 性能验收；v6 三段来自同一机位的同一源视频，
-由 1920×1072 等比例补边缩放，源 PTS 缺失、采用解码序号派生时间，不能称为原生 720p。
-开发结果不是新的独立外部验证；v6 三项停留全对也不能外推为所有停留场景合格。
-视频、图片、原始标注和逐帧输出不随本仓库分发。
 
-当前未完成的部署验证集中在：最终阈值与场景规则的一致性、真实三类事件负载下的 CSI
-720p/30 完整输出、最终配置至少 60 分钟持续运行和故障恢复。近景重复 ROI 与遮挡后的
-底边锚点仍是事件质量限制；如需独立精度结论，须另选未消费数据并冻结协议。
+v4 阈值不同于历史 Nano/Tiny/S 对照，不能把跨轮差异单独归因于模型。
+v5/v6 为顺序 PNG 开发回放，不是 CSI 实时性测试；v6 三段来自同机位同源视频，
+1920×1072 补边缩至 1280×720，源 PTS 缺失，使用明确标记的派生时间，**不是原生 720p**。
+全部开发结果均不能替代新的独立外部验证，原协议门槛与 FAIL 保留。
 
-YOLO26n 与 YOLO26s 当前仅作为 A/B 评估候选，不改变 YOLOX-Tiny 默认配置。两者共用
-参数化的获取与导出链，官方权重、固定哈希、one-to-many ONNX 导出契约和目标 Jetson
-上的 FP16 engine 构建步骤分别见[YOLO26n 资产与导出契约](docs/models/yolo26n.md)和
-[YOLO26s 资产与导出契约](docs/models/yolo26s.md)。权重、ONNX 和 TensorRT engine
-均在仓库外生成，不纳入版本控制。
+## 已知限制与验收缺口
 
-C++ 运行时通过统一检测器工厂提供显式 `--detector yolo26` 候选入口，并要求显式给出检测与
-跟踪阈值。默认仍为 `yolox`，现有 Tiny 服务配置保持不变。公开证据包括 YOLO26s 的
-[Jetson 编译、engine 构建与合成图像最小推理](docs/benchmarks/yolo26s_jetson_smoke.md)；
-导出契约和最小推理均不等于质量与完整流水线验收，两种 YOLO26 候选不作为当前默认晋级依据。
+- **事件质量：** 近景仍有重复 ROI 误报和遮挡后的底边锚点问题；v6 三项停留全对不代表普遍可靠。
+  历史 Nano CAVIAR 外部留出 F1 40.00% 为 FAIL，不是 Tiny 的留出结果。
+- **部署一致性：** 需要在最终服务阈值和场景规则下，完成真实三类事件负载的 CSI 720p/30 完整输出验证。
+- **长期运行：** 最终 Tiny 配置至少 60 分钟持续运行与故障恢复证据待补；Nano 历史结果不直接沿用。
+- **证据边界：** 回放速度不替代 CSI FPS；缺失的 E2E 或事件 I/O 保持 N/A，不从阶段 P95 相加推算。
+- **公开资产：** 视频、截图、标注、逐帧输出、运行日志、模型与凭据不纳入 Git。
+  运行产物写入 `outputs/` 或服务 spool，按场景授权和保留策略管理。
+
+## 文档与验证入口
+
+| 需求 | 入口 |
+| --- | --- |
+| 构建、File / CSI / RTSP、事件与编码参数 | [运行与评估手册](docs/runtime_guide.md) |
+| systemd、spool、日志和真实帧 watchdog | [服务运维](docs/operations/headless_service.md) · [恢复验证](docs/operations/stability_validation.md) |
+| 指标定义、事件格式和证据时序 | [运行指标 Schema](docs/metrics/runtime_metrics_schema.md) · [事件 Schema](docs/events/event_schema.md) |
+| MOT17 固定划分与 TrackEval | [协议](docs/benchmarks/mot17_evaluation_protocol.md) · [结果](docs/benchmarks/mot17_tracking_results.md) |
+| CAVIAR 冻结规则和历史外部验证 | [协议](docs/benchmarks/caviar_external_validation_protocol.md) · [结果](docs/benchmarks/caviar_external_validation_results.md) |
+| 架构、模型与功率取舍 | [工程决策](docs/decisions.md) |
+| 变更与发布边界 | [CHANGELOG](CHANGELOG.md) · [第三方声明](THIRD_PARTY_NOTICES.md) |
+
+已记录目标软件基线：JetPack 6.2.1 / Ubuntu 22.04、CUDA 12.6 / TensorRT 10.3、
+C++17 / CMake 3.22+、OpenCV 4.5+、GStreamer 1.20+。实际设备版本需部署时核验。
+主机可执行 CTest 与 Python 确定性检查，但不覆盖目标 TensorRT 链接、设备推理或 CSI 性能。
 
 ## 许可证
 

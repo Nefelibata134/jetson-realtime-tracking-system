@@ -353,6 +353,17 @@ target_link_libraries(
         ${OpenCV_LIBS}
 )
 
+# Use a controlled sink only in this test; production codec selection is unchanged.
+add_executable(
+    edge_vision_event_clip_queue_check
+    apps/event_clip_queue_check.cpp
+    src/event_clip_writer.cpp
+    src/frame_annotator.cpp
+)
+target_include_directories(edge_vision_event_clip_queue_check PRIVATE src ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(edge_vision_event_clip_queue_check PRIVATE
+    edge_vision_event_journal Threads::Threads ${OpenCV_LIBS})
+
 add_library(
     edge_vision_yolox
     src/yolox_preprocessor.cpp
@@ -560,6 +571,10 @@ if(EDGE_VISION_ENABLE_GSTREAMER)
         edge_vision_video_output
         PRIVATE
             EDGE_VISION_HAS_GSTREAMER_X264=1
+    )
+    target_compile_definitions(
+        edge_vision_event_evidence
+        PRIVATE EDGE_VISION_HAS_GSTREAMER_X264=1
     )
     target_link_libraries(
         edge_vision_video_output
@@ -850,7 +865,18 @@ add_test(
 )
 if(EDGE_VISION_ENABLE_GSTREAMER)
     add_test(
+        NAME edge_vision_event_clip_writer_x264_check
+        COMMAND edge_vision_event_clip_writer_check x264
+    )
+    add_test(
         NAME edge_vision_gstreamer_source_check
         COMMAND edge_vision_gstreamer_source_check
     )
+else()
+    add_test(
+        NAME edge_vision_event_clip_writer_no_x264_check
+        COMMAND edge_vision_event_clip_writer_check unsupported-x264
+    )
 endif()
+add_test(NAME edge_vision_event_clip_queue_check COMMAND edge_vision_event_clip_queue_check)
+set_tests_properties(edge_vision_event_clip_queue_check PROPERTIES TIMEOUT 20)

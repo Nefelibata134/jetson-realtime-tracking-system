@@ -131,6 +131,21 @@ std::optional<NormalizedPoint> track_anchor(
     };
 }
 
+float boundary_distance(const NormalizedPoint& point, const PolygonRegion& region) {
+    float distance = std::numeric_limits<float>::infinity();
+    for (std::size_t i = 0; i < region.vertices.size(); ++i) {
+        const auto& a = region.vertices[i];
+        const auto& b = region.vertices[(i + 1) % region.vertices.size()];
+        const float dx = b.x - a.x, dy = b.y - a.y;
+        const float length_squared = dx * dx + dy * dy;
+        const float t = length_squared > 0.0F
+            ? std::clamp(((point.x-a.x)*dx + (point.y-a.y)*dy) / length_squared, 0.0F, 1.0F)
+            : 0.0F;
+        distance = std::min(distance, std::hypot(point.x-a.x-t*dx, point.y-a.y-t*dy));
+    }
+    return distance;
+}
+
 bool accepts_class(int configured_class, int track_class) {
     return configured_class < 0 || configured_class == track_class;
 }
@@ -156,7 +171,8 @@ OccupancyTransition update_occupancy(
     OccupancyState& state,
     bool inside,
     std::uint32_t confirmation_frames,
-    std::int64_t pts_ns) {
+    std::int64_t pts_ns,
+    std::int64_t exit_confirmation_ns = 0) {
     if (!state.has_candidate || state.candidate_inside != inside) {
         state.has_candidate = true;
         state.candidate_inside = inside;
@@ -168,6 +184,10 @@ OccupancyTransition update_occupancy(
     }
 
     if (state.candidate_count < confirmation_frames) {
+        return OccupancyTransition::None;
+    }
+    if (!inside && state.initialized && state.stable_inside &&
+        pts_ns - state.candidate_since_ns < exit_confirmation_ns) {
         return OccupancyTransition::None;
     }
 
@@ -274,6 +294,9 @@ struct LineState {
     std::uint32_t candidate_count{0};
     NormalizedPoint stable_point{};
     std::uint64_t last_seen_sequence{0};
+    std::int64_t last_seen_pts_ns{0};
+    std::int64_t candidate_since_ns{0};
+    bool candidate_crosses_segment{false};
 };
 
 struct LineRuleRuntime {
@@ -305,9 +328,11 @@ public:
             validate_rule_id(rule.rule_id, rule_ids);
             validate_region(rule.region, rule.rule_id);
             if (rule.confirmation_frames == 0 ||
-                rule.stale_after_frames == 0) {
+                rule.stale_after_frames == 0 || !std::isfinite(rule.exit_margin) ||
+                rule.exit_margin < 0.0F || rule.exit_margin > 0.25F ||
+                rule.exit_confirmation_ns < 0 || rule.exit_confirmation_ns > 60'000'000'000LL) {
                 throw std::invalid_argument(
-                    "ROI rule confirmation and stale limits must be positive");
+                    "invalid ROI confirmation, stale, exit margin or exit duration");
             }
             roi_rules.push_back(RoiRuleRuntime{std::move(rule), {}});
         }
@@ -326,6 +351,7 @@ public:
                 !std::isfinite(rule.side_epsilon) ||
                 rule.side_epsilon < 0.0F ||
                 rule.confirmation_frames == 0 ||
+                rule.confirmation_ns < 0 || rule.confirmation_ns > 60'000'000'000LL ||
                 rule.stale_after_frames == 0) {
                 throw std::invalid_argument(
                     "line rule " + rule.rule_id + " has invalid geometry");
@@ -417,11 +443,29 @@ private:
                     continue;
                 }
                 auto& state = rule.states[track->track_id];
+                const bool guarded = rule.config.exit_margin > 0.0F ||
+                                     rule.config.exit_confirmation_ns > 0;
+                if (guarded && frame.sequence > state.last_seen_sequence &&
+                    frame.sequence - state.last_seen_sequence > 1) {
+                    // Missing observations cannot prove continuous time outside.
+                    if (frame.sequence - state.last_seen_sequence > rule.config.stale_after_frames) {
+                        state = OccupancyState{};
+                    } else {
+                        state.has_candidate = false;
+                    }
+                }
+                bool inside = point_in_polygon(*anchor, rule.config.region);
+                if (state.initialized && state.stable_inside && !inside &&
+                    rule.config.exit_margin > 0.0F &&
+                    boundary_distance(*anchor, rule.config.region) < rule.config.exit_margin) {
+                    inside = true;
+                }
                 const auto transition = update_occupancy(
                     state,
-                    point_in_polygon(*anchor, rule.config.region),
+                    inside,
                     rule.config.confirmation_frames,
-                    frame.pts_ns);
+                    frame.pts_ns,
+                    rule.config.exit_confirmation_ns);
                 state.last_seen_sequence = frame.sequence;
                 state.last_seen_pts_ns = frame.pts_ns;
                 if (transition == OccupancyTransition::Entered) {
@@ -435,6 +479,60 @@ private:
             }
             prune_stale(
                 rule.states, frame.sequence, rule.config.stale_after_frames);
+        }
+    }
+
+    void update_confirmed_line(
+        const LineCrossingRuleConfig& config,
+        LineState& state,
+        const EventFrameContext& frame,
+        const Track& track,
+        const NormalizedPoint& anchor,
+        std::vector<SafetyEvent>& events) {
+        // An unobserved path cannot establish a crossing or confirmation time.
+        if ((state.has_stable_side || state.has_candidate) &&
+            (frame.sequence <= state.last_seen_sequence ||
+             frame.sequence - state.last_seen_sequence != 1 ||
+             frame.pts_ns <= state.last_seen_pts_ns)) {
+            state = LineState{};
+        }
+        state.last_seen_sequence = frame.sequence;
+        state.last_seen_pts_ns = frame.pts_ns;
+        const float distance = signed_line_distance(config.line_start, config.line_end, anchor);
+        const int side = distance > config.side_epsilon ? 1 :
+                         (distance < -config.side_epsilon ? -1 : 0);
+        if (side == 0 || (state.has_stable_side && state.stable_side == side)) {
+            state.has_candidate = false;
+            state.candidate_count = 0;
+            if (side != 0) state.stable_point = anchor;
+            return;
+        }
+        if (!state.has_candidate || state.candidate_side != side) {
+            state.has_candidate = true;
+            state.candidate_side = side;
+            state.candidate_count = 1;
+            state.candidate_since_ns = frame.pts_ns;
+            // Freeze the original crossing geometry, not a later confirmation point.
+            state.candidate_crosses_segment = state.has_stable_side && segments_intersect(
+                state.stable_point, anchor, config.line_start, config.line_end);
+        } else if (state.candidate_count < std::numeric_limits<std::uint32_t>::max()) {
+            ++state.candidate_count;
+        }
+        if (state.candidate_count < config.confirmation_frames ||
+            frame.pts_ns - state.candidate_since_ns < config.confirmation_ns) {
+            return;
+        }
+        const bool crossing = state.has_stable_side && state.candidate_crosses_segment;
+        const CrossingDirection direction = state.stable_side < side ?
+            CrossingDirection::NegativeToPositive : CrossingDirection::PositiveToNegative;
+        state.has_stable_side = true;
+        state.stable_side = side;
+        state.stable_point = anchor;
+        state.has_candidate = false;
+        state.candidate_count = 0;
+        if (crossing && direction_allowed(config.direction, direction)) {
+            events.push_back(make_event(SafetyEventType::LineCrossing, config.rule_id,
+                                        track, frame, anchor, direction));
         }
     }
 
@@ -453,6 +551,10 @@ private:
                 }
 
                 auto& state = rule.states[track->track_id];
+                if (rule.config.confirmation_ns > 0) {
+                    update_confirmed_line(rule.config, state, frame, *track, *anchor, events);
+                    continue;
+                }
                 state.last_seen_sequence = frame.sequence;
                 const float distance = signed_line_distance(
                     rule.config.line_start, rule.config.line_end, *anchor);

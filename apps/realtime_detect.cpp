@@ -70,10 +70,20 @@ struct Options {
     float match_threshold{0.8F};
     int track_buffer{30};
     std::optional<std::array<float, 4>> event_roi;
+    float event_roi_exit_margin{0.0F};
+    float event_roi_exit_seconds{0.0F};
+    double event_line_confirm_seconds{0.0};
     std::optional<std::array<float, 4>> event_line;
     std::optional<float> event_dwell_seconds;
     float event_clip_pre_seconds{2.0F};
     float event_clip_post_seconds{3.0F};
+    edge_vision::AnnotatedVideoEncoder event_clip_encoder{
+        edge_vision::AnnotatedVideoEncoder::OpenCvMp4v};
+    std::size_t event_clip_capacity{2};
+    std::uint32_t event_clip_bitrate_kbps{10000};
+    bool event_clip_share_overlap{false};
+    float event_clip_max_shared_seconds{10.0F};
+    std::size_t event_clip_max_shared_events{32};
     int event_class_id{0};
     edge_vision::CrossingDirection event_line_direction{
         edge_vision::CrossingDirection::None};
@@ -151,6 +161,12 @@ void print_usage(const char* program) {
         << "  --event-clip-dir DIRECTORY\n"
         << "  --event-clip-pre-seconds VALUE\n"
         << "  --event-clip-post-seconds VALUE\n"
+        << "  --event-clip-encoder mp4v|x264 (default: mp4v)\n"
+        << "  --event-clip-capacity N (1..8, default: 2; collecting + encoding)\n"
+        << "  --event-clip-bitrate-kbps N (default: 10000, x264 only)\n"
+        << "  --event-roi-exit-margin 0..0.25 --event-roi-exit-seconds 0..60\n"
+        << "  --event-line-confirm-seconds 0..60 (default: 0; opt-in observed-side confirmation)\n"
+        << "  --event-clip-share-overlap [--event-clip-max-shared-seconds 10] [--event-clip-max-shared-events 32]\n"
         << "  --output-video PATH\n"
         << "  --output-encoder mp4v|x264\n"
         << "  --output-bitrate-kbps N\n"
@@ -232,6 +248,16 @@ float parse_nonnegative_float(const char* text, const std::string& option) {
     std::size_t parsed = 0;
     const float number = std::stof(value, &parsed);
     if (parsed != value.size() || !std::isfinite(number) || number < 0.0F) {
+        throw std::invalid_argument(option + " must be non-negative");
+    }
+    return number;
+}
+
+double parse_nonnegative_double(const char* text, const std::string& option) {
+    const std::string value{text};
+    std::size_t parsed = 0;
+    const double number = std::stod(value, &parsed);
+    if (parsed != value.size() || !std::isfinite(number) || number < 0.0) {
         throw std::invalid_argument(option + " must be non-negative");
     }
     return number;
@@ -341,6 +367,12 @@ Options parse_options(const int argc, char** argv) {
                 parse_normalized_coordinate(require_value(argument), argument),
                 parse_normalized_coordinate(require_value(argument), argument),
             };
+        } else if (argument == "--event-roi-exit-margin") {
+            options.event_roi_exit_margin = parse_nonnegative_float(require_value(argument), argument);
+        } else if (argument == "--event-roi-exit-seconds") {
+            options.event_roi_exit_seconds = parse_nonnegative_float(require_value(argument), argument);
+        } else if (argument == "--event-line-confirm-seconds") {
+            options.event_line_confirm_seconds = parse_nonnegative_double(require_value(argument), argument);
         } else if (argument == "--event-line") {
             options.event_line = std::array<float, 4>{
                 parse_normalized_coordinate(require_value(argument), argument),
@@ -371,6 +403,21 @@ Options parse_options(const int argc, char** argv) {
                 parse_nonnegative_float(require_value(argument), argument);
         } else if (argument == "--output-video") {
             options.output_video_path = require_value(argument);
+        } else if (argument == "--event-clip-encoder") {
+            options.event_clip_encoder =
+                parse_output_video_encoder(require_value(argument), argument);
+        } else if (argument == "--event-clip-capacity") {
+            options.event_clip_capacity =
+                parse_number<std::size_t>(require_value(argument), argument);
+        } else if (argument == "--event-clip-bitrate-kbps") {
+            options.event_clip_bitrate_kbps =
+                parse_number<std::uint32_t>(require_value(argument), argument);
+        } else if (argument == "--event-clip-share-overlap") {
+            options.event_clip_share_overlap = true;
+        } else if (argument == "--event-clip-max-shared-seconds") {
+            options.event_clip_max_shared_seconds = parse_positive_float(require_value(argument), argument);
+        } else if (argument == "--event-clip-max-shared-events") {
+            options.event_clip_max_shared_events = parse_number<std::size_t>(require_value(argument), argument);
         } else if (argument == "--output-encoder") {
             options.output_video_encoder =
                 parse_output_video_encoder(require_value(argument), argument);
@@ -461,6 +508,28 @@ Options parse_options(const int argc, char** argv) {
         throw std::invalid_argument(
             "engine, source, frame limit, queue capacity, and log interval "
             "must be specified");
+    }
+    if (options.event_clip_capacity == 0 || options.event_clip_capacity > 8 ||
+        options.event_clip_bitrate_kbps == 0) {
+        throw std::invalid_argument("event clip capacity must be 1..8 and bitrate must be positive");
+    }
+    if (options.event_line_confirm_seconds > 60.0 ||
+        (options.event_line_confirm_seconds > 0.0 && options.event_line_confirm_seconds < 1e-9) ||
+        (options.provided_options.count("--event-line-confirm-seconds") && !options.event_line)) {
+        throw std::invalid_argument("line confirmation requires a line and duration of 0 or 1ns..60 seconds");
+    }
+    if (options.event_roi_exit_margin > 0.25F || options.event_roi_exit_seconds > 60.0F ||
+        ((options.event_roi_exit_margin > 0.0F || options.event_roi_exit_seconds > 0.0F) && !options.event_roi)) {
+        throw std::invalid_argument("ROI exit guard requires ROI, margin <= 0.25 and seconds <= 60");
+    }
+    if (options.event_clip_max_shared_seconds > 60.0F || options.event_clip_max_shared_events == 0 ||
+        options.event_clip_max_shared_events > 256 ||
+        (options.event_clip_share_overlap && (options.event_clip_directory.empty() ||
+         options.event_clip_max_shared_seconds < options.event_clip_pre_seconds + options.event_clip_post_seconds)) ||
+        (!options.event_clip_share_overlap &&
+         (options.provided_options.count("--event-clip-max-shared-seconds") ||
+          options.provided_options.count("--event-clip-max-shared-events")))) {
+        throw std::invalid_argument("shared clips require directory, explicit sharing, bounded duration and 1..256 events");
     }
     if (options.continuous && options.frame_limit_explicit) {
         throw std::invalid_argument(
@@ -562,6 +631,8 @@ edge_vision::SafetyEventEngineConfig make_event_config(
             options.event_class_id,
             2,
             300,
+            options.event_roi_exit_margin,
+            static_cast<std::int64_t>(std::llround(options.event_roi_exit_seconds * 1'000'000'000.0)),
         });
     }
     if (options.event_line.has_value()) {
@@ -575,6 +646,7 @@ edge_vision::SafetyEventEngineConfig make_event_config(
             0.01F,
             1,
             300,
+            static_cast<std::int64_t>(std::llround(options.event_line_confirm_seconds * 1'000'000'000.0)),
         });
     }
     if (options.event_dwell_seconds.has_value()) {
@@ -782,6 +854,13 @@ int main(int argc, char** argv) {
             config.frames_per_second = options.camera.frames_per_second;
             config.pre_event_seconds = options.event_clip_pre_seconds;
             config.post_event_seconds = options.event_clip_post_seconds;
+            config.encoder = options.event_clip_encoder;
+            config.bitrate_kbps = options.event_clip_bitrate_kbps;
+            config.max_active_clips = options.event_clip_capacity;
+            config.encoding_queue_capacity = options.event_clip_capacity;
+            config.share_overlapping = options.event_clip_share_overlap;
+            config.max_shared_seconds = options.event_clip_max_shared_seconds;
+            config.max_events_per_clip = options.event_clip_max_shared_events;
             config.annotation = annotation_config;
             clip_writer = std::make_unique<edge_vision::EventClipWriter>(
                 std::move(config));
@@ -1304,6 +1383,18 @@ int main(int argc, char** argv) {
                 clip_stats.clips_completed;
             report.outputs.event_clips_reused = clip_stats.clips_reused;
             report.outputs.event_clips_skipped = clip_stats.clips_skipped;
+            report.outputs.event_clip_events_skipped_capacity = clip_stats.events_skipped_capacity;
+            report.outputs.event_clip_events_skipped_queue = clip_stats.events_skipped_queue;
+            report.outputs.event_clip_events_skipped_worker_queue = clip_stats.events_skipped_worker_queue;
+            report.outputs.event_clip_pending_jobs_high_watermark = clip_stats.pending_jobs_high_watermark;
+            report.outputs.event_clip_queue_wait_samples = clip_stats.encoding_queue_wait_samples;
+            report.outputs.event_clip_queue_wait_total_ms = clip_stats.encoding_queue_wait_total_ms;
+            report.outputs.event_clip_queue_wait_max_ms = clip_stats.encoding_queue_wait_max_ms;
+            report.outputs.event_clip_events_completed = clip_stats.events_completed;
+            report.outputs.event_clip_events_shared = clip_stats.events_shared;
+            report.outputs.event_clip_share_overlap = options.event_clip_share_overlap;
+            report.outputs.event_clip_max_shared_seconds = options.event_clip_max_shared_seconds;
+            report.outputs.event_clip_max_shared_events = options.event_clip_max_shared_events;
             report.outputs.event_clip_frames_encoded =
                 clip_stats.encoded_frames;
             report.outputs.event_clip_queue_high_watermark =
@@ -1313,6 +1404,13 @@ int main(int argc, char** argv) {
             report.outputs.event_clip_encoding_max_ms =
                 clip_stats.encoding_max_ms;
             report.outputs.event_clip_flush_ms = event_clip_flush_ms;
+            report.outputs.event_clip_encoder = clip_writer
+                ? std::string(edge_vision::annotated_video_encoder_name(options.event_clip_encoder))
+                : "disabled";
+            report.outputs.event_clip_capacity = clip_writer ? options.event_clip_capacity : 0;
+            report.outputs.event_clip_bitrate_kbps = clip_writer &&
+                    options.event_clip_encoder == edge_vision::AnnotatedVideoEncoder::GStreamerX264
+                ? options.event_clip_bitrate_kbps : 0;
             report.outputs.annotated_video_enabled =
                 static_cast<bool>(video_writer);
             report.outputs.annotated_video_encoder = video_writer
@@ -1391,6 +1489,9 @@ int main(int argc, char** argv) {
         std::cout << "event_frames=" << event_frames << '\n';
         std::cout << "total_events=" << total_events << '\n';
         std::cout << "roi_intrusion_events=" << roi_intrusion_events << '\n';
+        std::cout << "roi_exit_margin=" << options.event_roi_exit_margin << '\n';
+        std::cout << "roi_exit_seconds=" << options.event_roi_exit_seconds << '\n';
+        std::cout << "line_confirm_seconds=" << options.event_line_confirm_seconds << '\n';
         std::cout << "line_crossing_events=" << line_crossing_events << '\n';
         std::cout << "dwell_events=" << dwell_events << '\n';
         if (event_journal) {
@@ -1414,6 +1515,22 @@ int main(int argc, char** argv) {
             if (clip_writer) {
                 std::cout << "event_clips_started="
                           << clip_stats.clips_started << '\n';
+                std::cout << "event_clip_events_completed=" << clip_stats.events_completed << '\n';
+                std::cout << "event_clip_events_shared=" << clip_stats.events_shared << '\n';
+                std::cout << "event_clip_events_skipped_capacity=" << clip_stats.events_skipped_capacity << '\n';
+                std::cout << "event_clip_events_skipped_queue=" << clip_stats.events_skipped_queue << '\n';
+                std::cout << "event_clip_events_skipped_worker_queue=" << clip_stats.events_skipped_worker_queue << '\n';
+                std::cout << "event_clip_pending_jobs_high_watermark=" << clip_stats.pending_jobs_high_watermark << '\n';
+                std::cout << "event_clip_queue_wait_samples=" << clip_stats.encoding_queue_wait_samples << '\n';
+                std::cout << "event_clip_queue_wait_total_ms=" << clip_stats.encoding_queue_wait_total_ms << '\n';
+                std::cout << "event_clip_queue_wait_max_ms=" << clip_stats.encoding_queue_wait_max_ms << '\n';
+                std::cout << "event_clip_share_overlap=" << options.event_clip_share_overlap << '\n';
+                std::cout << "event_clip_encoder="
+                          << edge_vision::annotated_video_encoder_name(options.event_clip_encoder) << '\n';
+                std::cout << "event_clip_capacity=" << options.event_clip_capacity << '\n';
+                std::cout << "event_clip_bitrate_kbps="
+                          << (options.event_clip_encoder == edge_vision::AnnotatedVideoEncoder::GStreamerX264
+                                  ? options.event_clip_bitrate_kbps : 0) << '\n';
                 std::cout << "event_clips_completed="
                           << clip_stats.clips_completed << '\n';
                 std::cout << "event_clips_reused="

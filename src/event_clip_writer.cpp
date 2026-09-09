@@ -1,4 +1,5 @@
 #include "edge_vision/event_clip_writer.hpp"
+#include "video_encoder_sink.hpp"
 
 #include <opencv2/videoio.hpp>
 
@@ -10,6 +11,7 @@
 #include <exception>
 #include <filesystem>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -24,7 +26,7 @@ namespace {
 
 using SharedFrame = std::shared_ptr<const Frame>;
 
-void write_frame(cv::VideoWriter& writer, const Frame& frame) {
+void write_frame(detail::VideoEncoderSink& writer, const Frame& frame) {
     const cv::Mat image(
         frame.height,
         frame.width,
@@ -48,6 +50,7 @@ public:
           pre_event_frames_(frame_count(config_.pre_event_seconds)),
           post_event_frames_(frame_count(config_.post_event_seconds)) {
         validate_config();
+        max_shared_frames_ = frame_count(config_.max_shared_seconds) + 1;
         std::filesystem::create_directories(config_.output_directory);
         worker_ = std::thread(&Impl::run, this);
     }
@@ -65,7 +68,18 @@ public:
         }
         rethrow_worker_error();
 
-        std::vector<EventRecord> completed = take_completed();
+        std::vector<EventRecord> completed;
+        if (config_.share_overlapping && last_sequence_.has_value() &&
+            (frame.sequence != *last_sequence_ + 1 || frame.pts_ns <= last_pts_ns_ ||
+             frame.stream_generation != last_generation_ || frame.width != last_width_ || frame.height != last_height_)) {
+            completed = reset();
+        }
+        last_sequence_ = frame.sequence;
+        last_pts_ns_ = frame.pts_ns;
+        last_generation_ = frame.stream_generation;
+        last_width_ = frame.width;
+        last_height_ = frame.height;
+        append_completed(completed, take_completed());
         std::vector<SafetyEvent> events;
         events.reserve(records.size());
         for (const EventRecord& record : records) {
@@ -93,6 +107,7 @@ public:
         std::vector<EventRecord> completed = take_completed();
         submit_all_active(completed);
         prebuffer_.clear();
+        last_sequence_.reset();
         update_buffer_stats();
         append_completed(completed, take_completed());
         rethrow_worker_error();
@@ -124,7 +139,7 @@ public:
 
 private:
     struct ActiveClip {
-        EventRecord record;
+        std::vector<EventRecord> records;
         std::filesystem::path temporary_path;
         std::filesystem::path final_path;
         std::vector<SharedFrame> frames;
@@ -132,13 +147,26 @@ private:
     };
 
     struct EncodeJob {
-        EventRecord record;
+        std::vector<EventRecord> records;
         std::filesystem::path temporary_path;
         std::filesystem::path final_path;
         std::vector<SharedFrame> frames;
+        std::chrono::steady_clock::time_point queued_at{};
     };
 
     void validate_config() const {
+        if (config_.encoder != AnnotatedVideoEncoder::OpenCvMp4v &&
+            config_.encoder != AnnotatedVideoEncoder::GStreamerX264) {
+            throw std::invalid_argument("unsupported event clip encoder");
+        }
+        if (config_.encoder == AnnotatedVideoEncoder::GStreamerX264) {
+            if (config_.bitrate_kbps == 0) {
+                throw std::invalid_argument("event clip x264 bitrate must be positive");
+            }
+#if !defined(EDGE_VISION_HAS_GSTREAMER_X264)
+            throw std::invalid_argument("event clip x264 requires EDGE_VISION_ENABLE_GSTREAMER=ON");
+#endif
+        }
         if (config_.output_directory.empty()) {
             throw std::invalid_argument(
                 "event clip directory must not be empty");
@@ -162,6 +190,13 @@ private:
             throw std::invalid_argument(
                 "event clip encoding queue capacity must be positive");
         }
+        if (!std::isfinite(config_.max_shared_seconds) || config_.max_shared_seconds <= 0.0 ||
+            config_.max_shared_seconds > 60.0 || config_.max_events_per_clip == 0 ||
+            config_.max_events_per_clip > 256 ||
+            (config_.share_overlapping &&
+             frame_count(config_.max_shared_seconds) < pre_event_frames_ + post_event_frames_)) {
+            throw std::invalid_argument("invalid shared clip duration or event bound");
+        }
     }
 
     [[nodiscard]] std::size_t frame_count(const double seconds) const {
@@ -170,8 +205,11 @@ private:
             config_.frames_per_second <= 0.0) {
             return 0;
         }
-        return static_cast<std::size_t>(
-            std::llround(seconds * config_.frames_per_second));
+        const double count = seconds * config_.frames_per_second;
+        if (!std::isfinite(count) || count > 10'000'000.0) {
+            throw std::invalid_argument("event clip frame bound too large");
+        }
+        return static_cast<std::size_t>(std::llround(count));
     }
 
     void advance_active(
@@ -208,9 +246,29 @@ private:
             increment_reused();
             return;
         }
+        if (config_.share_overlapping) {
+            for (auto& clip : active_) {
+                const auto& first = clip.records.front();
+                if (clip.records.size() < config_.max_events_per_clip &&
+                    clip.frames.size() + post_event_frames_ <= max_shared_frames_ &&
+                    first.session_id == record.session_id && first.source_id == record.source_id &&
+                    first.stream_generation == record.stream_generation &&
+                    record.event.frame_sequence == current->sequence &&
+                    record.event.pts_ns == current->pts_ns &&
+                    clip.frames.front()->sequence <= current->sequence &&
+                    (prebuffer_.empty() || clip.frames.front()->sequence <= prebuffer_.front()->sequence)) {
+                    active_ids_.insert(record.event_id);
+                    clip.records.push_back(std::move(record));
+                    clip.post_frames_remaining = post_event_frames_;
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    ++stats_.events_shared;
+                    return;
+                }
+            }
+        }
         if (active_.size() + encoding_count() >=
             config_.max_active_clips) {
-            increment_skipped();
+            increment_capacity_skipped();
             completed.push_back(std::move(record));
             return;
         }
@@ -227,19 +285,25 @@ private:
         }
 
         ActiveClip clip;
-        clip.record = std::move(record);
+        clip.records.push_back(std::move(record));
         clip.final_path = final_path;
         clip.temporary_path =
             std::filesystem::path(config_.output_directory) /
-            (clip.record.event_id + ".tmp.mp4");
+            (clip.records.front().event_id + ".tmp.mp4");
         clip.post_frames_remaining = post_event_frames_;
         clip.frames.reserve(
             prebuffer_.size() + 1 + post_event_frames_);
         clip.frames.insert(
             clip.frames.end(), prebuffer_.begin(), prebuffer_.end());
         clip.frames.push_back(current);
-        active_ids_.insert(clip.record.event_id);
+        active_ids_.insert(clip.records.front().event_id);
         increment_started();
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            // Include the newly collected job even when its post window is zero.
+            stats_.pending_jobs_high_watermark = std::max(
+                stats_.pending_jobs_high_watermark, active_.size() + encoding_jobs_ + 1);
+        }
 
         if (clip.post_frames_remaining == 0) {
             submit(std::move(clip), completed);
@@ -252,9 +316,9 @@ private:
     void submit(
         ActiveClip clip,
         std::vector<EventRecord>& completed) {
-        active_ids_.erase(clip.record.event_id);
+        for (const auto& record : clip.records) active_ids_.erase(record.event_id);
         EncodeJob job{
-            std::move(clip.record),
+            std::move(clip.records),
             std::move(clip.temporary_path),
             std::move(clip.final_path),
             std::move(clip.frames),
@@ -264,11 +328,14 @@ private:
             std::lock_guard<std::mutex> lock(mutex_);
             rethrow_worker_error_locked();
             if (queue_.size() == config_.encoding_queue_capacity) {
-                ++stats_.clips_skipped;
-                completed.push_back(std::move(job.record));
+                stats_.clips_skipped += job.records.size();
+                stats_.events_skipped_queue += job.records.size();
+                append_completed(completed, std::move(job.records));
                 return;
             }
-            encoding_ids_.insert(job.record.event_id);
+            for (const auto& record : job.records) encoding_ids_.insert(record.event_id);
+            ++encoding_jobs_;
+            job.queued_at = std::chrono::steady_clock::now();
             queue_.push_back(std::move(job));
             stats_.encoding_queue_high_watermark = std::max(
                 stats_.encoding_queue_high_watermark, queue_.size());
@@ -326,12 +393,17 @@ private:
                     }
                     job = std::move(queue_.front());
                     queue_.pop_front();
+                    const double wait_ms = std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - job.queued_at).count();
+                    ++stats_.encoding_queue_wait_samples;
+                    stats_.encoding_queue_wait_total_ms += wait_ms;
+                    stats_.encoding_queue_wait_max_ms = std::max(stats_.encoding_queue_wait_max_ms, wait_ms);
                 }
 
                 const std::uint64_t encoded_frames = job.frames.size();
                 const auto encoding_started_at =
                     std::chrono::steady_clock::now();
-                EventRecord record = encode(std::move(job));
+                auto records = encode(std::move(job));
                 const double encoding_ms =
                     std::chrono::duration<double, std::milli>(
                         std::chrono::steady_clock::now() -
@@ -339,10 +411,13 @@ private:
                         .count();
                 {
                     std::lock_guard<std::mutex> lock(mutex_);
-                    encoding_ids_.erase(record.event_id);
-                    completed_paths_[record.event_id] =
-                        *record.evidence.clip_path;
-                    completed_.push_back(std::move(record));
+                    --encoding_jobs_;
+                    stats_.events_completed += records.size();
+                    for (auto& record : records) {
+                        encoding_ids_.erase(record.event_id);
+                        completed_paths_[record.event_id] = *record.evidence.clip_path;
+                        completed_.push_back(std::move(record));
+                    }
                     ++stats_.clips_completed;
                     stats_.encoded_frames += encoded_frames;
                     stats_.encoding_total_ms += encoding_ms;
@@ -353,16 +428,17 @@ private:
         } catch (...) {
             std::lock_guard<std::mutex> lock(mutex_);
             worker_error_ = std::current_exception();
-            stats_.clips_skipped += queue_.size();
             for (const EncodeJob& job : queue_) {
-                encoding_ids_.erase(job.record.event_id);
+                stats_.clips_skipped += job.records.size();
+                stats_.events_skipped_worker_queue += job.records.size();
+                for (const auto& record : job.records) encoding_ids_.erase(record.event_id);
             }
             queue_.clear();
             stop_requested_ = true;
         }
     }
 
-    [[nodiscard]] EventRecord encode(EncodeJob job) const {
+    [[nodiscard]] std::vector<EventRecord> encode(EncodeJob job) const {
         std::filesystem::remove(job.temporary_path);
         if (job.frames.empty()) {
             throw std::runtime_error(
@@ -370,16 +446,19 @@ private:
         }
 
         const Frame& first = *job.frames.front();
-        cv::VideoWriter writer;
-        const int codec = cv::VideoWriter::fourcc('m', 'p', '4', 'v');
-        if (!writer.open(
-                job.temporary_path.string(),
-                codec,
-                config_.frames_per_second,
-                {first.width, first.height},
-                true)) {
-            throw std::runtime_error(
-                "failed to open event clip: " + job.final_path.string());
+        std::unique_ptr<detail::VideoEncoderSink> writer;
+        if (config_.encoder == AnnotatedVideoEncoder::OpenCvMp4v) {
+            writer = detail::make_opencv_mp4v_sink(
+                job.temporary_path.string(), config_.frames_per_second,
+                {first.width, first.height});
+        } else {
+#if defined(EDGE_VISION_HAS_GSTREAMER_X264)
+            writer = detail::make_gstreamer_x264_sink(
+                job.temporary_path.string(), config_.frames_per_second,
+                {first.width, first.height}, config_.bitrate_kbps);
+#else
+            throw std::runtime_error("event clip x264 backend unavailable");
+#endif
         }
         for (const SharedFrame& frame : job.frames) {
             if (frame->width != first.width ||
@@ -387,9 +466,10 @@ private:
                 throw std::invalid_argument(
                     "event clip frame dimensions changed");
             }
-            write_frame(writer, *frame);
+            write_frame(*writer, *frame);
         }
-        writer.release();
+        writer->finish();
+        writer.reset();
 
         if (!valid_file(job.temporary_path)) {
             throw std::runtime_error(
@@ -404,8 +484,8 @@ private:
                 job.final_path.string());
         }
 
-        job.record.evidence.clip_path = job.final_path.generic_string();
-        return std::move(job.record);
+        for (auto& record : job.records) record.evidence.clip_path = job.final_path.generic_string();
+        return std::move(job.records);
     }
 
     [[nodiscard]] std::optional<std::string> completed_path(
@@ -425,7 +505,7 @@ private:
 
     [[nodiscard]] std::size_t encoding_count() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return encoding_ids_.size();
+        return encoding_jobs_;
     }
 
     void remember_completed(
@@ -445,9 +525,10 @@ private:
         ++stats_.clips_reused;
     }
 
-    void increment_skipped() {
+    void increment_capacity_skipped() {
         std::lock_guard<std::mutex> lock(mutex_);
         ++stats_.clips_skipped;
+        ++stats_.events_skipped_capacity;
     }
 
     [[nodiscard]] std::vector<EventRecord> take_completed() {
@@ -506,6 +587,12 @@ private:
     EventClipWriterConfig config_;
     std::size_t pre_event_frames_{0};
     std::size_t post_event_frames_{0};
+    std::size_t max_shared_frames_{0};
+    std::optional<std::uint64_t> last_sequence_;
+    std::int64_t last_pts_ns_{0};
+    std::uint64_t last_generation_{0};
+    int last_width_{0};
+    int last_height_{0};
     std::deque<SharedFrame> prebuffer_;
     std::vector<ActiveClip> active_;
     std::unordered_set<std::string> active_ids_;
@@ -514,6 +601,7 @@ private:
     std::deque<EncodeJob> queue_;
     std::deque<EventRecord> completed_;
     std::unordered_set<std::string> encoding_ids_;
+    std::size_t encoding_jobs_{0};
     std::unordered_map<std::string, std::string> completed_paths_;
     std::thread worker_;
     std::exception_ptr worker_error_;

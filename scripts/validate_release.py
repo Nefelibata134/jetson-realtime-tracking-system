@@ -14,6 +14,7 @@ REQUIRED_FILES = {
     "CHANGELOG.md",
     "LICENSE",
     "README.md",
+    "docs/runtime_guide.md",
     "THIRD_PARTY_NOTICES.md",
     "docs/licensing.md",
     "docs/models/yolo26n.md",
@@ -43,12 +44,12 @@ REQUIRED_FILES = {
     "scripts/diagnose_mot17_height.py",
 }
 REQUIRED_README_HEADINGS = {
-    "Jetson 实机实测",
-    "运行证据",
+    "当前部署",
+    "实测与模型选择",
     "运行时架构",
     "Jetson 快速开始",
-    "组件",
-    "目标平台",
+    "已知限制与验收缺口",
+    "文档与验证入口",
     "模型资产",
     "许可证",
 }

@@ -55,6 +55,9 @@ struct RoiIntrusionRuleConfig {
     int class_id{0};
     std::uint32_t confirmation_frames{2};
     std::uint64_t stale_after_frames{300};
+    // Opt-in rearming guard; zero values preserve legacy occupancy transitions.
+    float exit_margin{0.0F};
+    std::int64_t exit_confirmation_ns{0};
 };
 
 struct LineCrossingRuleConfig {
@@ -66,6 +69,8 @@ struct LineCrossingRuleConfig {
     float side_epsilon{0.01F};
     std::uint32_t confirmation_frames{1};
     std::uint64_t stale_after_frames{300};
+    // Opt-in continuous observed-side duration; zero preserves legacy behavior.
+    std::int64_t confirmation_ns{0};
 };
 
 struct DwellRuleConfig {

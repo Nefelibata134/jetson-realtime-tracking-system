@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import unittest
+import re
 from pathlib import Path
 
 
@@ -14,6 +15,19 @@ SPEC.loader.exec_module(VALIDATE_RELEASE)
 
 
 class ReleaseValidationTest(unittest.TestCase):
+    def test_current_readme_sections_and_runtime_guide(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        headings = set(re.findall(r"^##\s+(.+?)\s*$", readme, re.MULTILINE))
+        self.assertFalse(VALIDATE_RELEASE.REQUIRED_README_HEADINGS - headings)
+        self.assertIn("docs/runtime_guide.md", VALIDATE_RELEASE.REQUIRED_FILES)
+        self.assertIn("(docs/runtime_guide.md)", readme)
+        self.assertTrue((ROOT / "docs/runtime_guide.md").is_file())
+
+    def test_split_document_links_resolve(self) -> None:
+        for name in ("README.md", "docs/runtime_guide.md"):
+            with self.subTest(name=name):
+                self.assertEqual(VALIDATE_RELEASE.local_markdown_links(ROOT / name), [])
+
     def test_local_markdown_link_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
